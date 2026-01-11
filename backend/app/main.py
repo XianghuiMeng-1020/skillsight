@@ -264,6 +264,7 @@ def search_evidence(payload: dict):
             "it","this","that","from","at","we","you","they","he","she","i","me","my","our","your","their"
         }
         toks = [t for t in toks if t not in stop]
+        toks = [t for t in toks if len(t) >= 2]
         return toks
 
     q_tokens = tokenize(query)
@@ -340,3 +341,69 @@ def search_evidence(payload: dict):
 
     scored.sort(key=lambda x: x["score"], reverse=True)
     return {"items": scored[:k], "query_tokens": q_tokens, "scoring": "BM25", "N": N, "avgdl": avgdl}
+
+
+# -------------------------
+# Skill Registry (v0)
+# -------------------------
+import json
+from functools import lru_cache
+
+SKILLS_PATH = Path(__file__).resolve().parent.parent / "data" / "skills.json"
+
+@lru_cache(maxsize=1)
+def load_skills() -> list:
+    if not SKILLS_PATH.exists():
+        return []
+    return json.loads(SKILLS_PATH.read_text(encoding="utf-8"))
+
+def get_skill_by_id(skill_id: str) -> dict | None:
+    for sk in load_skills():
+        if sk.get("skill_id") == skill_id:
+            return sk
+    return None
+
+@app.get("/skills")
+def list_skills():
+    return {"items": load_skills()}
+
+@app.get("/skills/{skill_id}")
+def get_skill(skill_id: str):
+    sk = get_skill_by_id(skill_id)
+    if not sk:
+        raise HTTPException(status_code=404, detail="Skill not found")
+    return sk
+
+@app.post("/search/skill_evidence")
+def search_skill_evidence(payload: dict):
+    """
+    Payload:
+      {"skill_id": "...", "doc_id": optional, "k": optional}
+    Behavior:
+      build query from canonical_name + definition + aliases, then call /search/evidence BM25.
+    """
+    skill_id = (payload.get("skill_id") or "").strip()
+    if not skill_id:
+        raise HTTPException(status_code=400, detail="Missing skill_id")
+
+    sk = get_skill_by_id(skill_id)
+    if not sk:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    doc_id = payload.get("doc_id")
+    k = int(payload.get("k") or 10)
+
+    canonical = sk.get("canonical_name") or ""
+    definition = sk.get("definition") or ""
+    aliases = sk.get("aliases") or []
+    alias_text = " ".join([a for a in aliases if isinstance(a, str)])
+
+    # You can tweak this template later (this is v0)
+    query = f"{canonical}. {definition} Aliases: {alias_text}".strip()
+
+    # Reuse the existing BM25 endpoint function
+    return {
+        **search_evidence({"query": query, "doc_id": doc_id, "k": k}),
+        "skill_id": skill_id,
+        "generated_query": query
+    }
