@@ -7,6 +7,7 @@ type DocItem = {
   doc_id: string;
   filename: string;
   created_at: string;
+  doc_type?: string;
 };
 
 type SkillItem = {
@@ -33,6 +34,7 @@ export default function Home() {
   const [status, setStatus] = useState<string>("checking...");
   const [file, setFile] = useState<File | null>(null);
   const [uploadMsg, setUploadMsg] = useState<string>("");
+  const [docType, setDocType] = useState<string>("demo");
 
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState<boolean>(false);
@@ -94,7 +96,7 @@ export default function Home() {
       { value: "ALL", label: "All documents" },
       ...docs.map((d) => ({
         value: d.doc_id,
-        label: `${d.filename} (${d.doc_id.slice(0, 8)}…)`,
+        label: `${d.filename} [${d.doc_type || "demo"}] (${d.doc_id.slice(0, 8)}…)`,
       })),
     ];
   }, [docs]);
@@ -116,6 +118,7 @@ export default function Home() {
       return;
     }
     const form = new FormData();
+    form.append("doc_type", docType);
     form.append("file", file);
 
     try {
@@ -235,7 +238,7 @@ export default function Home() {
           <select
             value={selectedDocId}
             onChange={(e) => setSelectedDocId(e.target.value)}
-            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 220 }}
+            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 260 }}
           >
             {docOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -304,16 +307,28 @@ export default function Home() {
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 24 }}>
         <h2 style={{ fontSize: 18, marginBottom: 12 }}>Upload a .txt document</h2>
 
-        <input type="file" accept=".txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={docType}
+            onChange={(e) => setDocType(e.target.value)}
+            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 160 }}
+          >
+            <option value="demo">demo</option>
+            <option value="synthetic">synthetic</option>
+            <option value="real">real</option>
+          </select>
 
-        <button onClick={onUpload} style={{ marginLeft: 12, padding: "6px 12px", cursor: "pointer" }}>
-          Upload
-        </button>
+          <input type="file" accept=".txt" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+
+          <button onClick={onUpload} style={{ padding: "6px 12px", cursor: "pointer" }}>
+            Upload
+          </button>
+        </div>
 
         <div style={{ marginTop: 12, color: uploadMsg.includes("failed") ? "crimson" : "#111" }}>{uploadMsg}</div>
 
         <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>
-          Note: documents are auto-chunked by blank-line paragraphs.
+          Tip: use <b>synthetic</b> for demo files you can safely share.
         </div>
       </section>
 
@@ -332,7 +347,7 @@ export default function Home() {
           <ul style={{ marginTop: 12 }}>
             {docs.map((d) => (
               <li key={d.doc_id} style={{ marginBottom: 10 }}>
-                <div><b>{d.filename}</b></div>
+                <div><b>{d.filename}</b> <span style={{ color: "#666" }}>[{d.doc_type || "demo"}]</span></div>
                 <div style={{ color: "#666", fontSize: 13 }}>
                   doc_id:{" "}
                   <Link href={`/documents/${d.doc_id}`} style={{ textDecoration: "underline" }}>

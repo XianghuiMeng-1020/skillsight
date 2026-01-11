@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Tuple
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -39,7 +39,8 @@ def init_db():
         doc_id UUID PRIMARY KEY,
         filename TEXT NOT NULL,
         stored_path TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL
+        created_at TIMESTAMPTZ NOT NULL,
+        doc_type TEXT NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS chunks (
@@ -51,10 +52,15 @@ def init_db():
         chunk_text TEXT NOT NULL,
         snippet TEXT NOT NULL,
         quote_hash TEXT NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL
+        created_at TIMESTAMPTZ NOT NULL,
+        doc_type TEXT NOT NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_chunks_doc_id ON chunks(doc_id);
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_type TEXT;
+    UPDATE documents SET doc_type = 'demo' WHERE doc_type IS NULL;
+    ALTER TABLE documents ALTER COLUMN doc_type SET NOT NULL;
+
     ALTER TABLE chunks ADD COLUMN IF NOT EXISTS chunk_text TEXT;
     UPDATE chunks SET chunk_text = snippet WHERE chunk_text IS NULL;
     ALTER TABLE chunks ALTER COLUMN chunk_text SET NOT NULL;
@@ -139,9 +145,13 @@ def create_chunks_for_document(doc_id: str, raw_text: str):
             )
 
 @app.post("/documents/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(doc_type: str = Form('demo'), file: UploadFile = File(...)):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
+
+    allowed_doc_types = {'demo','synthetic','real'}
+    if doc_type not in allowed_doc_types:
+        raise HTTPException(status_code=400, detail="Invalid doc_type. Use demo/synthetic/real")
 
     if not file.filename.lower().endswith(".txt"):
         raise HTTPException(status_code=400, detail="Week2 only supports .txt files")
@@ -158,14 +168,15 @@ async def upload_document(file: UploadFile = File(...)):
         with engine.begin() as conn:
             conn.execute(
                 text("""
-                    INSERT INTO documents (doc_id, filename, stored_path, created_at)
-                    VALUES ((:doc_id)::uuid, :filename, :stored_path, :created_at)
+                    INSERT INTO documents (doc_id, filename, stored_path, created_at, doc_type)
+                    VALUES ((:doc_id)::uuid, :filename, :stored_path, :created_at, :doc_type)
                 """),
                 {
                     "doc_id": doc_id,
                     "filename": file.filename,
                     "stored_path": str(stored_path),
                     "created_at": datetime.now(timezone.utc).isoformat(),
+                    "doc_type": doc_type,
                 },
             )
 
@@ -184,7 +195,7 @@ def list_documents(limit: int = 20):
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
-                SELECT doc_id, filename, created_at
+                SELECT doc_id, filename, created_at, doc_type
                 FROM documents
                 ORDER BY created_at DESC
                 LIMIT :limit
