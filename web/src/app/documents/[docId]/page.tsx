@@ -44,6 +44,17 @@ type AssessResult = {
   decision_meta: any;
 };
 
+type ProfResult = {
+  skill_id: string;
+  doc_id: string;
+  level: number;
+  label: string;
+  rationale: string;
+  best_evidence: EvidenceItem | null;
+  signals: any;
+  meta: any;
+};
+
 export default function DocChunksPage() {
   const params = useParams<{ docId: string }>();
   const docId = params?.docId;
@@ -58,9 +69,14 @@ export default function DocChunksPage() {
   // skills + assess
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [skillId, setSkillId] = useState<string>("");
+
   const [assessing, setAssessing] = useState<boolean>(false);
   const [assessErr, setAssessErr] = useState<string>("");
   const [assessRes, setAssessRes] = useState<AssessResult | null>(null);
+
+  const [profing, setProfing] = useState<boolean>(false);
+  const [profErr, setProfErr] = useState<string>("");
+  const [profRes, setProfRes] = useState<ProfResult | null>(null);
 
   useEffect(() => {
     // load skills
@@ -123,6 +139,36 @@ export default function DocChunksPage() {
     }
   }
 
+  async function runProficiency() {
+    setProfErr("");
+    setProfRes(null);
+
+    if (!docId) {
+      setProfErr("Missing doc_id.");
+      return;
+    }
+    if (!skillId) {
+      setProfErr("Please choose a skill first.");
+      return;
+    }
+
+    setProfing(true);
+    try {
+      const res = await fetch(`${apiBase}/assess/proficiency`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ skill_id: skillId, doc_id: docId, k: 10, store: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.detail || `HTTP ${res.status}`);
+      setProfRes(data as ProfResult);
+    } catch (e: any) {
+      setProfErr(String(e.message || e));
+    } finally {
+      setProfing(false);
+    }
+  }
+
   return (
     <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 980 }}>
       <div style={{ marginBottom: 14 }}>
@@ -132,11 +178,11 @@ export default function DocChunksPage() {
       <h1 style={{ fontSize: 22, marginBottom: 6 }}>Document view</h1>
       <div style={{ color: "#666", marginBottom: 16 }}>doc_id: {docId}</div>
 
-      {/* Decision 2 assess panel */}
+      {/* Assess panels */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 10 }}>Decision 2: Assess skill on this document (rule_v0)</h2>
+        <h2 style={{ fontSize: 16, marginBottom: 10 }}>Assess this document</h2>
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
           <select
             value={skillId}
             onChange={(e) => setSkillId(e.target.value)}
@@ -155,34 +201,74 @@ export default function DocChunksPage() {
             disabled={assessing}
             style={{ padding: "8px 14px", cursor: "pointer" }}
           >
-            {assessing ? "Assessing..." : "Assess"}
+            {assessing ? "Assessing..." : "Decision 2: Demonstration"}
+          </button>
+
+          <button
+            onClick={runProficiency}
+            disabled={profing}
+            style={{ padding: "8px 14px", cursor: "pointer" }}
+          >
+            {profing ? "Scoring..." : "Decision 3: Proficiency"}
           </button>
         </div>
 
-        {assessErr && <div style={{ marginTop: 10, color: "crimson" }}>{assessErr}</div>}
+        {/* Decision 2 result */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          <div style={{ border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Decision 2 (rule_v0)</div>
+            {assessErr && <div style={{ color: "crimson" }}>{assessErr}</div>}
+            {!assessErr && !assessRes && <div style={{ color: "#666" }}>Click “Decision 2” to run.</div>}
 
-        {assessRes && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ marginBottom: 6 }}>
-              <b>decision:</b> {assessRes.decision}
-            </div>
-            <div style={{ marginBottom: 10 }}>
-              <b>matched_terms:</b> {assessRes.matched_terms?.join(", ") || "(none)"}
-            </div>
+            {assessRes && (
+              <>
+                <div style={{ marginBottom: 6 }}><b>decision:</b> {assessRes.decision}</div>
+                <div style={{ marginBottom: 10 }}><b>matched_terms:</b> {assessRes.matched_terms?.join(", ") || "(none)"}</div>
 
-            {assessRes.best_evidence && (
-              <div style={{ border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
-                <div style={{ marginBottom: 6 }}>
-                  <b>best_evidence</b>{" "}
-                  <span style={{ color: "#666" }}>
-                    (chunk {assessRes.best_evidence.idx}, score {assessRes.best_evidence.score?.toFixed?.(3) ?? assessRes.best_evidence.score})
-                  </span>
-                </div>
-                <div style={{ fontSize: 13 }}>{assessRes.best_evidence.snippet}</div>
-              </div>
+                {assessRes.best_evidence && (
+                  <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, padding: 10 }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <b>best_evidence</b>{" "}
+                      <span style={{ color: "#666" }}>
+                        (chunk {assessRes.best_evidence.idx}, score {assessRes.best_evidence.score?.toFixed?.(3) ?? assessRes.best_evidence.score})
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13 }}>{assessRes.best_evidence.snippet}</div>
+                  </div>
+                )}
+              </>
             )}
           </div>
-        )}
+
+          {/* Decision 3 result */}
+          <div style={{ border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Decision 3 (rule_v0)</div>
+            {profErr && <div style={{ color: "crimson" }}>{profErr}</div>}
+            {!profErr && !profRes && <div style={{ color: "#666" }}>Click “Decision 3” to run.</div>}
+
+            {profRes && (
+              <>
+                <div style={{ marginBottom: 6 }}><b>level:</b> {profRes.level} ({profRes.label})</div>
+                <div style={{ marginBottom: 10 }}><b>rationale:</b> {profRes.rationale}</div>
+                <div style={{ color: "#666", fontSize: 13, marginBottom: 10 }}>
+                  signals: decision2={profRes.signals?.decision2}, terms={profRes.signals?.distinct_key_terms}, score={profRes.signals?.best_retrieval_score?.toFixed?.(3) ?? profRes.signals?.best_retrieval_score}
+                </div>
+
+                {profRes.best_evidence && (
+                  <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, padding: 10 }}>
+                    <div style={{ marginBottom: 6 }}>
+                      <b>best_evidence</b>{" "}
+                      <span style={{ color: "#666" }}>
+                        (chunk {profRes.best_evidence.idx}, score {profRes.best_evidence.score?.toFixed?.(3) ?? profRes.best_evidence.score})
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13 }}>{profRes.best_evidence.snippet}</div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </section>
 
       {/* Chunks list */}
