@@ -31,20 +31,6 @@ type EvidenceItem = {
   score_meta?: any;
 };
 
-type AssessResult = {
-  decision: string;
-  matched_terms: string[];
-  best_evidence: EvidenceItem | null;
-};
-
-type ProfResult = {
-  level: number;
-  label: string;
-  rationale: string;
-  signals: any;
-  best_evidence: EvidenceItem | null;
-};
-
 type RoleItem = {
   role_id: string;
   role_title: string;
@@ -73,13 +59,40 @@ type ActionPlan = {
     skill_id: string;
     gap_type: string;
     title: string;
+    why_this_card?: string;
+    based_on?: any;
     what_to_do: string;
     artifact: string;
     how_verified: string;
   }>;
 };
 
-export default function DocChunksPage() {
+type AssessResult = {
+  decision: string;
+  matched_terms: string[];
+  best_evidence: EvidenceItem | null;
+};
+
+type ProfResult = {
+  level: number;
+  label: string;
+  rationale: string;
+  signals: any;
+  best_evidence: EvidenceItem | null;
+};
+
+type AuditItem = {
+  audit_id: string;
+  event_type: string;
+  path: string;
+  method: string;
+  doc_id_text: string | null;
+  status_code: number;
+  created_at: string;
+  payload: any;
+};
+
+export default function DocPage() {
   const params = useParams<{ docId: string }>();
   const docId = params?.docId;
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
@@ -88,9 +101,12 @@ export default function DocChunksPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [err, setErr] = useState<string>("");
 
-  // skill assess
   const [skills, setSkills] = useState<SkillItem[]>([]);
   const [skillId, setSkillId] = useState<string>("");
+
+  const [roles, setRoles] = useState<RoleItem[]>([]);
+  const [roleId, setRoleId] = useState<string>("");
+
   const [assessRes, setAssessRes] = useState<AssessResult | null>(null);
   const [assessErr, setAssessErr] = useState<string>("");
   const [assessing, setAssessing] = useState<boolean>(false);
@@ -99,9 +115,6 @@ export default function DocChunksPage() {
   const [profErr, setProfErr] = useState<string>("");
   const [profing, setProfing] = useState<boolean>(false);
 
-  // roles
-  const [roles, setRoles] = useState<RoleItem[]>([]);
-  const [roleId, setRoleId] = useState<string>("");
   const [readiness, setReadiness] = useState<RoleReadiness | null>(null);
   const [readinessErr, setReadinessErr] = useState<string>("");
   const [reading, setReading] = useState<boolean>(false);
@@ -110,8 +123,28 @@ export default function DocChunksPage() {
   const [planErr, setPlanErr] = useState<string>("");
   const [planning, setPlanning] = useState<boolean>(false);
 
+  // Audit
+  const [audit, setAudit] = useState<AuditItem[]>([]);
+  const [auditErr, setAuditErr] = useState<string>("");
+  const [auditing, setAuditing] = useState<boolean>(false);
+
+  async function refreshAudit() {
+    if (!docId) return;
+    setAuditing(true);
+    setAuditErr("");
+    try {
+      const r = await fetch(`${apiBase}/audit?doc_id=${docId}&limit=20`);
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+      setAudit(data.items || []);
+    } catch (e: any) {
+      setAuditErr(String(e.message || e));
+    } finally {
+      setAuditing(false);
+    }
+  }
+
   useEffect(() => {
-    // load skills
     fetch(`${apiBase}/skills`)
       .then((r) => r.json())
       .then((data) => {
@@ -123,7 +156,7 @@ export default function DocChunksPage() {
         if (!skillId && items.length > 0) setSkillId(items[0].skill_id);
       })
       .catch(() => {});
-    // load roles
+
     fetch(`${apiBase}/roles`)
       .then((r) => r.json())
       .then((data) => {
@@ -142,6 +175,7 @@ export default function DocChunksPage() {
     if (!docId) return;
     setLoading(true);
     setErr("");
+
     fetch(`${apiBase}/documents/${docId}/chunks?limit=200`)
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
@@ -150,6 +184,9 @@ export default function DocChunksPage() {
       })
       .catch((e) => setErr(`Failed to load chunks: ${String(e.message || e)}`))
       .finally(() => setLoading(false));
+
+    refreshAudit();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBase, docId]);
 
   async function runDecision2() {
@@ -166,8 +203,10 @@ export default function DocChunksPage() {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setAssessRes(data);
+      refreshAudit();
     } catch (e: any) {
       setAssessErr(String(e.message || e));
+      refreshAudit();
     } finally {
       setAssessing(false);
     }
@@ -187,8 +226,10 @@ export default function DocChunksPage() {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setProfRes(data);
+      refreshAudit();
     } catch (e: any) {
       setProfErr(String(e.message || e));
+      refreshAudit();
     } finally {
       setProfing(false);
     }
@@ -208,8 +249,10 @@ export default function DocChunksPage() {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setReadiness(data);
+      refreshAudit();
     } catch (e: any) {
       setReadinessErr(String(e.message || e));
+      refreshAudit();
     } finally {
       setReading(false);
     }
@@ -229,8 +272,10 @@ export default function DocChunksPage() {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setPlan(data);
+      refreshAudit();
     } catch (e: any) {
       setPlanErr(String(e.message || e));
+      refreshAudit();
     } finally {
       setPlanning(false);
     }
@@ -245,7 +290,7 @@ export default function DocChunksPage() {
       <h1 style={{ fontSize: 22, marginBottom: 6 }}>Document view</h1>
       <div style={{ color: "#666", marginBottom: 16 }}>doc_id: {docId}</div>
 
-      {/* Decision 2/3 */}
+      {/* Skill assessment */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
         <h2 style={{ fontSize: 16, marginBottom: 10 }}>Skill assessment</h2>
 
@@ -295,7 +340,7 @@ export default function DocChunksPage() {
         </div>
       </section>
 
-      {/* Decision 4/5 */}
+      {/* Role readiness + actions */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
         <h2 style={{ fontSize: 16, marginBottom: 10 }}>Role readiness + actions</h2>
 
@@ -361,6 +406,74 @@ export default function DocChunksPage() {
                 ))}
               </ul>
             )}
+          </div>
+        )}
+      </section>
+
+            {/* Audit */}
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 10 }}>Recent audit logs</h2>
+
+        <button onClick={refreshAudit} disabled={auditing} style={{ padding: "6px 12px", cursor: "pointer" }}>
+          {auditing ? "Refreshing..." : "Refresh"}
+        </button>
+
+        {auditErr && <div style={{ marginTop: 10, color: "crimson" }}>{auditErr}</div>}
+        {!auditErr && audit.length === 0 && <div style={{ marginTop: 10, color: "#666" }}>No audit logs yet.</div>}
+
+        {audit.length > 0 && (
+          <div style={{ marginTop: 12, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ textAlign: "left" }}>
+                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>time</th>
+                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>event</th>
+                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>status</th>
+                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>elapsed</th>
+                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>summary</th>
+                </tr>
+              </thead>
+              <tbody>
+                {audit.map((a) => {
+                  // support both old payload shape and new payload shape
+                  const payload = a.payload || {};
+                  const req = payload.request || payload;
+                  const respSum = payload.response_summary || null;
+                  const elapsed = payload._elapsed_ms ?? payload._elapsed_ms ?? req._elapsed_ms;
+
+                  const summaryObj = respSum?.summary || null;
+                  const summaryText = summaryObj
+                    ? `meet=${summaryObj.meet}, missing=${summaryObj.missing_proof}, needs=${summaryObj.needs_strengthening}` +
+                      (respSum?.action_cards_count !== undefined ? `, actions=${respSum.action_cards_count}` : "")
+                    : "";
+
+                  return (
+                    <tr key={a.audit_id}>
+                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8, color: "#666", fontSize: 13 }}>
+                        {a.created_at}
+                      </td>
+                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8 }}>
+                        <div style={{ fontWeight: 600 }}>{a.event_type}</div>
+                        <div style={{ color: "#666", fontSize: 12 }}>{a.method} {a.path}</div>
+                      </td>
+                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8 }}>
+                        {a.status_code}
+                      </td>
+                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8 }}>
+                        {elapsed !== undefined ? `${elapsed} ms` : ""}
+                      </td>
+                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8, color: "#333", fontSize: 13 }}>
+                        {summaryText || <span style={{ color: "#666" }}>(no response_summary)</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+
+            <div style={{ marginTop: 10, color: "#666", fontSize: 12 }}>
+              Note: newer logs include response_summary (compact, auditable). Older logs may not.
+            </div>
           </div>
         )}
       </section>
