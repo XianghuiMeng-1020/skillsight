@@ -48,12 +48,17 @@ def init_db():
         idx INTEGER NOT NULL,
         char_start INTEGER NOT NULL,
         char_end INTEGER NOT NULL,
+        chunk_text TEXT NOT NULL,
         snippet TEXT NOT NULL,
         quote_hash TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_chunks_doc_id ON chunks(doc_id);
+    ALTER TABLE chunks ADD COLUMN IF NOT EXISTS chunk_text TEXT;
+    UPDATE chunks SET chunk_text = snippet WHERE chunk_text IS NULL;
+    ALTER TABLE chunks ALTER COLUMN chunk_text SET NOT NULL;
+
     """
     with engine.begin() as conn:
         conn.execute(text(ddl))
@@ -117,8 +122,8 @@ def create_chunks_for_document(doc_id: str, raw_text: str):
             chunk_id = str(uuid.uuid4())
             conn.execute(
                 text("""
-                    INSERT INTO chunks (chunk_id, doc_id, idx, char_start, char_end, snippet, quote_hash, created_at)
-                    VALUES ((:chunk_id)::uuid, (:doc_id)::uuid, :idx, :char_start, :char_end, :snippet, :quote_hash, :created_at)
+                    INSERT INTO chunks (chunk_id, doc_id, idx, char_start, char_end, chunk_text, snippet, quote_hash, created_at)
+                    VALUES ((:chunk_id)::uuid, (:doc_id)::uuid, :idx, :char_start, :char_end, :chunk_text, :snippet, :quote_hash, :created_at)
                 """),
                 {
                     "chunk_id": chunk_id,
@@ -126,6 +131,7 @@ def create_chunks_for_document(doc_id: str, raw_text: str):
                     "idx": idx,
                     "char_start": cs,
                     "char_end": ce,
+                    "chunk_text": chunk_text,
                     "snippet": _make_snippet(chunk_text),
                     "quote_hash": _hash_quote(chunk_text),
                     "created_at": now,
@@ -230,3 +236,107 @@ def rechunk_document(doc_id: str):
         ).scalar_one()
 
     return {"doc_id": doc_id, "n_chunks": int(n_chunks)}
+
+@app.post("/search/evidence")
+def search_evidence(payload: dict):
+    """
+    BM25 baseline (Week3 upgrade):
+    - payload: {"query": "...", "doc_id": optional, "k": optional}
+    - returns: top-k chunks ranked by BM25 on snippet text
+    """
+    import math
+    import re as _re
+
+    query = (payload.get("query") or "").strip()
+    if not query:
+        raise HTTPException(status_code=400, detail="Missing query")
+
+    doc_id = payload.get("doc_id")
+    k = int(payload.get("k") or 10)
+    k = max(1, min(k, 50))
+
+    # Tokenization (simple + robust)
+    def tokenize(text: str):
+        text = text.lower()
+        toks = _re.findall(r"[a-z0-9]+", text)
+        stop = {
+            "the","a","an","and","or","to","of","in","on","for","with","is","are","was","were","be","as","by",
+            "it","this","that","from","at","we","you","they","he","she","i","me","my","our","your","their"
+        }
+        toks = [t for t in toks if t not in stop]
+        return toks
+
+    q_tokens = tokenize(query)
+    if not q_tokens:
+        raise HTTPException(status_code=400, detail="Query too short after filtering")
+
+    # Pull candidate chunks (MVP: use snippet only)
+    sql = """
+        SELECT chunk_id, doc_id, idx, char_start, char_end, chunk_text, snippet, created_at
+        FROM chunks
+        {where}
+        ORDER BY created_at DESC
+        LIMIT 2000
+    """
+    where = ""
+    params = {}
+    if doc_id:
+        where = "WHERE doc_id = (:doc_id)::uuid"
+        params["doc_id"] = doc_id
+
+    with engine.connect() as conn:
+        rows = conn.execute(text(sql.format(where=where)), params).mappings().all()
+
+    # Build corpus stats for BM25 within candidates
+    # docs: list of dicts with tokens + tf map
+    docs = []
+    df = {}  # document frequency per term
+    total_len = 0
+
+    for r in rows:
+        snippet = (r.get("chunk_text") or r.get("snippet") or "")
+        toks = tokenize(snippet)
+        # term frequency
+        tf = {}
+        for t in toks:
+            tf[t] = tf.get(t, 0) + 1
+        # update df (unique terms per doc)
+        for t in set(tf.keys()):
+            df[t] = df.get(t, 0) + 1
+
+        doc_len = len(toks)
+        total_len += doc_len
+        docs.append((dict(r), tf, doc_len))
+
+    N = len(docs)
+    if N == 0:
+        return {"items": [], "query_tokens": q_tokens, "note": "No chunks available in scope."}
+
+    avgdl = total_len / N if N > 0 else 1.0
+
+    # BM25 parameters (standard-ish defaults)
+    k1 = 1.5
+    b = 0.75
+
+    def idf(term: str) -> float:
+        # Smoothed IDF. +1 keeps it positive even for common terms.
+        dft = df.get(term, 0)
+        return math.log(((N - dft + 0.5) / (dft + 0.5)) + 1.0)
+
+    scored = []
+    for meta, tf, dl in docs:
+        score = 0.0
+        for term in q_tokens:
+            if term not in tf:
+                continue
+            f = tf[term]
+            denom = f + k1 * (1.0 - b + b * (dl / avgdl if avgdl > 0 else 1.0))
+            score += idf(term) * (f * (k1 + 1.0) / (denom if denom != 0 else 1.0))
+
+        if score > 0:
+            meta["score"] = float(score)
+            meta.pop("chunk_text", None)
+            scored.append(meta)
+
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return {"items": scored[:k], "query_tokens": q_tokens, "scoring": "BM25", "N": N, "avgdl": avgdl}
