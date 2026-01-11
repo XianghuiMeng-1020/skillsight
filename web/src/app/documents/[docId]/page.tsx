@@ -344,6 +344,16 @@ export default function DocChunksPage() {
                 {plan.action_cards.map((c, idx) => (
                   <li key={idx} style={{ marginBottom: 12, padding: 12, border: "1px solid #eee", borderRadius: 8 }}>
                     <div><b>{c.title}</b> <span style={{ color: "#666" }}>({c.gap_type})</span></div>
+                    {c.why_this_card && (
+                      <div style={{ marginTop: 6, fontSize: 13, color: "#444" }}>
+                        <b>why:</b> {c.why_this_card}
+                      </div>
+                    )}
+                    {c.based_on && (
+                      <div style={{ marginTop: 6, fontSize: 13, color: "#666" }}>
+                        <b>based_on:</b> observed {c.based_on.observed_level} ({c.based_on.observed_label}) / target {c.based_on.target_level} — status {c.based_on.status}
+                      </div>
+                    )}
                     <div style={{ marginTop: 6, fontSize: 13 }}><b>what_to_do:</b> {c.what_to_do}</div>
                     <div style={{ marginTop: 6, fontSize: 13 }}><b>artifact:</b> {c.artifact}</div>
                     <div style={{ marginTop: 6, fontSize: 13 }}><b>how_verified:</b> {c.how_verified}</div>
