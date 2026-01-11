@@ -1,0 +1,34 @@
+[
+  {
+    "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
+    "gap_type": "missing_proof",
+    "title": "Add evidence for academic integrity",
+    "what_to_do": "Write a short reflection (150-250 words) explaining what counts as academic misconduct in your course context, and give one concrete example of how you would respond appropriately.",
+    "artifact": "Reflection note (text) + citation note (if you used any external source)",
+    "how_verified": "Instructor can locate the reflection paragraph that explicitly defines misconduct and states a response rule."
+  },
+  {
+    "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen academic integrity reasoning",
+    "what_to_do": "Create a checklist for your team workflow: how you cite sources, how you avoid copy-paste, and how you review drafts before submission.",
+    "artifact": "Integrity checklist (text) + one applied example in a project log",
+    "how_verified": "Evidence shows a concrete workflow rule and an applied instance."
+  },
+  {
+    "skill_id": "HKU.SKILL.PRIVACY.v1",
+    "gap_type": "missing_proof",
+    "title": "Add evidence for privacy awareness",
+    "what_to_do": "Add a section to your report describing what data is sensitive, what you removed/anonymized, and how consent/deletion would work.",
+    "artifact": "Privacy section (text) + anonymization examples",
+    "how_verified": "Evidence explicitly describes sensitive fields and a concrete protection step."
+  },
+  {
+    "skill_id": "HKU.SKILL.PRIVACY.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen privacy controls",
+    "what_to_do": "Propose a minimum-data policy: what fields are stored, what is optional, and how revocation deletes data.",
+    "artifact": "One-page policy note + deletion checklist",
+    "how_verified": "Evidence includes concrete stored fields and deletion steps."
+  }
+]

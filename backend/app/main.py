@@ -695,3 +695,365 @@ def list_assessments(doc_id: str, limit: int = 20):
         ).mappings().all()
 
     return {"items": [dict(r) for r in rows]}
+
+# -------------------------
+# Decision 3: Rule-based proficiency (v0)
+# -------------------------
+@app.post("/assess/proficiency")
+def assess_proficiency(payload: dict):
+    """
+    Payload:
+      {"skill_id": "...", "doc_id": "...", "k": optional, "store": optional bool}
+    Returns:
+      {skill_id, doc_id, level, label, rationale, best_evidence, signals, meta}
+    """
+    import uuid as _uuid
+    import json as _json
+    from datetime import datetime, timezone as _tz
+
+    skill_id = (payload.get("skill_id") or "").strip()
+    doc_id = (payload.get("doc_id") or "").strip()
+    if not skill_id:
+        raise HTTPException(status_code=400, detail="Missing skill_id")
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="Missing doc_id")
+
+    k = int(payload.get("k") or 10)
+    k = max(1, min(k, 50))
+    store = bool(payload.get("store") if payload.get("store") is not None else True)
+
+    # Reuse Decision 2 output (do not store twice by default)
+    d2 = assess_skill({"skill_id": skill_id, "doc_id": doc_id, "k": k, "store": False})
+    decision = d2.get("decision")
+    matched_terms = d2.get("matched_terms") or []
+    best = d2.get("best_evidence")  # may be None
+    best_score = float(best.get("score", 0) or 0) if best else 0.0
+    distinct_terms = len(matched_terms)
+
+    # Rule-based level (v0)
+    if decision == "not_enough_information":
+        level = 0
+        label = "novice"
+        rationale = "Not enough evidence to support a proficiency claim."
+    elif decision == "mentioned":
+        level = 1
+        label = "developing"
+        rationale = "Evidence mentions the skill but does not strongly demonstrate it."
+    else:
+        # demonstrated
+        if distinct_terms >= 3 or best_score >= 6.0:
+            level = 3
+            label = "advanced"
+            rationale = "Strong evidence: multiple distinct key terms and/or high retrieval relevance."
+        else:
+            level = 2
+            label = "proficient"
+            rationale = "Evidence demonstrates the skill with moderate strength."
+
+    result = {
+        "skill_id": skill_id,
+        "doc_id": doc_id,
+        "level": level,
+        "label": label,
+        "rationale": rationale,
+        "best_evidence": best,
+        "signals": {
+            "decision2": decision,
+            "distinct_key_terms": distinct_terms,
+            "matched_terms": matched_terms,
+            "best_retrieval_score": best_score,
+        },
+        "meta": {
+            "type": "rule_v0",
+            "level_rule": {
+                "not_enough_information": 0,
+                "mentioned": 1,
+                "demonstrated": {"score>=6.0 OR terms>=3": 3, "else": 2},
+            },
+        },
+    }
+
+    if store:
+        ddl = """
+        CREATE TABLE IF NOT EXISTS skill_proficiency (
+            prof_id UUID PRIMARY KEY,
+            doc_id UUID NOT NULL,
+            skill_id TEXT NOT NULL,
+            level INTEGER NOT NULL,
+            label TEXT NOT NULL,
+            rationale TEXT NOT NULL,
+            best_evidence JSONB NOT NULL,
+            signals JSONB NOT NULL,
+            meta JSONB NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_skill_prof_doc ON skill_proficiency(doc_id);
+        CREATE INDEX IF NOT EXISTS idx_skill_prof_skill ON skill_proficiency(skill_id);
+        """
+        with engine.begin() as conn:
+            conn.execute(text(ddl))
+            conn.execute(
+                text("""
+                    INSERT INTO skill_proficiency
+                    (prof_id, doc_id, skill_id, level, label, rationale, best_evidence, signals, meta, created_at)
+                    VALUES
+                    ((:prof_id)::uuid, (:doc_id)::uuid, :skill_id, :level, :label, :rationale,
+                     (:best_evidence)::jsonb, (:signals)::jsonb, (:meta)::jsonb, :created_at)
+                """),
+                {
+                    "prof_id": str(_uuid.uuid4()),
+                    "doc_id": doc_id,
+                    "skill_id": skill_id,
+                    "level": level,
+                    "label": label,
+                    "rationale": rationale,
+                    "best_evidence": _json.dumps(best or {}, default=str),
+                    "signals": _json.dumps(result["signals"], default=str),
+                    "meta": _json.dumps(result["meta"], default=str),
+                    "created_at": datetime.now(_tz.utc).isoformat(),
+                },
+            )
+
+    return result
+
+
+@app.get("/documents/{doc_id}/proficiency")
+def list_proficiency(doc_id: str, limit: int = 20):
+    limit = max(1, min(limit, 100))
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT prof_id, doc_id, skill_id, level, label, rationale, created_at
+                FROM skill_proficiency
+                WHERE doc_id = (:doc_id)::uuid
+                ORDER BY created_at DESC
+                LIMIT :limit
+            """),
+            {"doc_id": doc_id, "limit": limit},
+        ).mappings().all()
+    return {"items": [dict(r) for r in rows]}
+
+# -------------------------
+# Roles + Actions (Decision 4/5) - v0
+# -------------------------
+from functools import lru_cache
+import json as _json
+from pathlib import Path as _Path
+
+ROLES_PATH = _Path(__file__).resolve().parent.parent / "data" / "roles.json"
+ACTIONS_PATH = _Path(__file__).resolve().parent.parent / "data" / "action_templates.json"
+
+@lru_cache(maxsize=1)
+def load_roles() -> list:
+    try:
+        if not ROLES_PATH.exists():
+            return []
+        data = _json.loads(ROLES_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def get_role_by_id(role_id: str):
+    for r in load_roles():
+        if isinstance(r, dict) and r.get("role_id") == role_id:
+            return r
+    return None
+
+@lru_cache(maxsize=1)
+def load_action_templates() -> list:
+    try:
+        if not ACTIONS_PATH.exists():
+            return []
+        data = _json.loads(ACTIONS_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def find_action_template(skill_id: str, gap_type: str):
+    for t in load_action_templates():
+        if t.get("skill_id") == skill_id and t.get("gap_type") == gap_type:
+            return t
+    return None
+
+@app.get("/roles")
+def list_roles():
+    return {"items": load_roles()}
+
+@app.get("/roles/{role_id}")
+def get_role(role_id: str):
+    r = get_role_by_id(role_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Role not found")
+    return r
+
+@app.post("/assess/role_readiness")
+def assess_role_readiness(payload: dict):
+    """
+    Decision 4 (v0):
+      input: {doc_id, role_id, store: optional bool}
+      output per required skill:
+        - status: meet | missing_proof | needs_strengthening
+        - observed_level/target_level
+        - references: pulls latest proficiency or runs assess_proficiency on the fly
+    """
+    import uuid as _uuid
+    import json as _json
+    from datetime import datetime, timezone as _tz
+
+    doc_id = (payload.get("doc_id") or "").strip()
+    role_id = (payload.get("role_id") or "").strip()
+    store = bool(payload.get("store") if payload.get("store") is not None else True)
+
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="Missing doc_id")
+    if not role_id:
+        raise HTTPException(status_code=400, detail="Missing role_id")
+
+    role = get_role_by_id(role_id)
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+
+    items = []
+    counts = {"meet": 0, "missing_proof": 0, "needs_strengthening": 0}
+
+    for req in role.get("skills_required", []):
+        skill_id = req.get("skill_id")
+        target = int(req.get("target_level") or 0)
+        required = bool(req.get("required") if req.get("required") is not None else True)
+
+        # Get latest proficiency from DB if exists; else compute now (store=False to avoid clutter)
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("""
+                    SELECT level, label, rationale, created_at
+                    FROM skill_proficiency
+                    WHERE doc_id = (:doc_id)::uuid AND skill_id = :skill_id
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """),
+                {"doc_id": doc_id, "skill_id": skill_id},
+            ).mappings().first()
+
+        if row:
+            observed_level = int(row["level"])
+            observed_label = row["label"]
+            source = "stored_proficiency"
+        else:
+            prof = assess_proficiency({"skill_id": skill_id, "doc_id": doc_id, "k": 10, "store": False})
+            observed_level = int(prof["level"])
+            observed_label = prof["label"]
+            source = "computed_proficiency"
+
+        # Map to gap type
+        if observed_level == 0:
+            status = "missing_proof"
+        elif observed_level < target:
+            status = "needs_strengthening"
+        else:
+            status = "meet"
+
+        counts[status] += 1
+
+        items.append({
+            "skill_id": skill_id,
+            "required": required,
+            "target_level": target,
+            "observed_level": observed_level,
+            "observed_label": observed_label,
+            "status": status,
+            "source": source
+        })
+
+    readiness = {
+        "doc_id": doc_id,
+        "role_id": role_id,
+        "role_title": role.get("role_title"),
+        "summary": counts,
+        "items": items,
+        "meta": {"type": "rule_v0", "note": "status derived from proficiency level vs target_level"}
+    }
+
+    if store:
+        ddl = """
+        CREATE TABLE IF NOT EXISTS role_readiness (
+            readiness_id UUID PRIMARY KEY,
+            doc_id UUID NOT NULL,
+            role_id TEXT NOT NULL,
+            readiness JSONB NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_role_readiness_doc ON role_readiness(doc_id);
+        CREATE INDEX IF NOT EXISTS idx_role_readiness_role ON role_readiness(role_id);
+        """
+        with engine.begin() as conn:
+            conn.execute(text(ddl))
+            conn.execute(
+                text("""
+                    INSERT INTO role_readiness (readiness_id, doc_id, role_id, readiness, created_at)
+                    VALUES ((:rid)::uuid, (:doc_id)::uuid, :role_id, (:readiness)::jsonb, :created_at)
+                """),
+                {
+                    "rid": str(_uuid.uuid4()),
+                    "doc_id": doc_id,
+                    "role_id": role_id,
+                    "readiness": _json.dumps(readiness, default=str),
+                    "created_at": datetime.now(_tz.utc).isoformat(),
+                },
+            )
+
+    return readiness
+
+@app.post("/actions/recommend")
+def recommend_actions(payload: dict):
+    """
+    Decision 5 (v0):
+      input: {doc_id, role_id}
+      output: action_cards[] based on role readiness gap types
+    """
+    doc_id = (payload.get("doc_id") or "").strip()
+    role_id = (payload.get("role_id") or "").strip()
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="Missing doc_id")
+    if not role_id:
+        raise HTTPException(status_code=400, detail="Missing role_id")
+
+    readiness = assess_role_readiness({"doc_id": doc_id, "role_id": role_id, "store": False})
+    cards = []
+
+    for it in readiness["items"]:
+        status = it["status"]
+        if status == "meet":
+            continue
+
+        gap_type = "missing_proof" if status == "missing_proof" else "needs_strengthening"
+        tmpl = find_action_template(it["skill_id"], gap_type)
+
+        if tmpl:
+            card = {
+                "skill_id": it["skill_id"],
+                "gap_type": gap_type,
+                "title": tmpl["title"],
+                "what_to_do": tmpl["what_to_do"],
+                "artifact": tmpl["artifact"],
+                "how_verified": tmpl["how_verified"],
+            }
+        else:
+            card = {
+                "skill_id": it["skill_id"],
+                "gap_type": gap_type,
+                "title": f"Action for {it['skill_id']} ({gap_type})",
+                "what_to_do": "Add a concrete artifact that demonstrates the skill and can be cited as evidence.",
+                "artifact": "A short text section or project log entry",
+                "how_verified": "Instructor can locate the cited paragraph and confirm it matches the skill definition."
+            }
+
+        cards.append(card)
+
+    return {
+        "doc_id": doc_id,
+        "role_id": role_id,
+        "role_title": readiness.get("role_title"),
+        "summary": readiness.get("summary"),
+        "action_cards": cards,
+        "meta": {"type": "template_v0"}
+    }
