@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16
+    container_name: skillsight_db
+    environment:
+      POSTGRES_USER: skillsight
+      POSTGRES_PASSWORD: skillsight_pw
+      POSTGRES_DB: skillsight
+    ports:
+      - "5432:5432"
+    volumes:
+      - skillsight_pgdata:/var/lib/postgresql/data
+
+volumes:
+  skillsight_pgdata:
