@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Tuple
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -1041,6 +1041,13 @@ def assess_role_readiness(payload: dict):
                 },
             )
 
+    
+    # audit-friendly summary (no full evidence stored here)
+    readiness["_audit_summary"] = {
+        "role_id": role_id,
+        "summary": readiness.get("summary"),
+        "n_items": len(readiness.get("items") or []),
+    }
     return readiness
 
 @app.post("/actions/recommend")
@@ -1099,11 +1106,210 @@ def recommend_actions(payload: dict):
 
         cards.append(card)
 
+    
+    _audit_summary = {
+        "role_id": role_id,
+        "summary": readiness.get("summary"),
+        "action_cards_count": len(cards),
+    }
+
     return {
         "doc_id": doc_id,
         "role_id": role_id,
         "role_title": readiness.get("role_title"),
         "summary": readiness.get("summary"),
         "action_cards": cards,
-        "meta": {"type": "template_v0"}
+        "meta": {"type": "template_v0"}, "_audit_summary": _audit_summary
     }
+
+
+# -------------------------
+# Week7: Audit log (v0)
+# -------------------------
+import time as _time
+import json as _json
+import uuid as _uuid
+
+AUDIT_PATHS = {
+    "/assess/skill": "DECISION2_ASSESS_SKILL",
+    "/assess/proficiency": "DECISION3_ASSESS_PROFICIENCY",
+    "/assess/role_readiness": "DECISION4_ROLE_READINESS",
+    "/actions/recommend": "DECISION5_ACTIONS_RECOMMEND",
+}
+
+def _ensure_audit_table():
+    ddl = '''
+    CREATE TABLE IF NOT EXISTS audit_logs (
+        audit_id UUID PRIMARY KEY,
+        event_type TEXT NOT NULL,
+        path TEXT NOT NULL,
+        method TEXT NOT NULL,
+        doc_id_text TEXT,
+        status_code INTEGER NOT NULL,
+        payload JSONB NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_audit_doc ON audit_logs(doc_id_text);
+    CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
+    '''
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+def audit_log(event_type: str, path: str, method: str, doc_id_text: str | None, status_code: int, payload_obj: dict):
+    _ensure_audit_table()
+    with engine.begin() as conn:
+        conn.execute(
+            text('''
+                INSERT INTO audit_logs (audit_id, event_type, path, method, doc_id_text, status_code, payload, created_at)
+                VALUES ((:audit_id)::uuid, :event_type, :path, :method, :doc_id_text, :status_code, (:payload)::jsonb, :created_at)
+            '''),
+            {
+                "audit_id": str(_uuid.uuid4()),
+                "event_type": event_type,
+                "path": path,
+                "method": method,
+                "doc_id_text": doc_id_text,
+                "status_code": int(status_code),
+                "payload": _json.dumps(payload_obj, default=str),
+                "created_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            }
+        )
+
+@app.middleware("http")
+async def audit_middleware(request: Request, call_next):
+    """
+    Audits selected JSON POST endpoints.
+    Records:
+      - request payload (parsed JSON)
+      - response _audit_summary (if JSON response contains it)
+      - status_code + elapsed_ms
+    """
+    from starlette.responses import Response
+    import json as _json
+
+    path = request.url.path
+    method = request.method.upper()
+
+    ct = (request.headers.get("content-type") or "").lower()
+    should_audit = (method == "POST" and path in AUDIT_PATHS and "application/json" in ct)
+
+    req_payload = {}
+    doc_id_text = None
+    start = _time.time()
+
+    if should_audit:
+        try:
+            body = await request.body()
+            req_payload = _json.loads(body.decode("utf-8")) if body else {}
+            if isinstance(req_payload, dict):
+                doc_id_text = req_payload.get("doc_id")
+        except Exception:
+            req_payload = {"_audit_parse_error": True}
+
+    try:
+        response = await call_next(request)
+        status_code = getattr(response, "status_code", 200)
+
+        if not should_audit:
+            return response
+
+        # Only attempt to parse small JSON responses
+        resp_ct = (response.headers.get("content-type") or "").lower()
+        if "application/json" in resp_ct:
+            # Buffer response body (safe size cap)
+            body_bytes = b""
+            async for chunk in response.body_iterator:
+                body_bytes += chunk
+                if len(body_bytes) > 200_000:
+                    break
+
+            resp_summary = None
+            if body_bytes and len(body_bytes) <= 200_000:
+                try:
+                    obj = _json.loads(body_bytes.decode("utf-8"))
+                    if isinstance(obj, dict) and "_audit_summary" in obj:
+                        resp_summary = obj.get("_audit_summary")
+                except Exception:
+                    resp_summary = None
+
+            elapsed_ms = int((_time.time() - start) * 1000)
+            audit_payload = {
+                "request": req_payload if isinstance(req_payload, dict) else {"request": str(req_payload)},
+                "response_summary": resp_summary,
+                "_elapsed_ms": elapsed_ms,
+            }
+            audit_log(
+                event_type=AUDIT_PATHS[path],
+                path=path,
+                method=method,
+                doc_id_text=doc_id_text,
+                status_code=status_code,
+                payload_obj=audit_payload,
+            )
+
+            # Re-create response with original body
+            return Response(
+                content=body_bytes,
+                status_code=status_code,
+                headers=dict(response.headers),
+                media_type=response.media_type,
+            )
+
+        # Non-JSON response: still log request + elapsed
+        elapsed_ms = int((_time.time() - start) * 1000)
+        audit_payload = {
+            "request": req_payload if isinstance(req_payload, dict) else {"request": str(req_payload)},
+            "response_summary": None,
+            "_elapsed_ms": elapsed_ms,
+        }
+        audit_log(
+            event_type=AUDIT_PATHS[path],
+            path=path,
+            method=method,
+            doc_id_text=doc_id_text,
+            status_code=status_code,
+            payload_obj=audit_payload,
+        )
+        return response
+
+    except Exception as e:
+        # If the endpoint crashes, record that too
+        if should_audit:
+            elapsed_ms = int((_time.time() - start) * 1000)
+            audit_payload = {
+                "request": req_payload if isinstance(req_payload, dict) else {"request": str(req_payload)},
+                "response_summary": None,
+                "_elapsed_ms": elapsed_ms,
+                "_exception": f"{type(e).__name__}: {e}",
+            }
+            audit_log(
+                event_type=AUDIT_PATHS[path],
+                path=path,
+                method=method,
+                doc_id_text=doc_id_text,
+                status_code=500,
+                payload_obj=audit_payload,
+            )
+        raise
+
+@app.get("/audit")
+def list_audit(doc_id: str | None = None, limit: int = 20):
+    limit = max(1, min(limit, 200))
+    where = ""
+    params = {"limit": limit}
+    if doc_id:
+        where = "WHERE doc_id_text = :doc_id"
+        params["doc_id"] = doc_id
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(f'''
+                SELECT audit_id, event_type, path, method, doc_id_text, status_code, created_at, payload
+                FROM audit_logs
+                {where}
+                ORDER BY created_at DESC
+                LIMIT :limit
+            '''),
+            params,
+        ).mappings().all()
+    return {"items": [dict(r) for r in rows]}
