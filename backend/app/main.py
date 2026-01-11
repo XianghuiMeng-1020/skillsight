@@ -513,3 +513,185 @@ def get_skill_by_id(skill_id: str):
         if isinstance(sk, dict) and sk.get("skill_id") == skill_id:
             return sk
     return None
+
+# -------------------------
+# Decision 2: Rule-based skill demonstration assessment (v0)
+# -------------------------
+@app.post("/assess/skill")
+def assess_skill(payload: dict):
+    """
+    Decision 2 (rule-based v0):
+      - retrieve Top-K evidence by BM25 (Decision 1)
+      - rule-based decision: demonstrated / mentioned / not_enough_information
+      - optional store into skill_assessments (JSONB)
+    """
+    import re as _re
+    import json as _json
+    import uuid as _uuid
+    from datetime import datetime, timezone as _tz
+
+    skill_id = (payload.get("skill_id") or "").strip()
+    doc_id = (payload.get("doc_id") or "").strip()
+    if not skill_id:
+        raise HTTPException(status_code=400, detail="Missing skill_id")
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="Missing doc_id")
+
+    k = int(payload.get("k") or 10)
+    k = max(1, min(k, 50))
+    store = bool(payload.get("store") if payload.get("store") is not None else True)
+
+    sk = get_skill_by_id(skill_id)
+    if not sk:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    canonical = sk.get("canonical_name") or ""
+    definition = sk.get("definition") or ""
+    aliases = sk.get("aliases") or []
+    alias_text = " ".join([a for a in aliases if isinstance(a, str)])
+    generated_query = f"{canonical}. {definition} Aliases: {alias_text}".strip()
+
+    # Decision 1 retrieval
+    retrieval = search_evidence({
+        "query": generated_query,
+        "doc_id": doc_id,
+        "k": k,
+        "include_breakdown": False
+    })
+    evidence = retrieval.get("items") or []
+
+    def tok(text: str):
+        text = (text or "").lower()
+        toks = _re.findall(r"[a-z0-9]+", text)
+        stop = {
+            "the","a","an","and","or","to","of","in","on","for","with","is","are","was","were","be","as","by",
+            "it","this","that","from","at","we","you","they","he","she","i","me","my","our","your","their"
+        }
+        toks = [t for t in toks if t not in stop]
+        toks = [t for t in toks if len(t) >= 2]
+        return toks
+
+    key_terms = set(tok(canonical + " " + alias_text))
+
+    best = None
+    matched_terms = []
+
+    if evidence:
+        best_distinct = 0
+        best_matched = []
+        with engine.connect() as conn:
+            for ev in evidence:
+                chunk_id = ev.get("chunk_id")
+                if not chunk_id:
+                    continue
+                row = conn.execute(
+                    text("SELECT chunk_text FROM chunks WHERE chunk_id = (:chunk_id)::uuid"),
+                    {"chunk_id": chunk_id},
+                ).mappings().first()
+                chunk_text = (row.get("chunk_text") if row else "") or ""
+                chunk_tokens = set(tok(chunk_text))
+                matched = sorted(list(chunk_tokens.intersection(key_terms)))
+                distinct = len(matched)
+
+                if (distinct > best_distinct) or (distinct == best_distinct and float(ev.get("score", 0) or 0) > float(best.get("score", 0) or 0) if best else True):
+                    best_distinct = distinct
+                    best_matched = matched
+                    best = ev
+
+        matched_terms = best_matched
+
+    # Decision rule (v0)
+    if best and len(matched_terms) >= 2 and float(best.get("score", 0) or 0) >= 2.5:
+        decision = "demonstrated"
+    elif best and len(matched_terms) >= 1:
+        decision = "mentioned"
+    else:
+        decision = "not_enough_information"
+
+    if store:
+        ddl = """
+        CREATE TABLE IF NOT EXISTS skill_assessments (
+            assessment_id UUID PRIMARY KEY,
+            doc_id UUID NOT NULL,
+            skill_id TEXT NOT NULL,
+            decision TEXT NOT NULL,
+            evidence JSONB NOT NULL,
+            decision_meta JSONB NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_skill_assessments_doc ON skill_assessments(doc_id);
+        CREATE INDEX IF NOT EXISTS idx_skill_assessments_skill ON skill_assessments(skill_id);
+        """
+        with engine.begin() as conn:
+            conn.execute(text(ddl))
+
+            assessment_id = str(_uuid.uuid4())
+            created_at = datetime.now(_tz.utc).isoformat()
+
+            decision_meta = {
+                "type": "rule_v0",
+                "rule": {
+                    "key_terms_source": "canonical_name + aliases",
+                    "demonstrated": {"min_distinct_terms": 2, "min_retrieval_score": 2.5},
+                    "mentioned": {"min_distinct_terms": 1},
+                },
+                "generated_query": generated_query,
+                "retrieval_scoring": retrieval.get("scoring"),
+                "retrieval_N": retrieval.get("N"),
+                "retrieval_avgdl": retrieval.get("avgdl"),
+                "best_chunk_id": (best.get("chunk_id") if best else None),
+                "matched_terms": matched_terms,
+            }
+
+            # IMPORTANT: default=str makes UUID/datetime JSON-serializable safely
+            evidence_json = _json.dumps(evidence, default=str)
+            meta_json = _json.dumps(decision_meta, default=str)
+
+            conn.execute(
+                text("""
+                    INSERT INTO skill_assessments (assessment_id, doc_id, skill_id, decision, evidence, decision_meta, created_at)
+                    VALUES ((:assessment_id)::uuid, (:doc_id)::uuid, :skill_id, :decision, (:evidence)::jsonb, (:decision_meta)::jsonb, :created_at)
+                """),
+                {
+                    "assessment_id": assessment_id,
+                    "doc_id": doc_id,
+                    "skill_id": skill_id,
+                    "decision": decision,
+                    "evidence": evidence_json,
+                    "decision_meta": meta_json,
+                    "created_at": created_at,
+                },
+            )
+
+    return {
+        "skill_id": skill_id,
+        "doc_id": doc_id,
+        "decision": decision,
+        "matched_terms": matched_terms,
+        "best_evidence": best,
+        "evidence": evidence,
+        "decision_meta": {
+            "type": "rule_v0",
+            "generated_query": generated_query,
+            "rule_summary": "demonstrated if >=2 key terms in best chunk and score>=2.5; mentioned if >=1; else refuse",
+        },
+    }
+
+@app.get("/documents/{doc_id}/assessments")
+def list_assessments(doc_id: str, limit: int = 20):
+    limit = max(1, min(limit, 100))
+
+    with engine.connect() as conn:
+        # Return newest first
+        rows = conn.execute(
+            text("""
+                SELECT assessment_id, doc_id, skill_id, decision, decision_meta, created_at
+                FROM skill_assessments
+                WHERE doc_id = (:doc_id)::uuid
+                ORDER BY created_at DESC
+                LIMIT :limit
+            """),
+            {"doc_id": doc_id, "limit": limit},
+        ).mappings().all()
+
+    return {"items": [dict(r) for r in rows]}
