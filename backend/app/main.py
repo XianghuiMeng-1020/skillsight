@@ -23,6 +23,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent  # backend/
 UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+SKILLS_PATH = Path(__file__).resolve().parent.parent / "data" / "skills.json"
+
 app = FastAPI(title="SkillSight API", version="0.2")
 
 app.add_middleware(
@@ -251,9 +253,19 @@ def rechunk_document(doc_id: str):
 @app.post("/search/evidence")
 def search_evidence(payload: dict):
     """
-    BM25 baseline (Week3 upgrade):
-    - payload: {"query": "...", "doc_id": optional, "k": optional}
-    - returns: top-k chunks ranked by BM25 on snippet text
+    BM25 evidence retrieval (Decision 1 baseline).
+    Payload:
+      {
+        "query": "...",
+        "doc_id": optional,
+        "k": optional (default 10),
+        "include_breakdown": optional bool (default false)
+      }
+
+    Notes:
+      - `score` is a retrieval ranking score (BM25), NOT a probability/confidence.
+      - If include_breakdown=true, returns `score_meta` per item with token-level contributions.
+      - Future "confidence" can be added as a separate field without breaking this schema.
     """
     import math
     import re as _re
@@ -265,6 +277,7 @@ def search_evidence(payload: dict):
     doc_id = payload.get("doc_id")
     k = int(payload.get("k") or 10)
     k = max(1, min(k, 50))
+    include_breakdown = bool(payload.get("include_breakdown") or False)
 
     # Tokenization (simple + robust)
     def tokenize(text: str):
@@ -282,7 +295,12 @@ def search_evidence(payload: dict):
     if not q_tokens:
         raise HTTPException(status_code=400, detail="Query too short after filtering")
 
-    # Pull candidate chunks (MVP: use snippet only)
+    # Count duplicates in query so behavior matches previous loop-over-tokens
+    q_counts = {}
+    for t in q_tokens:
+        q_counts[t] = q_counts.get(t, 0) + 1
+
+    # Pull candidate chunks (BM25 uses chunk_text; snippet is for UI)
     sql = """
         SELECT chunk_id, doc_id, idx, char_start, char_end, chunk_text, snippet, created_at
         FROM chunks
@@ -299,84 +317,117 @@ def search_evidence(payload: dict):
     with engine.connect() as conn:
         rows = conn.execute(text(sql.format(where=where)), params).mappings().all()
 
-    # Build corpus stats for BM25 within candidates
-    # docs: list of dicts with tokens + tf map
-    docs = []
-    df = {}  # document frequency per term
+    # Build corpus stats within current scope
+    docs = []          # list of (meta, tf, dl)
+    df = {}            # term -> document frequency
     total_len = 0
 
     for r in rows:
-        snippet = (r.get("chunk_text") or r.get("snippet") or "")
-        toks = tokenize(snippet)
-        # term frequency
+        text_for_scoring = (r.get("chunk_text") or r.get("snippet") or "")
+        toks = tokenize(text_for_scoring)
+
         tf = {}
         for t in toks:
             tf[t] = tf.get(t, 0) + 1
-        # update df (unique terms per doc)
+
         for t in set(tf.keys()):
             df[t] = df.get(t, 0) + 1
 
-        doc_len = len(toks)
-        total_len += doc_len
-        docs.append((dict(r), tf, doc_len))
+        dl = len(toks)
+        total_len += dl
+        docs.append((dict(r), tf, dl))
 
     N = len(docs)
     if N == 0:
-        return {"items": [], "query_tokens": q_tokens, "note": "No chunks available in scope."}
+        return {"items": [], "query_tokens": q_tokens, "scoring": "BM25", "note": "No chunks available in scope."}
 
     avgdl = total_len / N if N > 0 else 1.0
 
-    # BM25 parameters (standard-ish defaults)
+    # BM25 params
     k1 = 1.5
     b = 0.75
 
     def idf(term: str) -> float:
-        # Smoothed IDF. +1 keeps it positive even for common terms.
         dft = df.get(term, 0)
         return math.log(((N - dft + 0.5) / (dft + 0.5)) + 1.0)
 
     scored = []
     for meta, tf, dl in docs:
         score = 0.0
-        for term in q_tokens:
-            if term not in tf:
+        breakdown = []  # filled only if include_breakdown
+
+        for term, q_count in q_counts.items():
+            f = tf.get(term, 0)
+            if f <= 0:
+                if include_breakdown:
+                    breakdown.append({
+                        "term": term,
+                        "query_count": q_count,
+                        "tf": 0,
+                        "idf": idf(term),
+                        "base": 0.0,
+                        "contrib": 0.0
+                    })
                 continue
-            f = tf[term]
+
             denom = f + k1 * (1.0 - b + b * (dl / avgdl if avgdl > 0 else 1.0))
-            score += idf(term) * (f * (k1 + 1.0) / (denom if denom != 0 else 1.0))
+            base = idf(term) * (f * (k1 + 1.0) / (denom if denom != 0 else 1.0))
+            contrib = q_count * base
+            score += contrib
+
+            if include_breakdown:
+                breakdown.append({
+                    "term": term,
+                    "query_count": q_count,
+                    "tf": f,
+                    "idf": idf(term),
+                    "base": base,        # per-occurrence
+                    "contrib": contrib   # includes query_count weighting
+                })
 
         if score > 0:
-            meta["score"] = float(score)
-            meta.pop("chunk_text", None)
+            meta["score"] = float(score)  # keep backward compat with UI
+            meta.pop("chunk_text", None)  # never return full text in API payload
+
+            # score_meta is the expandable place for future changes
+            meta["score_meta"] = {
+                "type": "retrieval_bm25",
+                "k1": k1,
+                "b": b,
+                "dl": dl,
+                "avgdl": avgdl,
+                "N": N,
+            }
+            if include_breakdown:
+                meta["score_meta"]["breakdown"] = breakdown
+
             scored.append(meta)
 
     scored.sort(key=lambda x: x["score"], reverse=True)
-    return {"items": scored[:k], "query_tokens": q_tokens, "scoring": "BM25", "N": N, "avgdl": avgdl}
-
-
-# -------------------------
-# Skill Registry (v0)
-# -------------------------
-import json
-from functools import lru_cache
-
-SKILLS_PATH = Path(__file__).resolve().parent.parent / "data" / "skills.json"
-
-@lru_cache(maxsize=1)
-def load_skills() -> list:
-    if not SKILLS_PATH.exists():
-        return []
-    return json.loads(SKILLS_PATH.read_text(encoding="utf-8"))
-
-def get_skill_by_id(skill_id: str) -> dict | None:
-    for sk in load_skills():
-        if sk.get("skill_id") == skill_id:
-            return sk
-    return None
+    return {
+        "items": scored[:k],
+        "query_tokens": q_tokens,
+        "scoring": "BM25",
+        "N": N,
+        "avgdl": avgdl,
+        "include_breakdown": include_breakdown
+    }
 
 @app.get("/skills")
 def list_skills():
-    return {"items": load_skills()}
+    items = load_skills()
+    return {"items": items}
+
+
+@app.get("/skills_debug")
+def skills_debug():
+    items = load_skills()
+    return {
+        "skills_path": str(SKILLS_PATH),
+        "exists": bool(SKILLS_PATH.exists()),
+        "count": len(items),
+        "first_skill_id": items[0].get("skill_id") if items else None,
+    }
 
 @app.get("/skills/{skill_id}")
 def get_skill(skill_id: str):
@@ -389,32 +440,76 @@ def get_skill(skill_id: str):
 def search_skill_evidence(payload: dict):
     """
     Payload:
-      {"skill_id": "...", "doc_id": optional, "k": optional}
-    Behavior:
-      build query from canonical_name + definition + aliases, then call /search/evidence BM25.
+      {"skill_id": "...", "doc_id": optional, "k": optional, "include_breakdown": optional}
+    Builds a query from skill definition + aliases and calls /search/evidence (BM25).
     """
-    skill_id = (payload.get("skill_id") or "").strip()
-    if not skill_id:
-        raise HTTPException(status_code=400, detail="Missing skill_id")
+    try:
+        skill_id = (payload.get("skill_id") or "").strip()
+        if not skill_id:
+            raise HTTPException(status_code=400, detail="Missing skill_id")
 
-    sk = get_skill_by_id(skill_id)
-    if not sk:
-        raise HTTPException(status_code=404, detail="Skill not found")
+        sk = get_skill_by_id(skill_id)
+        if not sk:
+            raise HTTPException(status_code=404, detail="Skill not found")
 
-    doc_id = payload.get("doc_id")
-    k = int(payload.get("k") or 10)
+        doc_id = payload.get("doc_id")
+        k = int(payload.get("k") or 10)
+        k = max(1, min(k, 50))
+        include_breakdown = bool(payload.get("include_breakdown") or False)
 
-    canonical = sk.get("canonical_name") or ""
-    definition = sk.get("definition") or ""
-    aliases = sk.get("aliases") or []
-    alias_text = " ".join([a for a in aliases if isinstance(a, str)])
+        canonical = sk.get("canonical_name") or ""
+        definition = sk.get("definition") or ""
+        aliases = sk.get("aliases") or []
+        alias_text = " ".join([a for a in aliases if isinstance(a, str)])
 
-    # You can tweak this template later (this is v0)
-    query = f"{canonical}. {definition} Aliases: {alias_text}".strip()
+        generated_query = f"{canonical}. {definition} Aliases: {alias_text}".strip()
 
-    # Reuse the existing BM25 endpoint function
-    return {
-        **search_evidence({"query": query, "doc_id": doc_id, "k": k}),
-        "skill_id": skill_id,
-        "generated_query": query
-    }
+        result = search_evidence({
+            "query": generated_query,
+            "doc_id": doc_id,
+            "k": k,
+            "include_breakdown": include_breakdown
+        })
+
+        result["skill_id"] = skill_id
+        result["generated_query"] = generated_query
+        return result
+
+    except HTTPException:
+        # pass through expected HTTP errors
+        raise
+    except Exception as e:
+        # Force JSON detail for ANY unexpected error (dev-friendly)
+        raise HTTPException(status_code=500, detail=f"skill_evidence UNHANDLED: {type(e).__name__}: {e}")
+
+
+# ---- Skill helper (v0) ----
+def get_skill_by_id(skill_id: str):
+    try:
+        skills = load_skills()
+    except Exception:
+        skills = []
+    for sk in skills:
+        if isinstance(sk, dict) and sk.get("skill_id") == skill_id:
+            return sk
+    return None
+
+
+# -------------------------
+# Skill Registry (v0, dev-safe)
+# -------------------------
+def load_skills() -> list:
+    try:
+        import json
+        if not SKILLS_PATH.exists():
+            return []
+        data = json.loads(SKILLS_PATH.read_text(encoding="utf-8"))
+        return data if isinstance(data, list) else []
+    except Exception:
+        return []
+
+def get_skill_by_id(skill_id: str):
+    for sk in load_skills():
+        if isinstance(sk, dict) and sk.get("skill_id") == skill_id:
+            return sk
+    return None
