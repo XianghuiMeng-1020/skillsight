@@ -935,6 +935,12 @@ def assess_role_readiness(payload: dict):
     from datetime import datetime, timezone as _tz
 
     doc_id = (payload.get("doc_id") or "").strip()
+    import uuid
+    try:
+        uuid.UUID(doc_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid doc_id format")
+
     role_id = (payload.get("role_id") or "").strip()
     store = bool(payload.get("store") if payload.get("store") is not None else True)
 
@@ -1045,6 +1051,12 @@ def recommend_actions(payload: dict):
       output: action_cards[] based on role readiness gap types
     """
     doc_id = (payload.get("doc_id") or "").strip()
+    import uuid
+    try:
+        uuid.UUID(doc_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid doc_id format")
+
     role_id = (payload.get("role_id") or "").strip()
     if not doc_id:
         raise HTTPException(status_code=400, detail="Missing doc_id")
@@ -1067,6 +1079,8 @@ def recommend_actions(payload: dict):
                 "skill_id": it["skill_id"],
                 "gap_type": gap_type,
                 "title": tmpl["title"],
+                "why_this_card": f"Status={status}. Observed level {it['observed_level']} ({it['observed_label']}) vs target {it['target_level']}.",
+                "based_on": it,
                 "what_to_do": tmpl["what_to_do"],
                 "artifact": tmpl["artifact"],
                 "how_verified": tmpl["how_verified"],
@@ -1076,6 +1090,8 @@ def recommend_actions(payload: dict):
                 "skill_id": it["skill_id"],
                 "gap_type": gap_type,
                 "title": f"Action for {it['skill_id']} ({gap_type})",
+                "why_this_card": f"Status={status}. Observed level {it['observed_level']} ({it['observed_label']}) vs target {it['target_level']}.",
+                "based_on": it,
                 "what_to_do": "Add a concrete artifact that demonstrates the skill and can be cited as evidence.",
                 "artifact": "A short text section or project log entry",
                 "how_verified": "Instructor can locate the cited paragraph and confirm it matches the skill definition."
