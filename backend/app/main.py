@@ -702,13 +702,13 @@ def list_assessments(doc_id: str, limit: int = 20):
 @app.post("/assess/proficiency")
 def assess_proficiency(payload: dict):
     """
-    Payload:
-      {"skill_id": "...", "doc_id": "...", "k": optional, "store": optional bool}
-    Returns:
-      {skill_id, doc_id, level, label, rationale, best_evidence, signals, meta}
+    Decision 3 (rule_v1):
+      - reuses Decision 2 outputs (decision + matched_terms + evidence list)
+      - uses coverage across evidence, not just one high score
     """
     import uuid as _uuid
     import json as _json
+    import re as _re
     from datetime import datetime, timezone as _tz
 
     skill_id = (payload.get("skill_id") or "").strip()
@@ -722,33 +722,67 @@ def assess_proficiency(payload: dict):
     k = max(1, min(k, 50))
     store = bool(payload.get("store") if payload.get("store") is not None else True)
 
-    # Reuse Decision 2 output (do not store twice by default)
+    # Run Decision 2 once (no store) to avoid double writes
     d2 = assess_skill({"skill_id": skill_id, "doc_id": doc_id, "k": k, "store": False})
-    decision = d2.get("decision")
+    decision2 = d2.get("decision")
     matched_terms = d2.get("matched_terms") or []
-    best = d2.get("best_evidence")  # may be None
+    evidence = d2.get("evidence") or []
+    best = d2.get("best_evidence")
     best_score = float(best.get("score", 0) or 0) if best else 0.0
     distinct_terms = len(matched_terms)
 
-    # Rule-based level (v0)
-    if decision == "not_enough_information":
-        level = 0
-        label = "novice"
+    # Tokenize helper
+    def tok(text: str):
+        text = (text or "").lower()
+        toks = _re.findall(r"[a-z0-9]+", text)
+        stop = {
+            "the","a","an","and","or","to","of","in","on","for","with","is","are","was","were","be","as","by",
+            "it","this","that","from","at","we","you","they","he","she","i","me","my","our","your","their"
+        }
+        toks = [t for t in toks if t not in stop]
+        toks = [t for t in toks if len(t) >= 2]
+        return toks
+
+    sk = get_skill_by_id(skill_id)
+    if not sk:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    canonical = sk.get("canonical_name") or ""
+    aliases = sk.get("aliases") or []
+    alias_text = " ".join([a for a in aliases if isinstance(a, str)])
+    key_terms = set(tok(canonical + " " + alias_text))
+
+    # coverage_count: how many evidence chunks contain >=1 key term
+    coverage_count = 0
+    with engine.connect() as conn:
+        for ev in evidence:
+            cid = ev.get("chunk_id")
+            if not cid:
+                continue
+            row = conn.execute(
+                text("SELECT chunk_text FROM chunks WHERE chunk_id = (:cid)::uuid"),
+                {"cid": cid},
+            ).mappings().first()
+            chunk_text = (row.get("chunk_text") if row else "") or ""
+            chunk_tokens = set(tok(chunk_text))
+            if chunk_tokens.intersection(key_terms):
+                coverage_count += 1
+
+    # Rule v1
+    if decision2 == "not_enough_information":
+        level, label = 0, "novice"
         rationale = "Not enough evidence to support a proficiency claim."
-    elif decision == "mentioned":
-        level = 1
-        label = "developing"
+    elif decision2 == "mentioned":
+        level, label = 1, "developing"
         rationale = "Evidence mentions the skill but does not strongly demonstrate it."
     else:
         # demonstrated
-        if distinct_terms >= 3 or best_score >= 6.0:
-            level = 3
-            label = "advanced"
-            rationale = "Strong evidence: multiple distinct key terms and/or high retrieval relevance."
+        if coverage_count >= 2 and distinct_terms >= 2:
+            level, label = 3, "advanced"
+            rationale = "Strong evidence across multiple chunks with multiple key terms."
         else:
-            level = 2
-            label = "proficient"
-            rationale = "Evidence demonstrates the skill with moderate strength."
+            level, label = 2, "proficient"
+            rationale = "Evidence demonstrates the skill, but coverage or term diversity is limited."
 
     result = {
         "skill_id": skill_id,
@@ -758,17 +792,18 @@ def assess_proficiency(payload: dict):
         "rationale": rationale,
         "best_evidence": best,
         "signals": {
-            "decision2": decision,
+            "decision2": decision2,
             "distinct_key_terms": distinct_terms,
-            "matched_terms": matched_terms,
+            "coverage_count": coverage_count,
             "best_retrieval_score": best_score,
+            "matched_terms": matched_terms,
         },
         "meta": {
-            "type": "rule_v0",
+            "type": "rule_v1",
             "level_rule": {
                 "not_enough_information": 0,
                 "mentioned": 1,
-                "demonstrated": {"score>=6.0 OR terms>=3": 3, "else": 2},
+                "demonstrated": {"coverage>=2 AND terms>=2": 3, "else": 2},
             },
         },
     }
@@ -815,7 +850,6 @@ def assess_proficiency(payload: dict):
             )
 
     return result
-
 
 @app.get("/documents/{doc_id}/proficiency")
 def list_proficiency(doc_id: str, limit: int = 20):
