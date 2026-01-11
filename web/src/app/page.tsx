@@ -9,6 +9,13 @@ type DocItem = {
   created_at: string;
 };
 
+type SkillItem = {
+  skill_id: string;
+  canonical_name: string;
+  aliases?: string[];
+  definition?: string;
+};
+
 type EvidenceItem = {
   chunk_id: string;
   doc_id: string;
@@ -30,6 +37,11 @@ export default function Home() {
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [loadingDocs, setLoadingDocs] = useState<boolean>(false);
 
+  // Skills
+  const [skills, setSkills] = useState<SkillItem[]>([]);
+  const [loadingSkills, setLoadingSkills] = useState<boolean>(false);
+  const [selectedSkillId, setSelectedSkillId] = useState<string>("FREE_TEXT");
+
   // Search state
   const [query, setQuery] = useState<string>("privacy academic integrity");
   const [k, setK] = useState<number>(5);
@@ -38,6 +50,7 @@ export default function Home() {
   const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
   const [searching, setSearching] = useState<boolean>(false);
   const [tokens, setTokens] = useState<string[]>([]);
+  const [generatedQuery, setGeneratedQuery] = useState<string>("");
 
   async function refreshDocs() {
     setLoadingDocs(true);
@@ -52,6 +65,19 @@ export default function Home() {
     }
   }
 
+  async function refreshSkills() {
+    setLoadingSkills(true);
+    try {
+      const res = await fetch(`${apiBase}/skills`);
+      const data = await res.json();
+      setSkills(data.items || []);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingSkills(false);
+    }
+  }
+
   useEffect(() => {
     fetch(`${apiBase}/health`)
       .then((r) => r.json())
@@ -59,6 +85,7 @@ export default function Home() {
       .catch(() => setStatus("API unreachable ❌"));
 
     refreshDocs();
+    refreshSkills();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -71,6 +98,16 @@ export default function Home() {
       })),
     ];
   }, [docs]);
+
+  const skillOptions = useMemo(() => {
+    return [
+      { value: "FREE_TEXT", label: "Free text (manual query)" },
+      ...skills.map((s) => ({
+        value: s.skill_id,
+        label: `${s.canonical_name}`,
+      })),
+    ];
+  }, [skills]);
 
   async function onUpload() {
     setUploadMsg("");
@@ -105,23 +142,39 @@ export default function Home() {
     setSearchMsg("");
     setEvidence([]);
     setTokens([]);
+    setGeneratedQuery("");
 
-    const q = query.trim();
-    if (!q) {
-      setSearchMsg("Please enter a query first.");
-      return;
-    }
+    const docScope = selectedDocId !== "ALL" ? selectedDocId : undefined;
 
     setSearching(true);
     try {
-      const body: any = { query: q, k };
-      if (selectedDocId !== "ALL") body.doc_id = selectedDocId;
+      let res: Response;
 
-      const res = await fetch(`${apiBase}/search/evidence`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      if (selectedSkillId === "FREE_TEXT") {
+        const q = query.trim();
+        if (!q) {
+          setSearchMsg("Please enter a query first.");
+          setSearching(false);
+          return;
+        }
+        const body: any = { query: q, k };
+        if (docScope) body.doc_id = docScope;
+
+        res = await fetch(`${apiBase}/search/evidence`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      } else {
+        const body: any = { skill_id: selectedSkillId, k };
+        if (docScope) body.doc_id = docScope;
+
+        res = await fetch(`${apiBase}/search/skill_evidence`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+      }
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -131,6 +184,8 @@ export default function Home() {
 
       setEvidence(data.items || []);
       setTokens(data.query_tokens || []);
+      if (data.generated_query) setGeneratedQuery(data.generated_query);
+
       if ((data.items || []).length === 0) setSearchMsg("No evidence found (score>0). Try different words.");
     } catch (e: any) {
       setSearchMsg(`Search error: ${String(e.message || e)}`);
@@ -149,17 +204,32 @@ export default function Home() {
 
       {/* Evidence Search */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 24 }}>
-        <h2 style={{ fontSize: 18, marginBottom: 10 }}>Week 3: Evidence search (Decision 1 baseline)</h2>
+        <h2 style={{ fontSize: 18, marginBottom: 10 }}>Evidence search (Decision 1)</h2>
         <div style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>
-          This baseline ranks chunks by keyword match count. Use "Document scope" to search within one uploaded artifact.
+          Choose a skill (auto query) or use free text. BM25 ranks chunks within the selected scope.
         </div>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            value={selectedSkillId}
+            onChange={(e) => setSelectedSkillId(e.target.value)}
+            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 240 }}
+          >
+            {loadingSkills && <option>Loading skills...</option>}
+            {!loadingSkills &&
+              skillOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+          </select>
+
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="e.g., academic integrity, privacy, teamwork..."
-            style={{ flex: "1 1 460px", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
+            disabled={selectedSkillId !== "FREE_TEXT"}
+            placeholder="Type keywords (only for Free text mode)"
+            style={{ flex: "1 1 360px", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
           />
 
           <select
@@ -191,8 +261,14 @@ export default function Home() {
           </button>
         </div>
 
-        {tokens.length > 0 && (
+        {generatedQuery && (
           <div style={{ marginTop: 10, color: "#666", fontSize: 13 }}>
+            generated_query: {generatedQuery}
+          </div>
+        )}
+
+        {tokens.length > 0 && (
+          <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>
             tokens used: {tokens.join(", ")}
           </div>
         )}
@@ -206,14 +282,12 @@ export default function Home() {
               {evidence.map((ev) => (
                 <li key={ev.chunk_id} style={{ marginBottom: 12 }}>
                   <div style={{ marginBottom: 4 }}>
-                    <b>score={ev.score}</b>{" "}
+                    <b>score={ev.score.toFixed(3)}</b>{" "}
                     <span style={{ color: "#666" }}>
                       (doc {ev.doc_id.slice(0, 8)}…, chunk {ev.idx}, char [{ev.char_start},{ev.char_end}])
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, color: "#333", marginBottom: 4 }}>
-                    {ev.snippet}
-                  </div>
+                  <div style={{ fontSize: 13, color: "#333", marginBottom: 4 }}>{ev.snippet}</div>
                   <div style={{ fontSize: 13 }}>
                     <Link href={`/documents/${ev.doc_id}`} style={{ textDecoration: "underline" }}>
                       Open document chunks →
