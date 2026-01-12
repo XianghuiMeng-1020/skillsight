@@ -81,15 +81,6 @@ type ProfResult = {
   best_evidence: EvidenceItem | null;
 };
 
-
-type ChangeItem = {
-  change_id: string;
-  object_type: string;
-  doc_id_text: string | null;
-  key_text: string | null;
-  change_summary: any;
-  created_at: string;
-};
 type AuditItem = {
   audit_id: string;
   event_type: string;
@@ -99,6 +90,15 @@ type AuditItem = {
   status_code: number;
   created_at: string;
   payload: any;
+};
+
+type ChangeItem = {
+  change_id: string;
+  object_type: string;
+  doc_id_text: string | null;
+  key_text: string | null;
+  change_summary: any;
+  created_at: string;
 };
 
 export default function DocPage() {
@@ -132,10 +132,10 @@ export default function DocPage() {
   const [planErr, setPlanErr] = useState<string>("");
   const [planning, setPlanning] = useState<boolean>(false);
 
-  // Audit
   const [audit, setAudit] = useState<AuditItem[]>([]);
   const [auditErr, setAuditErr] = useState<string>("");
   const [auditing, setAuditing] = useState<boolean>(false);
+
   const [changes, setChanges] = useState<ChangeItem[]>([]);
   const [changesErr, setChangesErr] = useState<string>("");
   const [changing, setChanging] = useState<boolean>(false);
@@ -154,6 +154,7 @@ export default function DocPage() {
     } finally {
       setAuditing(false);
     }
+  }
 
   async function refreshChanges() {
     if (!docId) return;
@@ -170,7 +171,6 @@ export default function DocPage() {
       setChanging(false);
     }
   }
-  }
 
   useEffect(() => {
     fetch(`${apiBase}/skills`)
@@ -181,7 +181,7 @@ export default function DocPage() {
           canonical_name: x.canonical_name,
         }));
         setSkills(items);
-        if (!skillId && items.length > 0) setSkillId(items[0].skill_id);
+        if (items.length > 0) setSkillId((prev) => prev || items[0].skill_id);
       })
       .catch(() => {});
 
@@ -193,14 +193,14 @@ export default function DocPage() {
           role_title: x.role_title,
         }));
         setRoles(items);
-        if (!roleId && items.length > 0) setRoleId(items[0].role_id);
+        if (items.length > 0) setRoleId((prev) => prev || items[0].role_id);
       })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [apiBase]);
 
   useEffect(() => {
     if (!docId) return;
+
     setLoading(true);
     setErr("");
 
@@ -232,14 +232,11 @@ export default function DocPage() {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setAssessRes(data);
-      refreshAudit();
-    refreshChanges();
     } catch (e: any) {
       setAssessErr(String(e.message || e));
-      refreshAudit();
-    refreshChanges();
     } finally {
       setAssessing(false);
+      refreshAudit();
     }
   }
 
@@ -257,14 +254,11 @@ export default function DocPage() {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setProfRes(data);
-      refreshAudit();
-    refreshChanges();
     } catch (e: any) {
       setProfErr(String(e.message || e));
-      refreshAudit();
-    refreshChanges();
     } finally {
       setProfing(false);
+      refreshAudit();
     }
   }
 
@@ -277,19 +271,17 @@ export default function DocPage() {
       const r = await fetch(`${apiBase}/assess/role_readiness`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc_id: docId, role_id: roleId, store: false }),
+        body: JSON.stringify({ doc_id: docId, role_id: roleId, store: true }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setReadiness(data);
-      refreshAudit();
-    refreshChanges();
     } catch (e: any) {
       setReadinessErr(String(e.message || e));
-      refreshAudit();
-    refreshChanges();
     } finally {
       setReading(false);
+      refreshAudit();
+      refreshChanges();
     }
   }
 
@@ -307,14 +299,11 @@ export default function DocPage() {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setPlan(data);
-      refreshAudit();
-    refreshChanges();
     } catch (e: any) {
       setPlanErr(String(e.message || e));
-      refreshAudit();
-    refreshChanges();
     } finally {
       setPlanning(false);
+      refreshAudit();
     }
   }
 
@@ -404,7 +393,7 @@ export default function DocPage() {
         {readiness && (
           <div style={{ marginBottom: 12 }}>
             <div style={{ color: "#666", fontSize: 13 }}>
-              summary: meet={readiness.summary.meet}, missing_proof={readiness.summary.missing_proof}, needs_strengthening={readiness.summary.needs_strengthening}
+              summary: meet={readiness.summary.meet}, missing={readiness.summary.missing_proof}, needs={readiness.summary.needs_strengthening}
             </div>
             <ul style={{ marginTop: 10 }}>
               {readiness.items.map((it) => (
@@ -447,7 +436,7 @@ export default function DocPage() {
         )}
       </section>
 
-            {/* Audit */}
+      {/* Audit */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
         <h2 style={{ fontSize: 16, marginBottom: 10 }}>Recent audit logs</h2>
 
@@ -472,11 +461,9 @@ export default function DocPage() {
               </thead>
               <tbody>
                 {audit.map((a) => {
-                  // support both old payload shape and new payload shape
                   const payload = a.payload || {};
-                  const req = payload.request || payload;
                   const respSum = payload.response_summary || null;
-                  const elapsed = payload._elapsed_ms ?? payload._elapsed_ms ?? req._elapsed_ms;
+                  const elapsed = payload._elapsed_ms ?? payload.request?._elapsed_ms;
 
                   const summaryObj = respSum?.summary || null;
                   const summaryText = summaryObj
@@ -507,14 +494,9 @@ export default function DocPage() {
                 })}
               </tbody>
             </table>
-
-            <div style={{ marginTop: 10, color: "#666", fontSize: 12 }}>
-              Note: newer logs include response_summary (compact, auditable). Older logs may not.
-            </div>
           </div>
         )}
       </section>
-
 
       {/* Changes */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
@@ -568,6 +550,7 @@ export default function DocPage() {
           </div>
         )}
       </section>
+
       {/* Chunks */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
         <h2 style={{ fontSize: 18, marginBottom: 12 }}>Chunks</h2>
