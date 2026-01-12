@@ -81,6 +81,15 @@ type ProfResult = {
   best_evidence: EvidenceItem | null;
 };
 
+
+type ChangeItem = {
+  change_id: string;
+  object_type: string;
+  doc_id_text: string | null;
+  key_text: string | null;
+  change_summary: any;
+  created_at: string;
+};
 type AuditItem = {
   audit_id: string;
   event_type: string;
@@ -127,6 +136,9 @@ export default function DocPage() {
   const [audit, setAudit] = useState<AuditItem[]>([]);
   const [auditErr, setAuditErr] = useState<string>("");
   const [auditing, setAuditing] = useState<boolean>(false);
+  const [changes, setChanges] = useState<ChangeItem[]>([]);
+  const [changesErr, setChangesErr] = useState<string>("");
+  const [changing, setChanging] = useState<boolean>(false);
 
   async function refreshAudit() {
     if (!docId) return;
@@ -142,6 +154,22 @@ export default function DocPage() {
     } finally {
       setAuditing(false);
     }
+
+  async function refreshChanges() {
+    if (!docId) return;
+    setChanging(true);
+    setChangesErr("");
+    try {
+      const r = await fetch(`${apiBase}/changes?doc_id=${docId}&limit=20`);
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+      setChanges(data.items || []);
+    } catch (e: any) {
+      setChangesErr(String(e.message || e));
+    } finally {
+      setChanging(false);
+    }
+  }
   }
 
   useEffect(() => {
@@ -186,6 +214,7 @@ export default function DocPage() {
       .finally(() => setLoading(false));
 
     refreshAudit();
+    refreshChanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiBase, docId]);
 
@@ -204,9 +233,11 @@ export default function DocPage() {
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setAssessRes(data);
       refreshAudit();
+    refreshChanges();
     } catch (e: any) {
       setAssessErr(String(e.message || e));
       refreshAudit();
+    refreshChanges();
     } finally {
       setAssessing(false);
     }
@@ -227,9 +258,11 @@ export default function DocPage() {
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setProfRes(data);
       refreshAudit();
+    refreshChanges();
     } catch (e: any) {
       setProfErr(String(e.message || e));
       refreshAudit();
+    refreshChanges();
     } finally {
       setProfing(false);
     }
@@ -250,9 +283,11 @@ export default function DocPage() {
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setReadiness(data);
       refreshAudit();
+    refreshChanges();
     } catch (e: any) {
       setReadinessErr(String(e.message || e));
       refreshAudit();
+    refreshChanges();
     } finally {
       setReading(false);
     }
@@ -273,9 +308,11 @@ export default function DocPage() {
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setPlan(data);
       refreshAudit();
+    refreshChanges();
     } catch (e: any) {
       setPlanErr(String(e.message || e));
       refreshAudit();
+    refreshChanges();
     } finally {
       setPlanning(false);
     }
@@ -478,6 +515,59 @@ export default function DocPage() {
         )}
       </section>
 
+
+      {/* Changes */}
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 10 }}>Recent changes</h2>
+
+        <button onClick={refreshChanges} disabled={changing} style={{ padding: "6px 12px", cursor: "pointer" }}>
+          {changing ? "Refreshing..." : "Refresh"}
+        </button>
+
+        {changesErr && <div style={{ marginTop: 10, color: "crimson" }}>{changesErr}</div>}
+        {!changesErr && changes.length === 0 && <div style={{ marginTop: 10, color: "#666" }}>No changes yet.</div>}
+
+        {changes.length > 0 && (
+          <div style={{ marginTop: 12, overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ textAlign: "left" }}>
+                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>time</th>
+                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>object</th>
+                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>what changed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {changes.map((c) => {
+                  const diff = c.change_summary?.diff;
+                  const items = diff?.item_changes || [];
+                  const short = items.map((it: any) => {
+                    const sid = it.skill_id;
+                    const f = it.from ? `${it.from.status} (obs ${it.from.observed_level}, tgt ${it.from.target_level})` : "none";
+                    const t = it.to ? `${it.to.status} (obs ${it.to.observed_level}, tgt ${it.to.target_level})` : "none";
+                    return `${sid}: ${f} → ${t}`;
+                  }).join(" | ");
+
+                  return (
+                    <tr key={c.change_id}>
+                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8, color: "#666", fontSize: 13 }}>
+                        {c.created_at}
+                      </td>
+                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8 }}>
+                        <div style={{ fontWeight: 600 }}>{c.object_type}</div>
+                        <div style={{ color: "#666", fontSize: 12 }}>key: {c.key_text}</div>
+                      </td>
+                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8, fontSize: 13 }}>
+                        {short || <span style={{ color: "#666" }}>(no item_changes)</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
       {/* Chunks */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
         <h2 style={{ fontSize: 18, marginBottom: 12 }}>Chunks</h2>
