@@ -9,6 +9,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
+from app.change_log import diff_role_readiness, log_change, list_changes
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -62,10 +63,16 @@ def init_db():
     ALTER TABLE documents ADD COLUMN IF NOT EXISTS doc_type TEXT;
     UPDATE documents SET doc_type = 'demo' WHERE doc_type IS NULL;
     ALTER TABLE documents ALTER COLUMN doc_type SET NOT NULL;
+    ALTER TABLE documents ADD COLUMN IF NOT EXISTS subject_id TEXT;
+
 
     ALTER TABLE chunks ADD COLUMN IF NOT EXISTS chunk_text TEXT;
     UPDATE chunks SET chunk_text = snippet WHERE chunk_text IS NULL;
     ALTER TABLE chunks ALTER COLUMN chunk_text SET NOT NULL;
+    ALTER TABLE chunks ADD COLUMN IF NOT EXISTS section_path TEXT;
+    ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page_start INTEGER;
+    ALTER TABLE chunks ADD COLUMN IF NOT EXISTS page_end INTEGER;
+
 
     """
     with engine.begin() as conn:
@@ -147,31 +154,54 @@ def create_chunks_for_document(doc_id: str, raw_text: str):
             )
 
 @app.post("/documents/upload")
-async def upload_document(doc_type: str = Form('demo'), file: UploadFile = File(...)):
+async def upload_document(
+    doc_id: str = Form(...),
+    upload_token: str = Form(...),
+    subject_id: str = Form(...),
+    doc_type: str = Form("demo"),
+    file: UploadFile = File(...)
+):
+    """
+    Strict upload:
+      - requires consent/start first (doc_id + upload_token)
+      - requires subject_id (owner)
+      - blocks upload if consent not granted or token mismatch
+    """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing filename")
 
-    allowed_doc_types = {'demo','synthetic','real'}
+    # strict: require granted consent + valid upload_token
+    require_upload_token(doc_id, upload_token)
+
+    allowed_doc_types = {"demo", "synthetic", "real"}
     if doc_type not in allowed_doc_types:
         raise HTTPException(status_code=400, detail="Invalid doc_type. Use demo/synthetic/real")
 
-    if not file.filename.lower().endswith(".txt"):
-        raise HTTPException(status_code=400, detail="Week2 only supports .txt files")
+    lower = file.filename.lower()
+    if not (lower.endswith(".txt") or lower.endswith(".docx") or lower.endswith(".pdf")):
+        raise HTTPException(status_code=400, detail="Supported: .txt, .docx, .pdf")
 
-    doc_id = str(uuid.uuid4())
+    # Use doc_id from consent/start (do NOT generate a new one)
     safe_name = f"{doc_id}_{Path(file.filename).name}"
     stored_path = UPLOAD_DIR / safe_name
 
     try:
         content = await file.read()
         stored_path.write_bytes(content)
-        raw_text = content.decode("utf-8", errors="ignore")
 
+        # Insert / upsert document row (doc_id fixed by consent)
         with engine.begin() as conn:
+            # if a row exists for same doc_id, replace stored_path/filename/doc_type/subject_id
             conn.execute(
                 text("""
-                    INSERT INTO documents (doc_id, filename, stored_path, created_at, doc_type)
-                    VALUES ((:doc_id)::uuid, :filename, :stored_path, :created_at, :doc_type)
+                    DELETE FROM documents WHERE doc_id = (:doc_id)::uuid
+                """),
+                {"doc_id": doc_id},
+            )
+            conn.execute(
+                text("""
+                    INSERT INTO documents (doc_id, filename, stored_path, created_at, doc_type, subject_id)
+                    VALUES ((:doc_id)::uuid, :filename, :stored_path, :created_at, :doc_type, :subject_id)
                 """),
                 {
                     "doc_id": doc_id,
@@ -179,17 +209,91 @@ async def upload_document(doc_type: str = Form('demo'), file: UploadFile = File(
                     "stored_path": str(stored_path),
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "doc_type": doc_type,
+                    "subject_id": subject_id,
                 },
             )
 
-        create_chunks_for_document(doc_id, raw_text)
+        # Delete old chunks for this doc_id (idempotent)
+        with engine.begin() as conn:
+            conn.execute(text("DELETE FROM chunks WHERE doc_id = (:doc_id)::uuid"), {"doc_id": doc_id})
+
+        # Parse + write chunks
+        if lower.endswith(".txt"):
+            raw_text = content.decode("utf-8", errors="ignore")
+            create_chunks_for_document(doc_id, raw_text)
+
+        elif lower.endswith(".docx"):
+            parsed = parse_docx_to_chunks(str(stored_path))
+            with engine.begin() as conn:
+                for idx, ch in enumerate(parsed):
+                    conn.execute(
+                        text("""
+                            INSERT INTO chunks
+                            (chunk_id, doc_id, idx, char_start, char_end,
+                             chunk_text, snippet, quote_hash, created_at,
+                             section_path, page_start, page_end)
+                            VALUES
+                            ((:chunk_id)::uuid, (:doc_id)::uuid, :idx, :char_start, :char_end,
+                             :chunk_text, :snippet, :quote_hash, :created_at,
+                             :section_path, :page_start, :page_end)
+                        """),
+                        {
+                            "chunk_id": str(uuid.uuid4()),
+                            "doc_id": doc_id,
+                            "idx": idx,
+                            "char_start": ch["char_start"],
+                            "char_end": ch["char_end"],
+                            "chunk_text": ch["chunk_text"],
+                            "snippet": _make_snippet(ch["chunk_text"]),
+                            "quote_hash": _hash_quote(ch["chunk_text"]),
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "section_path": ch.get("section_path"),
+                            "page_start": None,
+                            "page_end": None,
+                        },
+                    )
+
+        elif lower.endswith(".pdf"):
+            parsed = parse_pdf_to_chunks(str(stored_path))
+            if not parsed:
+                raise HTTPException(status_code=400, detail="PDF has no extractable text (OCR not supported).")
+            with engine.begin() as conn:
+                for idx, ch in enumerate(parsed):
+                    conn.execute(
+                        text("""
+                            INSERT INTO chunks
+                            (chunk_id, doc_id, idx, char_start, char_end,
+                             chunk_text, snippet, quote_hash, created_at,
+                             section_path, page_start, page_end)
+                            VALUES
+                            ((:chunk_id)::uuid, (:doc_id)::uuid, :idx, :char_start, :char_end,
+                             :chunk_text, :snippet, :quote_hash, :created_at,
+                             :section_path, :page_start, :page_end)
+                        """),
+                        {
+                            "chunk_id": str(uuid.uuid4()),
+                            "doc_id": doc_id,
+                            "idx": idx,
+                            "char_start": ch["char_start"],
+                            "char_end": ch["char_end"],
+                            "chunk_text": ch["chunk_text"],
+                            "snippet": _make_snippet(ch["chunk_text"]),
+                            "quote_hash": _hash_quote(ch["chunk_text"]),
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "section_path": None,
+                            "page_start": ch.get("page_start"),
+                            "page_end": ch.get("page_end"),
+                        },
+                    )
 
     except SQLAlchemyError as e:
         raise HTTPException(status_code=500, detail=f"DB error: {e}") from e
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}") from e
 
-    return {"doc_id": doc_id, "filename": file.filename}
+    return {"doc_id": doc_id, "filename": file.filename, "doc_type": doc_type, "subject_id": subject_id}
 
 @app.get("/documents")
 def list_documents(limit: int = 20):
@@ -208,11 +312,23 @@ def list_documents(limit: int = 20):
 
 @app.get("/documents/{doc_id}/chunks")
 def list_chunks(doc_id: str, limit: int = 200):
+    # Week10 strict: block analysis without granted consent
+    require_consent_granted(doc_id)
+
+    # strict: doc must exist, otherwise 404
+    with engine.connect() as _conn_check:
+        _exists = _conn_check.execute(
+            text("SELECT 1 FROM documents WHERE doc_id = (:doc_id)::uuid"),
+            {"doc_id": doc_id},
+        ).first()
+    if not _exists:
+        raise HTTPException(status_code=404, detail="Document not found")
+
     limit = max(1, min(limit, 500))
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
-                SELECT chunk_id, doc_id, idx, char_start, char_end, snippet, quote_hash, created_at
+                SELECT chunk_id, doc_id, idx, char_start, char_end, snippet, quote_hash, created_at, section_path, page_start, page_end
                 FROM chunks
                 WHERE doc_id = (:doc_id)::uuid
                 ORDER BY idx ASC
@@ -532,6 +648,9 @@ def assess_skill(payload: dict):
 
     skill_id = (payload.get("skill_id") or "").strip()
     doc_id = (payload.get("doc_id") or "").strip()
+
+    # Week10 strict: block analysis without granted consent
+    require_consent_granted(doc_id)
     if not skill_id:
         raise HTTPException(status_code=400, detail="Missing skill_id")
     if not doc_id:
@@ -713,6 +832,9 @@ def assess_proficiency(payload: dict):
 
     skill_id = (payload.get("skill_id") or "").strip()
     doc_id = (payload.get("doc_id") or "").strip()
+
+    # Week10 strict: block analysis without granted consent
+    require_consent_granted(doc_id)
     if not skill_id:
         raise HTTPException(status_code=400, detail="Missing skill_id")
     if not doc_id:
@@ -935,6 +1057,9 @@ def assess_role_readiness(payload: dict):
     from datetime import datetime, timezone as _tz
 
     doc_id = (payload.get("doc_id") or "").strip()
+
+    # Week10 strict: block analysis without granted consent
+    require_consent_granted(doc_id)
     import uuid
     try:
         uuid.UUID(doc_id)
@@ -1048,6 +1173,35 @@ def assess_role_readiness(payload: dict):
         "summary": readiness.get("summary"),
         "n_items": len(readiness.get("items") or []),
     }
+
+    # ---- Week8 change log: compare with previous stored readiness (same doc_id + role_id)
+    prev = None
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text('''
+                    SELECT readiness
+                    FROM role_readiness
+                    WHERE doc_id = (:doc_id)::uuid AND role_id = :role_id
+                    ORDER BY created_at DESC
+                    OFFSET 1
+                    LIMIT 1
+                '''),
+                {"doc_id": doc_id, "role_id": role_id},
+            ).mappings().first()
+        if row and row.get("readiness"):
+            prev = row["readiness"]
+    except Exception:
+        prev = None
+
+    d = diff_role_readiness(prev or {}, readiness)
+    if d.get("has_change"):
+        log_change(engine, "role_readiness", doc_id, role_id, {
+            "reason": "role_readiness recomputed",
+            "role_title": readiness.get("role_title"),
+            "diff": d
+        })
+
     return readiness
 
 @app.post("/actions/recommend")
@@ -1058,6 +1212,9 @@ def recommend_actions(payload: dict):
       output: action_cards[] based on role readiness gap types
     """
     doc_id = (payload.get("doc_id") or "").strip()
+
+    # Week10 strict: block analysis without granted consent
+    require_consent_granted(doc_id)
     import uuid
     try:
         uuid.UUID(doc_id)
@@ -1313,3 +1470,293 @@ def list_audit(doc_id: str | None = None, limit: int = 20):
             params,
         ).mappings().all()
     return {"items": [dict(r) for r in rows]}
+
+@app.get("/changes")
+def changes(doc_id: str | None = None, limit: int = 20):
+    return {"items": list_changes(engine, doc_id, limit)}
+
+
+# -------------------------
+# Week9: Parsers (DOCX/PDF) + chunking v1
+# -------------------------
+def parse_docx_to_chunks(docx_path: str):
+    """Return list of chunks with (section_path, page_start, page_end, chunk_text, snippet, char_start, char_end)."""
+    from docx import Document
+
+    doc = Document(docx_path)
+
+    chunks = []
+    # Track section path using heading styles
+    current_section = []
+    full_text_acc = ""  # to compute char offsets for docx (not perfect but consistent)
+
+    def add_chunk(text: str, section_path: str | None):
+        nonlocal full_text_acc
+        text_norm = text.strip()
+        if not text_norm:
+            return
+        start = len(full_text_acc)
+        full_text_acc += text_norm + "\n\n"
+        end = len(full_text_acc)
+        chunks.append({
+            "section_path": section_path,
+            "page_start": None,
+            "page_end": None,
+            "char_start": start,
+            "char_end": end,
+            "chunk_text": text_norm,
+        })
+
+    # Paragraphs with heading detection
+    for para in doc.paragraphs:
+        style = (para.style.name or "") if para.style else ""
+        txt = para.text or ""
+        if not txt.strip():
+            continue
+
+        if style.startswith("Heading"):
+            # derive heading level number if possible
+            level = 1
+            try:
+                level = int(style.split()[-1])
+            except Exception:
+                level = 1
+            title = txt.strip()
+            # update current_section stack
+            current_section = current_section[: max(0, level - 1)]
+            current_section.append(title)
+            # also store heading itself as a chunk (helps retrieval)
+            add_chunk(title, " > ".join(current_section))
+        else:
+            add_chunk(txt, " > ".join(current_section) if current_section else None)
+
+    # Tables
+    for t_i, table in enumerate(doc.tables):
+        rows_text = []
+        for row in table.rows:
+            cells = [c.text.strip().replace("\n", " ") for c in row.cells]
+            rows_text.append(" | ".join([c for c in cells if c]))
+        table_txt = "\n".join([r for r in rows_text if r.strip()])
+        if table_txt.strip():
+            add_chunk(f"[TABLE {t_i}]\n" + table_txt, " > ".join(current_section) if current_section else None)
+
+    return chunks
+
+
+def parse_pdf_to_chunks(pdf_path: str):
+    """Return list of page chunks with (page_start/page_end, chunk_text). section_path None."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(pdf_path)
+    chunks = []
+    full_text_acc = ""
+
+    for i, page in enumerate(reader.pages):
+        try:
+            txt = page.extract_text() or ""
+        except Exception:
+            txt = ""
+        txt = txt.strip()
+        if not txt:
+            # still record empty page? skip for now
+            continue
+        start = len(full_text_acc)
+        full_text_acc += txt + "\n\n"
+        end = len(full_text_acc)
+        chunks.append({
+            "section_path": None,
+            "page_start": i + 1,
+            "page_end": i + 1,
+            "char_start": start,
+            "char_end": end,
+            "chunk_text": txt,
+        })
+    return chunks
+# -------------------------
+# Week10: Strict Consent (v1) - block upload + block analysis without consent
+# -------------------------
+import uuid as _uuid
+import json as _json
+from datetime import datetime as _dt, timezone as _tz
+
+def ensure_consents_table():
+    ddl = """
+    CREATE TABLE IF NOT EXISTS consents (
+        consent_id UUID PRIMARY KEY,
+        doc_id UUID NOT NULL UNIQUE,
+        subject_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        status TEXT NOT NULL,          -- granted / revoked
+        upload_token UUID NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL,
+        revoked_at TIMESTAMPTZ,
+        revoke_reason TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_consents_doc ON consents(doc_id);
+    """
+    with engine.begin() as conn:
+        conn.execute(text(ddl))
+
+def require_consent_granted(doc_id: str):
+    ensure_consents_table()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT status
+                FROM consents
+                WHERE doc_id = (:doc_id)::uuid
+                ORDER BY created_at DESC
+                LIMIT 1
+            """),
+            {"doc_id": doc_id},
+        ).mappings().first()
+
+    if not row or row["status"] != "granted":
+        raise HTTPException(status_code=403, detail="Consent required (grant consent before upload/analysis).")
+
+def require_upload_token(doc_id: str, upload_token: str):
+    ensure_consents_table()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT status, upload_token
+                FROM consents
+                WHERE doc_id = (:doc_id)::uuid
+                ORDER BY created_at DESC
+                LIMIT 1
+            """),
+            {"doc_id": doc_id},
+        ).mappings().first()
+
+    if not row or row["status"] != "granted":
+        raise HTTPException(status_code=403, detail="Consent required (grant consent before upload).")
+
+    if str(row["upload_token"]) != str(upload_token):
+        raise HTTPException(status_code=403, detail="Invalid upload_token for this doc_id.")
+
+@app.post("/consent/start")
+def consent_start(payload: dict):
+    """
+    Strict flow:
+      1) call /consent/start -> returns doc_id + upload_token
+      2) call /documents/upload with doc_id + upload_token
+    """
+    ensure_consents_table()
+
+    subject_id = (payload.get("subject_id") or "").strip()
+    scope = (payload.get("scope") or "analysis").strip()
+
+    if not subject_id:
+        raise HTTPException(status_code=400, detail="Missing subject_id")
+    if not scope:
+        raise HTTPException(status_code=400, detail="Missing scope")
+
+    doc_id = str(_uuid.uuid4())
+    upload_token = str(_uuid.uuid4())
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO consents (consent_id, doc_id, subject_id, scope, status, upload_token, created_at)
+                VALUES ((:cid)::uuid, (:doc_id)::uuid, :subject_id, :scope, 'granted', (:upload_token)::uuid, :created_at)
+            """),
+            {
+                "cid": str(_uuid.uuid4()),
+                "doc_id": doc_id,
+                "subject_id": subject_id,
+                "scope": scope,
+                "upload_token": upload_token,
+                "created_at": _dt.now(_tz.utc).isoformat(),
+            },
+        )
+
+    return {"doc_id": doc_id, "upload_token": upload_token, "subject_id": subject_id, "scope": scope, "status": "granted"}
+
+@app.get("/consent/status")
+def consent_status(doc_id: str):
+    ensure_consents_table()
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("""
+                SELECT subject_id, scope, status, created_at, revoked_at, revoke_reason
+                FROM consents
+                WHERE doc_id = (:doc_id)::uuid
+                ORDER BY created_at DESC
+                LIMIT 1
+            """),
+            {"doc_id": doc_id},
+        ).mappings().first()
+
+    if not row:
+        return {"doc_id": doc_id, "status": "none"}
+    return {"doc_id": doc_id, **dict(row)}
+
+def purge_document(doc_id: str):
+    # 1) find stored_path (if exists)
+    stored_path = None
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT stored_path FROM documents WHERE doc_id = (:doc_id)::uuid"),
+            {"doc_id": doc_id},
+        ).mappings().first()
+        if row:
+            stored_path = row["stored_path"]
+
+    # 2) delete from DB (documents has FK cascade for chunks)
+    with engine.begin() as conn:
+        # delete dependent tables keyed by doc_id
+        conn.execute(text("DELETE FROM skill_assessments WHERE doc_id = (:doc_id)::uuid"), {"doc_id": doc_id})
+        conn.execute(text("DELETE FROM skill_proficiency WHERE doc_id = (:doc_id)::uuid"), {"doc_id": doc_id})
+        conn.execute(text("DELETE FROM role_readiness WHERE doc_id = (:doc_id)::uuid"), {"doc_id": doc_id})
+
+        # audit/change logs use doc_id_text
+        conn.execute(text("DELETE FROM audit_logs WHERE doc_id_text = :doc_id"), {"doc_id": doc_id})
+        conn.execute(text("DELETE FROM change_logs WHERE doc_id_text = :doc_id"), {"doc_id": doc_id})
+
+        # documents (cascades chunks)
+        conn.execute(text("DELETE FROM documents WHERE doc_id = (:doc_id)::uuid"), {"doc_id": doc_id})
+
+    # 3) delete file on disk
+    if stored_path:
+        try:
+            _Path(stored_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+
+@app.post("/consent/revoke")
+def consent_revoke(payload: dict):
+    ensure_consents_table()
+
+    doc_id = (payload.get("doc_id") or "").strip()
+    subject_id = (payload.get("subject_id") or "").strip()
+    upload_token = (payload.get("upload_token") or "").strip()
+    reason = (payload.get("reason") or "").strip()
+
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="Missing doc_id")
+    if not subject_id:
+        raise HTTPException(status_code=400, detail="Missing subject_id")
+    if not upload_token:
+        raise HTTPException(status_code=400, detail="Missing upload_token")
+
+    # verify ownership/token + granted
+    require_upload_token(doc_id, upload_token)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE consents
+                SET status='revoked', revoked_at=:revoked_at, revoke_reason=:reason
+                WHERE doc_id = (:doc_id)::uuid
+            """),
+            {
+                "doc_id": doc_id,
+                "revoked_at": _dt.now(_tz.utc).isoformat(),
+                "reason": reason,
+            },
+        )
+
+    # strict: revoke triggers physical delete
+    purge_document(doc_id)
+
+    return {"doc_id": doc_id, "status": "revoked", "deleted": True}
