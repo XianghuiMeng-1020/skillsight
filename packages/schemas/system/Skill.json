@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "required": [
+    "skill_id",
+    "canonical_name",
+    "aliases",
+    "definition"
+  ],
+  "properties": {
+    "skill_id": {
+      "type": "string"
+    },
+    "canonical_name": {
+      "type": "string"
+    },
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "definition": {
+      "type": "string"
+    },
+    "rubric_v1": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

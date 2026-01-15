@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "required": [
+    "event_type",
+    "path",
+    "method",
+    "status_code",
+    "created_at"
+  ],
+  "properties": {
+    "event_type": {
+      "type": "string"
+    },
+    "path": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "doc_id_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status_code": {
+      "type": "integer"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "payload": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

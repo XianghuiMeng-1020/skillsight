@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "required": [
+    "role_id",
+    "role_title",
+    "skills_required"
+  ],
+  "properties": {
+    "role_id": {
+      "type": "string"
+    },
+    "role_title": {
+      "type": "string"
+    },
+    "skills_required": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "skill_id",
+          "target_level",
+          "required"
+        ],
+        "properties": {
+          "skill_id": {
+            "type": "string"
+          },
+          "target_level": {
+            "type": "integer"
+          },
+          "required": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": true
+}

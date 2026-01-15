@@ -1,0 +1,66 @@
+{
+  "type": "object",
+  "required": [
+    "doc_id",
+    "chunk_id",
+    "idx",
+    "snippet"
+  ],
+  "properties": {
+    "doc_id": {
+      "type": "string"
+    },
+    "chunk_id": {
+      "type": "string"
+    },
+    "idx": {
+      "type": "integer"
+    },
+    "snippet": {
+      "type": "string"
+    },
+    "section_path": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "page_start": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "page_end": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "char_start": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "char_end": {
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "score": {
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "score_meta": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}

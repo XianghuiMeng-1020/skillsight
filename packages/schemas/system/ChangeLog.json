@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "required": [
+    "object_type",
+    "doc_id_text",
+    "key_text",
+    "change_summary",
+    "created_at"
+  ],
+  "properties": {
+    "object_type": {
+      "type": "string"
+    },
+    "doc_id_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "key_text": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "change_summary": {
+      "type": "object"
+    },
+    "created_at": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

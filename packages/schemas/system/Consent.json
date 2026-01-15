@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "required": [
+    "doc_id",
+    "subject_id",
+    "scope",
+    "status",
+    "upload_token",
+    "created_at"
+  ],
+  "properties": {
+    "doc_id": {
+      "type": "string"
+    },
+    "subject_id": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "granted",
+        "revoked"
+      ]
+    },
+    "upload_token": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "revoked_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "revoke_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}
