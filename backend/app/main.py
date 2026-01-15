@@ -9,6 +9,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
+from app.rbac import get_current_user, require_doc_access
 from app.change_log import diff_role_readiness, log_change, list_changes
 from dotenv import load_dotenv
 
@@ -154,11 +155,9 @@ def create_chunks_for_document(doc_id: str, raw_text: str):
             )
 
 @app.post("/documents/upload")
-async def upload_document(
+async def upload_document(request: Request, 
     doc_id: str = Form(...),
-    upload_token: str = Form(...),
-    subject_id: str = Form(...),
-    doc_type: str = Form("demo"),
+    upload_token: str = Form(...),    doc_type: str = Form("demo"),
     file: UploadFile = File(...)
 ):
     """
@@ -172,6 +171,9 @@ async def upload_document(
 
     # strict: require granted consent + valid upload_token
     require_upload_token(doc_id, upload_token)
+
+    user = get_current_user(request)
+    subject_id = user['subject_id']
 
     allowed_doc_types = {"demo", "synthetic", "real"}
     if doc_type not in allowed_doc_types:
@@ -311,24 +313,44 @@ def list_documents(limit: int = 20):
     return {"items": [dict(r) for r in rows]}
 
 @app.get("/documents/{doc_id}/chunks")
-def list_chunks(doc_id: str, limit: int = 200):
-    # Week10 strict: block analysis without granted consent
+def list_chunks(doc_id: str, request: Request, limit: int = 200):
+    """
+    Strict read:
+      - doc_id must be UUID
+      - requires granted consent
+      - requires RBAC doc ownership for students
+      - returns v1 fields: section_path/page_start/page_end
+    """
+    import uuid as _uuid
+
+    try:
+        _uuid.UUID(doc_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid doc_id format")
+
+    # Strict: consent must be granted
     require_consent_granted(doc_id)
 
-    # strict: doc must exist, otherwise 404
-    with engine.connect() as _conn_check:
-        _exists = _conn_check.execute(
+    # RBAC: student must own document; staff/admin can read all
+    user = get_current_user(request)
+    require_doc_access(engine, user, doc_id)
+
+    # Strict: doc must exist
+    with engine.connect() as conn:
+        exists = conn.execute(
             text("SELECT 1 FROM documents WHERE doc_id = (:doc_id)::uuid"),
             {"doc_id": doc_id},
         ).first()
-    if not _exists:
+    if not exists:
         raise HTTPException(status_code=404, detail="Document not found")
 
     limit = max(1, min(limit, 500))
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
-                SELECT chunk_id, doc_id, idx, char_start, char_end, snippet, quote_hash, created_at, section_path, page_start, page_end
+                SELECT chunk_id, doc_id, idx, char_start, char_end,
+                       snippet, quote_hash, created_at,
+                       section_path, page_start, page_end
                 FROM chunks
                 WHERE doc_id = (:doc_id)::uuid
                 ORDER BY idx ASC
@@ -336,6 +358,7 @@ def list_chunks(doc_id: str, limit: int = 200):
             """),
             {"doc_id": doc_id, "limit": limit},
         ).mappings().all()
+
     return {"items": [dict(r) for r in rows]}
 
 @app.post("/documents/{doc_id}/rechunk")
@@ -634,7 +657,7 @@ def get_skill_by_id(skill_id: str):
 # Decision 2: Rule-based skill demonstration assessment (v0)
 # -------------------------
 @app.post("/assess/skill")
-def assess_skill(payload: dict):
+def assess_skill(payload: dict, request: Request):
     """
     Decision 2 (rule-based v0):
       - retrieve Top-K evidence by BM25 (Decision 1)
@@ -651,6 +674,11 @@ def assess_skill(payload: dict):
 
     # Week10 strict: block analysis without granted consent
     require_consent_granted(doc_id)
+
+    # Week11 RBAC: only enforce when called from HTTP (request present)
+    if request is not None:
+        user = get_current_user(request)
+        require_doc_access(engine, user, doc_id)
     if not skill_id:
         raise HTTPException(status_code=400, detail="Missing skill_id")
     if not doc_id:
@@ -819,7 +847,7 @@ def list_assessments(doc_id: str, limit: int = 20):
 # Decision 3: Rule-based proficiency (v0)
 # -------------------------
 @app.post("/assess/proficiency")
-def assess_proficiency(payload: dict):
+def assess_proficiency(payload: dict, request: Request):
     """
     Decision 3 (rule_v1):
       - reuses Decision 2 outputs (decision + matched_terms + evidence list)
@@ -835,6 +863,11 @@ def assess_proficiency(payload: dict):
 
     # Week10 strict: block analysis without granted consent
     require_consent_granted(doc_id)
+
+    # Week11 RBAC: only enforce when called from HTTP (request present)
+    if request is not None:
+        user = get_current_user(request)
+        require_doc_access(engine, user, doc_id)
     if not skill_id:
         raise HTTPException(status_code=400, detail="Missing skill_id")
     if not doc_id:
@@ -1043,7 +1076,7 @@ def get_role(role_id: str):
     return r
 
 @app.post("/assess/role_readiness")
-def assess_role_readiness(payload: dict):
+def assess_role_readiness(payload: dict, request: Request):
     """
     Decision 4 (v0):
       input: {doc_id, role_id, store: optional bool}
@@ -1060,6 +1093,11 @@ def assess_role_readiness(payload: dict):
 
     # Week10 strict: block analysis without granted consent
     require_consent_granted(doc_id)
+
+    # Week11 RBAC: only enforce when called from HTTP (request present)
+    if request is not None:
+        user = get_current_user(request)
+        require_doc_access(engine, user, doc_id)
     import uuid
     try:
         uuid.UUID(doc_id)
@@ -1205,7 +1243,7 @@ def assess_role_readiness(payload: dict):
     return readiness
 
 @app.post("/actions/recommend")
-def recommend_actions(payload: dict):
+def recommend_actions(payload: dict, request: Request):
     """
     Decision 5 (v0):
       input: {doc_id, role_id}
@@ -1215,6 +1253,11 @@ def recommend_actions(payload: dict):
 
     # Week10 strict: block analysis without granted consent
     require_consent_granted(doc_id)
+
+    # Week11 RBAC: only enforce when called from HTTP (request present)
+    if request is not None:
+        user = get_current_user(request)
+        require_doc_access(engine, user, doc_id)
     import uuid
     try:
         uuid.UUID(doc_id)
@@ -1635,19 +1678,17 @@ def require_upload_token(doc_id: str, upload_token: str):
         raise HTTPException(status_code=403, detail="Invalid upload_token for this doc_id.")
 
 @app.post("/consent/start")
-def consent_start(payload: dict):
+def consent_start(payload: dict, request: Request):
     """
-    Strict flow:
-      1) call /consent/start -> returns doc_id + upload_token
-      2) call /documents/upload with doc_id + upload_token
+    Week11 strict: subject_id comes from request headers (get_current_user).
+    Payload only needs: {"scope": "analysis"} (optional).
+    Returns doc_id + upload_token.
     """
     ensure_consents_table()
 
-    subject_id = (payload.get("subject_id") or "").strip()
+    user = get_current_user(request)
+    subject_id = user["subject_id"]
     scope = (payload.get("scope") or "analysis").strip()
-
-    if not subject_id:
-        raise HTTPException(status_code=400, detail="Missing subject_id")
     if not scope:
         raise HTTPException(status_code=400, detail="Missing scope")
 
@@ -1724,23 +1765,41 @@ def purge_document(doc_id: str):
             pass
 
 @app.post("/consent/revoke")
-def consent_revoke(payload: dict):
+def consent_revoke(payload: dict, request: Request):
+    """
+    Week11 strict:
+      - subject_id/role come from request headers (get_current_user)
+      - admin can revoke any doc
+      - student can revoke only own doc
+      - revoke triggers physical delete (purge_document)
+    """
     ensure_consents_table()
 
+    user = get_current_user(request)
+    subject_id = user["subject_id"]
+    role = user["role"]
+
     doc_id = (payload.get("doc_id") or "").strip()
-    subject_id = (payload.get("subject_id") or "").strip()
     upload_token = (payload.get("upload_token") or "").strip()
     reason = (payload.get("reason") or "").strip()
 
     if not doc_id:
         raise HTTPException(status_code=400, detail="Missing doc_id")
-    if not subject_id:
-        raise HTTPException(status_code=400, detail="Missing subject_id")
     if not upload_token:
         raise HTTPException(status_code=400, detail="Missing upload_token")
 
-    # verify ownership/token + granted
+    # Must be granted + token match
     require_upload_token(doc_id, upload_token)
+
+    # Owner/admin check
+    if role != "admin":
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT subject_id FROM documents WHERE doc_id = (:doc_id)::uuid"),
+                {"doc_id": doc_id},
+            ).mappings().first()
+        if row and row.get("subject_id") != subject_id:
+            raise HTTPException(status_code=403, detail="Forbidden: not owner")
 
     with engine.begin() as conn:
         conn.execute(
@@ -1756,7 +1815,10 @@ def consent_revoke(payload: dict):
             },
         )
 
-    # strict: revoke triggers physical delete
     purge_document(doc_id)
-
     return {"doc_id": doc_id, "status": "revoked", "deleted": True}
+
+@app.get("/whoami")
+def whoami(request: Request):
+    user = get_current_user(request)
+    return {"subject_id": user["subject_id"], "role": user["role"]}
