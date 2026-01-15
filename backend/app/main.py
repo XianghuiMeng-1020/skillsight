@@ -2232,3 +2232,401 @@ def get_course(course_id: str):
         ).mappings().all()
 
     return {"course": dict(c), "course_skill_map": [dict(r) for r in maps]}
+
+
+# -------------------------
+# Week5-backfill: Skill alias management + conflict reporting
+# -------------------------
+@app.post("/skills/aliases/import")
+def import_skill_aliases(payload: dict, request: Request):
+    """
+    payload = {"items":[{"skill_id","alias","source","confidence","status"}, ...]}
+    staff/admin only
+    """
+    user = get_current_user(request)
+    if user["role"] not in {"staff", "admin"}:
+        raise HTTPException(status_code=403, detail="staff/admin only")
+
+    items = payload.get("items")
+    if not isinstance(items, list) or not items:
+        raise HTTPException(status_code=400, detail="Missing items (list)")
+
+    n = 0
+    with engine.begin() as conn:
+        for it in items:
+            skill_id = (it.get("skill_id") or "").strip()
+            alias = (it.get("alias") or "").strip().lower()
+            source = (it.get("source") or "manual").strip()
+            confidence = float(it.get("confidence") or 1.0)
+            status = (it.get("status") or "active").strip()
+
+            if not skill_id or not alias:
+                continue
+
+            # upsert by (skill_id, alias)
+            conn.execute(
+                text("""
+                    INSERT INTO skill_aliases (alias_id, skill_id, alias, source, confidence, status, created_at)
+                    VALUES ((:alias_id)::uuid, :skill_id, :alias, :source, :confidence, :status, now())
+                    ON CONFLICT (skill_id, alias) DO UPDATE
+                    SET source = EXCLUDED.source,
+                        confidence = EXCLUDED.confidence,
+                        status = EXCLUDED.status
+                """),
+                {
+                    "alias_id": str(uuid.uuid4()),
+                    "skill_id": skill_id,
+                    "alias": alias,
+                    "source": source,
+                    "confidence": confidence,
+                    "status": status,
+                },
+            )
+            n += 1
+
+    return {"ok": True, "count": n}
+
+
+@app.get("/skills/resolve_legacy_legacy")
+def resolve_skill_alias(alias: str):
+    """
+    Resolve alias -> candidates in skill_aliases table.
+    Never throws Skill not found.
+    """
+    a = (alias or "").strip().lower()
+    if not a:
+        raise HTTPException(status_code=400, detail="Missing alias")
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT skill_id, source, confidence, status, created_at
+                FROM skill_aliases
+                WHERE alias = :alias
+                ORDER BY (status='active') DESC, confidence DESC, created_at DESC
+            """),
+            {"alias": a},
+        ).mappings().all()
+
+    candidates = [dict(r) for r in rows]
+    active = [c for c in candidates if c.get("status") == "active"]
+
+    canonical = None
+    conflict = False
+    if len(active) == 1:
+        canonical = active[0]["skill_id"]
+    elif len(active) > 1:
+        conflict = True
+
+    return {
+        "alias": a,
+        "canonical_skill_id": canonical,
+        "conflict": conflict,
+        "candidates": candidates
+    }
+
+@app.get("/skills/aliases/conflicts")
+def list_alias_conflicts(limit: int = 200):
+    """
+    List aliases that map to multiple active skills.
+    """
+    limit = max(1, min(limit, 1000))
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT alias, count(DISTINCT skill_id) as n_skills,
+                       array_agg(DISTINCT skill_id) as skill_ids
+                FROM skill_aliases
+                WHERE status='active'
+                GROUP BY alias
+                HAVING count(DISTINCT skill_id) > 1
+                ORDER BY n_skills DESC, alias ASC
+                LIMIT :limit
+            """),
+            {"limit": limit},
+        ).mappings().all()
+
+    return {"items": [dict(r) for r in rows]}
+
+
+@app.get("/skills/aliases/conflicts/report")
+def alias_conflict_report(format: str = "json"):
+    """
+    Conflict report in json or csv.
+    """
+    fmt = (format or "json").strip().lower()
+    if fmt not in {"json", "csv"}:
+        raise HTTPException(status_code=400, detail="format must be json or csv")
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT alias, skill_id, source, confidence, status, created_at
+                FROM skill_aliases
+                WHERE alias IN (
+                    SELECT alias
+                    FROM skill_aliases
+                    WHERE status='active'
+                    GROUP BY alias
+                    HAVING count(DISTINCT skill_id) > 1
+                )
+                ORDER BY alias ASC, confidence DESC, created_at DESC
+            """)
+        ).mappings().all()
+
+    items = [dict(r) for r in rows]
+
+    if fmt == "json":
+        return {"items": items}
+
+    # csv
+    import csv
+    from io import StringIO
+    from fastapi.responses import PlainTextResponse
+
+    buf = StringIO()
+    w = csv.DictWriter(buf, fieldnames=["alias","skill_id","source","confidence","status","created_at"])
+    w.writeheader()
+    for it in items:
+        w.writerow({k: it.get(k) for k in w.fieldnames})
+
+    return PlainTextResponse(buf.getvalue())
+
+
+# -------------------------
+# Week5-backfill: Canonical alias resolver (authoritative)
+# -------------------------
+@app.get("/skills/resolve_legacy_legacy_1")
+def resolve_skill_alias_v1(alias: str):
+    """
+    Resolve alias -> candidates in skill_aliases table.
+    Returns canonical_skill_id if unique active mapping.
+    """
+    a = (alias or "").strip().lower()
+    if not a:
+        raise HTTPException(status_code=400, detail="Missing alias")
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT skill_id, source, confidence, status, created_at
+                FROM skill_aliases
+                WHERE alias = :alias
+                ORDER BY (status='active') DESC, confidence DESC, created_at DESC
+            """),
+            {"alias": a},
+        ).mappings().all()
+
+    candidates = [dict(r) for r in rows]
+    active = [c for c in candidates if c.get("status") == "active"]
+
+    canonical = None
+    conflict = False
+    if len(active) == 1:
+        canonical = active[0]["skill_id"]
+    elif len(active) > 1:
+        conflict = True
+
+    return {
+        "alias": a,
+        "canonical_skill_id": canonical,
+        "conflict": conflict,
+        "candidates": candidates
+    }
+
+
+# -------------------------
+# Week5-backfill: Canonical alias resolver (authoritative)
+# -------------------------
+@app.get("/skills/resolve_legacy_legacy")
+def resolve_skill_alias(alias: str):
+    """
+    Resolve alias -> candidates from skill_aliases table.
+    Never returns "Skill not found". If no rows, candidates=[] and canonical_skill_id=None.
+    """
+    a = (alias or "").strip().lower()
+    if not a:
+        raise HTTPException(status_code=400, detail="Missing alias")
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT skill_id, source, confidence, status, created_at
+                FROM skill_aliases
+                WHERE alias = :alias
+                ORDER BY (status='active') DESC, confidence DESC, created_at DESC
+            """),
+            {"alias": a},
+        ).mappings().all()
+
+    candidates = [dict(r) for r in rows]
+    active = [c for c in candidates if c.get("status") == "active"]
+
+    canonical = None
+    conflict = False
+    if len(active) == 1:
+        canonical = active[0]["skill_id"]
+    elif len(active) > 1:
+        conflict = True
+
+    return {"alias": a, "canonical_skill_id": canonical, "conflict": conflict, "candidates": candidates}
+
+
+# -------------------------
+# Week5-backfill: Authoritative alias resolver (skill_aliases table)
+# -------------------------
+@app.get("/skills/resolve_legacy_legacy_1")
+def resolve_skill_alias_authoritative(alias: str):
+    """
+    Resolve alias -> candidates from skill_aliases table.
+    """
+    a = (alias or "").strip().lower()
+    if not a:
+        raise HTTPException(status_code=400, detail="Missing alias")
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT skill_id, source, confidence, status, created_at
+                FROM skill_aliases
+                WHERE alias = :alias
+                ORDER BY (status='active') DESC, confidence DESC, created_at DESC
+            """),
+            {"alias": a},
+        ).mappings().all()
+
+    candidates = [dict(r) for r in rows]
+    active = [c for c in candidates if c.get("status") == "active"]
+
+    canonical = None
+    conflict = False
+    if len(active) == 1:
+        canonical = active[0]["skill_id"]
+    elif len(active) > 1:
+        conflict = True
+
+    return {"alias": a, "canonical_skill_id": canonical, "conflict": conflict, "candidates": candidates}
+
+
+# -------------------------
+# Week5-backfill: Authoritative alias resolver (skill_aliases table)
+# -------------------------
+@app.get("/skills/resolve_legacy")
+def resolve_skill_alias(alias: str):
+    """
+    Week5-backfill: resolve alias via skill_aliases table (DB).
+    Never returns "Skill not found". If no rows, candidates=[] and canonical_skill_id=None.
+    """
+    a = (alias or "").strip().lower()
+    if not a:
+        raise HTTPException(status_code=400, detail="Missing alias")
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT skill_id, source, confidence, status, created_at
+                FROM skill_aliases
+                WHERE alias = :alias
+                ORDER BY (status='active') DESC, confidence DESC, created_at DESC
+            """),
+            {"alias": a},
+        ).mappings().all()
+
+    candidates = [dict(r) for r in rows]
+    active = [c for c in candidates if c.get("status") == "active"]
+
+    canonical = None
+    conflict = False
+    if len(active) == 1:
+        canonical = active[0]["skill_id"]
+    elif len(active) > 1:
+        conflict = True
+
+    return {"alias": a, "canonical_skill_id": canonical, "conflict": conflict, "candidates": candidates}
+
+
+# -------------------------
+# Week5-backfill: DB-backed alias resolver (authoritative)
+# -------------------------
+@app.get("/skills/resolve")
+def resolve_skill_alias_db(alias: str):
+    a = (alias or "").strip().lower()
+    if not a:
+        raise HTTPException(status_code=400, detail="Missing alias")
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT skill_id, source, confidence, status, created_at
+                FROM skill_aliases
+                WHERE alias = :alias
+                ORDER BY (status='active') DESC, confidence DESC, created_at DESC
+            """),
+            {"alias": a},
+        ).mappings().all()
+
+    candidates = [dict(r) for r in rows]
+    active = [c for c in candidates if c.get("status") == "active"]
+
+    canonical = None
+    conflict = False
+    if len(active) == 1:
+        canonical = active[0]["skill_id"]
+    elif len(active) > 1:
+        conflict = True
+
+    return {"alias": a, "canonical_skill_id": canonical, "conflict": conflict, "candidates": candidates}
+
+
+# -------------------------
+# Week5-backfill: Hard override for /skills/resolve (route-order safe)
+# -------------------------
+from fastapi.responses import JSONResponse as _JSONResponse
+
+@app.middleware("http")
+async def skills_resolve_override_middleware(request: Request, call_next):
+    """
+    Route-order safe override:
+    Always handle GET /skills/resolve via skill_aliases table (DB),
+    even if legacy routes exist earlier in the router.
+    """
+    if request.method.upper() == "GET" and request.url.path == "/skills/resolve":
+        alias = (request.query_params.get("alias") or "").strip().lower()
+        if not alias:
+            return _JSONResponse(status_code=400, content={"detail": "Missing alias"})
+
+        try:
+            with engine.connect() as conn:
+                rows = conn.execute(
+                    text("""
+                        SELECT skill_id, source,
+                               confidence::float8 as confidence,
+                               status,
+                               created_at::text as created_at
+                        FROM skill_aliases
+                        WHERE alias = :alias
+                        ORDER BY (status='active') DESC, confidence DESC, created_at DESC
+                    """),
+                    {"alias": alias},
+                ).mappings().all()
+
+            candidates = [dict(r) for r in rows]
+            active = [c for c in candidates if c.get("status") == "active"]
+
+            canonical = None
+            conflict = False
+            if len(active) == 1:
+                canonical = active[0]["skill_id"]
+            elif len(active) > 1:
+                conflict = True
+
+            return _JSONResponse(status_code=200, content={
+                "alias": alias,
+                "canonical_skill_id": canonical,
+                "conflict": conflict,
+                "candidates": candidates
+            })
+        except Exception as e:
+            return _JSONResponse(status_code=500, content={"detail": f"resolve failed: {type(e).__name__}: {e}"})
+
+    return await call_next(request)
