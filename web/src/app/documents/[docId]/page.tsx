@@ -120,6 +120,10 @@ export default function DocPage() {
   const [aiProfErr, setAiProfErr] = useState<string>("");
   const [aiProfing, setAiProfing] = useState<boolean>(false);
 
+  const [aiDemoRes, setAiDemoRes] = useState<any>(null);
+  const [aiDemoErr, setAiDemoErr] = useState<string>("");
+  const [aiDemoing, setAiDemoing] = useState<boolean>(false);
+
   const [readiness, setReadiness] = useState<RoleReadiness | null>(null);
   const [readinessErr, setReadinessErr] = useState<string>("");
   const [reading, setReading] = useState<boolean>(false);
@@ -292,6 +296,28 @@ export default function DocPage() {
       setAiProfing(false);
       refreshAudit();
     }
+
+  async function runAIDemonstration() {
+    setAiDemoErr("");
+    setAiDemoRes(null);
+    if (!docId || !skillId) return;
+    setAiDemoing(true);
+    try {
+      const r = await fetch(`${apiBase}/ai/demonstration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ skill_id: skillId, doc_id: docId, k: 5, min_score: 0.2 }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+      setAiDemoRes(data);
+    } catch (e: any) {
+      setAiDemoErr(String(e.message || e));
+    } finally {
+      setAiDemoing(false);
+      refreshAudit?.();
+    }
+  }
   }
 
   async function runReadiness() {
@@ -404,6 +430,10 @@ export default function DocPage() {
           <button onClick={runAIProficiency} disabled={aiProfing} style={{ padding: "8px 14px", cursor: "pointer" }}>
             {aiProfing ? "Running..." : "AI Proficiency (Rubric v1)"}
           </button>
+
+          <button onClick={runAIDemonstration} disabled={aiDemoing} style={{ padding: "8px 14px", cursor: "pointer" }}>
+            {aiDemoing ? "Running..." : "AI Demonstration (LLM)"}
+          </button>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -445,7 +475,22 @@ export default function DocPage() {
             </>
           )}
         </div>
-      </section>
+      
+        <div style={{ marginTop: 12, border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>AI Demonstration result (LLM)</div>
+          {aiDemoErr && <div style={{ color: "crimson" }}>{aiDemoErr}</div>}
+          {!aiDemoErr && !aiDemoRes && <div style={{ color: "#666" }}>Click AI Demonstration (LLM).</div>}
+          {aiDemoRes && (
+            <>
+              <div><b>label:</b> {aiDemoRes.label}</div>
+              <div style={{ marginTop: 6, fontSize: 13 }}><b>evidence_chunk_ids:</b> {(aiDemoRes.evidence_chunk_ids || []).join(", ")}</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}><b>rationale:</b> {aiDemoRes.rationale}</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "#666" }}><b>refusal_reason:</b> {String(aiDemoRes.refusal_reason)}</div>
+            </>
+          )}
+        </div>
+
+</section>
 
       {/* Role readiness + actions */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
