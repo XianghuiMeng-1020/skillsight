@@ -12,23 +12,14 @@ type ChunkItem = {
   char_end: number;
   snippet: string;
   created_at: string;
+  section_path?: string | null;
+  page_start?: number | null;
+  page_end?: number | null;
 };
 
 type SkillItem = {
   skill_id: string;
   canonical_name: string;
-};
-
-type EvidenceItem = {
-  chunk_id: string;
-  doc_id: string;
-  idx: number;
-  char_start: number;
-  char_end: number;
-  snippet: string;
-  created_at: string;
-  score: number;
-  score_meta?: any;
 };
 
 type RoleItem = {
@@ -70,15 +61,12 @@ type ActionPlan = {
 type AssessResult = {
   decision: string;
   matched_terms: string[];
-  best_evidence: EvidenceItem | null;
 };
 
 type ProfResult = {
   level: number;
   label: string;
   rationale: string;
-  signals: any;
-  best_evidence: EvidenceItem | null;
 };
 
 type AuditItem = {
@@ -106,6 +94,10 @@ export default function DocPage() {
   const docId = params?.docId;
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
+  // Dev identity (RBAC headers)
+  const [subjectId, setSubjectId] = useState<string>("staff_demo");
+  const [role, setRole] = useState<string>("staff");
+
   const [chunks, setChunks] = useState<ChunkItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [err, setErr] = useState<string>("");
@@ -124,6 +116,10 @@ export default function DocPage() {
   const [profErr, setProfErr] = useState<string>("");
   const [profing, setProfing] = useState<boolean>(false);
 
+  const [aiProfRes, setAiProfRes] = useState<any>(null);
+  const [aiProfErr, setAiProfErr] = useState<string>("");
+  const [aiProfing, setAiProfing] = useState<boolean>(false);
+
   const [readiness, setReadiness] = useState<RoleReadiness | null>(null);
   const [readinessErr, setReadinessErr] = useState<string>("");
   const [reading, setReading] = useState<boolean>(false);
@@ -140,12 +136,26 @@ export default function DocPage() {
   const [changesErr, setChangesErr] = useState<string>("");
   const [changing, setChanging] = useState<boolean>(false);
 
+  const headers = {
+    "X-Subject-Id": subjectId,
+    "X-Role": role,
+  };
+
+  useEffect(() => {
+    try {
+      const sid = localStorage.getItem("skillsight_subject_id");
+      const r = localStorage.getItem("skillsight_role");
+      if (sid) setSubjectId(sid);
+      if (r) setRole(r);
+    } catch {}
+  }, []);
+
   async function refreshAudit() {
     if (!docId) return;
     setAuditing(true);
     setAuditErr("");
     try {
-      const r = await fetch(`${apiBase}/audit?doc_id=${docId}&limit=20`);
+      const r = await fetch(`${apiBase}/audit?doc_id=${docId}&limit=20`, { headers });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setAudit(data.items || []);
@@ -161,7 +171,7 @@ export default function DocPage() {
     setChanging(true);
     setChangesErr("");
     try {
-      const r = await fetch(`${apiBase}/changes?doc_id=${docId}&limit=20`);
+      const r = await fetch(`${apiBase}/changes?doc_id=${docId}&limit=20`, { headers });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
       setChanges(data.items || []);
@@ -181,7 +191,7 @@ export default function DocPage() {
           canonical_name: x.canonical_name,
         }));
         setSkills(items);
-        if (items.length > 0) setSkillId((prev) => prev || items[0].skill_id);
+        if (!skillId && items.length > 0) setSkillId(items[0].skill_id);
       })
       .catch(() => {});
 
@@ -193,18 +203,18 @@ export default function DocPage() {
           role_title: x.role_title,
         }));
         setRoles(items);
-        if (items.length > 0) setRoleId((prev) => prev || items[0].role_id);
+        if (!roleId && items.length > 0) setRoleId(items[0].role_id);
       })
       .catch(() => {});
-  }, [apiBase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!docId) return;
-
     setLoading(true);
     setErr("");
 
-    fetch(`${apiBase}/documents/${docId}/chunks?limit=200`)
+    fetch(`${apiBase}/documents/${docId}/chunks?limit=200`, { headers })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
@@ -216,7 +226,7 @@ export default function DocPage() {
     refreshAudit();
     refreshChanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBase, docId]);
+  }, [apiBase, docId, subjectId, role]);
 
   async function runDecision2() {
     setAssessErr("");
@@ -226,12 +236,12 @@ export default function DocPage() {
     try {
       const r = await fetch(`${apiBase}/assess/skill`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skill_id: skillId, doc_id: docId, k: 10, store: true }),
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ skill_id: skillId, doc_id: docId, k: 5, store: false }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
-      setAssessRes(data);
+      setAssessRes({ decision: data.decision, matched_terms: data.matched_terms || [] });
     } catch (e: any) {
       setAssessErr(String(e.message || e));
     } finally {
@@ -248,16 +258,38 @@ export default function DocPage() {
     try {
       const r = await fetch(`${apiBase}/assess/proficiency`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ skill_id: skillId, doc_id: docId, k: 10, store: true }),
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ skill_id: skillId, doc_id: docId, k: 10, store: false }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
-      setProfRes(data);
+      setProfRes({ level: data.level, label: data.label, rationale: data.rationale });
     } catch (e: any) {
       setProfErr(String(e.message || e));
     } finally {
       setProfing(false);
+      refreshAudit();
+    }
+  }
+
+  async function runAIProficiency() {
+    setAiProfErr("");
+    setAiProfRes(null);
+    if (!docId || !skillId) return;
+    setAiProfing(true);
+    try {
+      const r = await fetch(`${apiBase}/ai/proficiency`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ skill_id: skillId, doc_id: docId, k: 5, min_score: 0.2 }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+      setAiProfRes(data);
+    } catch (e: any) {
+      setAiProfErr(String(e.message || e));
+    } finally {
+      setAiProfing(false);
       refreshAudit();
     }
   }
@@ -270,8 +302,8 @@ export default function DocPage() {
     try {
       const r = await fetch(`${apiBase}/assess/role_readiness`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ doc_id: docId, role_id: roleId, store: true }),
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ doc_id: docId, role_id: roleId, store: false }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
@@ -293,7 +325,7 @@ export default function DocPage() {
     try {
       const r = await fetch(`${apiBase}/actions/recommend`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({ doc_id: docId, role_id: roleId }),
       });
       const data = await r.json().catch(() => ({}));
@@ -316,6 +348,37 @@ export default function DocPage() {
       <h1 style={{ fontSize: 22, marginBottom: 6 }}>Document view</h1>
       <div style={{ color: "#666", marginBottom: 16 }}>doc_id: {docId}</div>
 
+      {/* Dev identity */}
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 16 }}>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Dev identity</div>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <label style={{ fontSize: 13, color: "#666" }}>subject_id</label>
+          <input
+            value={subjectId}
+            onChange={(e) => {
+              const v = e.target.value;
+              setSubjectId(v);
+              try { localStorage.setItem("skillsight_subject_id", v); } catch {}
+            }}
+            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 220 }}
+          />
+          <label style={{ fontSize: 13, color: "#666" }}>role</label>
+          <select
+            value={role}
+            onChange={(e) => {
+              const v = e.target.value;
+              setRole(v);
+              try { localStorage.setItem("skillsight_role", v); } catch {}
+            }}
+            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }}
+          >
+            <option value="student">student</option>
+            <option value="staff">staff</option>
+            <option value="admin">admin</option>
+          </select>
+        </div>
+      </section>
+
       {/* Skill assessment */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
         <h2 style={{ fontSize: 16, marginBottom: 10 }}>Skill assessment</h2>
@@ -336,6 +399,10 @@ export default function DocPage() {
 
           <button onClick={runDecision3} disabled={profing} style={{ padding: "8px 14px", cursor: "pointer" }}>
             {profing ? "Running..." : "Decision 3"}
+          </button>
+
+          <button onClick={runAIProficiency} disabled={aiProfing} style={{ padding: "8px 14px", cursor: "pointer" }}>
+            {aiProfing ? "Running..." : "AI Proficiency (Rubric v1)"}
           </button>
         </div>
 
@@ -363,6 +430,20 @@ export default function DocPage() {
               </>
             )}
           </div>
+        </div>
+
+        <div style={{ marginTop: 12, border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>AI Proficiency result (Rubric v1)</div>
+          {aiProfErr && <div style={{ color: "crimson" }}>{aiProfErr}</div>}
+          {!aiProfErr && !aiProfRes && <div style={{ color: "#666" }}>Click AI Proficiency (Rubric v1).</div>}
+          {aiProfRes && (
+            <>
+              <div><b>level:</b> {aiProfRes.level} ({aiProfRes.label})</div>
+              <div style={{ marginTop: 6, fontSize: 13 }}><b>matched_criteria:</b> {(aiProfRes.matched_criteria || []).join(", ")}</div>
+              <div style={{ marginTop: 6, fontSize: 13 }}><b>evidence_chunk_ids:</b> {(aiProfRes.evidence_chunk_ids || []).join(", ")}</div>
+              <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}><b>why:</b> {aiProfRes.why}</div>
+            </>
+          )}
         </div>
       </section>
 
@@ -436,121 +517,6 @@ export default function DocPage() {
         )}
       </section>
 
-      {/* Audit */}
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 10 }}>Recent audit logs</h2>
-
-        <button onClick={refreshAudit} disabled={auditing} style={{ padding: "6px 12px", cursor: "pointer" }}>
-          {auditing ? "Refreshing..." : "Refresh"}
-        </button>
-
-        {auditErr && <div style={{ marginTop: 10, color: "crimson" }}>{auditErr}</div>}
-        {!auditErr && audit.length === 0 && <div style={{ marginTop: 10, color: "#666" }}>No audit logs yet.</div>}
-
-        {audit.length > 0 && (
-          <div style={{ marginTop: 12, overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ textAlign: "left" }}>
-                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>time</th>
-                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>event</th>
-                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>status</th>
-                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>elapsed</th>
-                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>summary</th>
-                </tr>
-              </thead>
-              <tbody>
-                {audit.map((a) => {
-                  const payload = a.payload || {};
-                  const respSum = payload.response_summary || null;
-                  const elapsed = payload._elapsed_ms ?? payload.request?._elapsed_ms;
-
-                  const summaryObj = respSum?.summary || null;
-                  const summaryText = summaryObj
-                    ? `meet=${summaryObj.meet}, missing=${summaryObj.missing_proof}, needs=${summaryObj.needs_strengthening}` +
-                      (respSum?.action_cards_count !== undefined ? `, actions=${respSum.action_cards_count}` : "")
-                    : "";
-
-                  return (
-                    <tr key={a.audit_id}>
-                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8, color: "#666", fontSize: 13 }}>
-                        {a.created_at}
-                      </td>
-                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8 }}>
-                        <div style={{ fontWeight: 600 }}>{a.event_type}</div>
-                        <div style={{ color: "#666", fontSize: 12 }}>{a.method} {a.path}</div>
-                      </td>
-                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8 }}>
-                        {a.status_code}
-                      </td>
-                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8 }}>
-                        {elapsed !== undefined ? `${elapsed} ms` : ""}
-                      </td>
-                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8, color: "#333", fontSize: 13 }}>
-                        {summaryText || <span style={{ color: "#666" }}>(no response_summary)</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      {/* Changes */}
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
-        <h2 style={{ fontSize: 16, marginBottom: 10 }}>Recent changes</h2>
-
-        <button onClick={refreshChanges} disabled={changing} style={{ padding: "6px 12px", cursor: "pointer" }}>
-          {changing ? "Refreshing..." : "Refresh"}
-        </button>
-
-        {changesErr && <div style={{ marginTop: 10, color: "crimson" }}>{changesErr}</div>}
-        {!changesErr && changes.length === 0 && <div style={{ marginTop: 10, color: "#666" }}>No changes yet.</div>}
-
-        {changes.length > 0 && (
-          <div style={{ marginTop: 12, overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ textAlign: "left" }}>
-                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>time</th>
-                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>object</th>
-                  <th style={{ borderBottom: "1px solid #eee", padding: 8 }}>what changed</th>
-                </tr>
-              </thead>
-              <tbody>
-                {changes.map((c) => {
-                  const diff = c.change_summary?.diff;
-                  const items = diff?.item_changes || [];
-                  const short = items.map((it: any) => {
-                    const sid = it.skill_id;
-                    const f = it.from ? `${it.from.status} (obs ${it.from.observed_level}, tgt ${it.from.target_level})` : "none";
-                    const t = it.to ? `${it.to.status} (obs ${it.to.observed_level}, tgt ${it.to.target_level})` : "none";
-                    return `${sid}: ${f} → ${t}`;
-                  }).join(" | ");
-
-                  return (
-                    <tr key={c.change_id}>
-                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8, color: "#666", fontSize: 13 }}>
-                        {c.created_at}
-                      </td>
-                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8 }}>
-                        <div style={{ fontWeight: 600 }}>{c.object_type}</div>
-                        <div style={{ color: "#666", fontSize: 12 }}>key: {c.key_text}</div>
-                      </td>
-                      <td style={{ borderBottom: "1px solid #f3f3f3", padding: 8, fontSize: 13 }}>
-                        {short || <span style={{ color: "#666" }}>(no item_changes)</span>}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
       {/* Chunks */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
         <h2 style={{ fontSize: 18, marginBottom: 12 }}>Chunks</h2>
@@ -564,6 +530,16 @@ export default function DocPage() {
                 <div style={{ marginBottom: 6 }}>
                   <b>Chunk {c.idx}</b> | char [{c.char_start}, {c.char_end}]
                 </div>
+                {c.section_path && (
+                  <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                    section: {c.section_path}
+                  </div>
+                )}
+                {c.page_start && (
+                  <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
+                    pages: {c.page_start}-{c.page_end}
+                  </div>
+                )}
                 <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 13 }}>
                   {c.snippet}
                 </div>

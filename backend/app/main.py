@@ -2068,3 +2068,130 @@ def ai_demonstration(payload: dict, request: Request):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ai_demonstration failed: {type(e).__name__}: {e}")
+
+# -------------------------
+# Week12: LLM Proficiency (Rubric v1) + schema + strict grounding
+# -------------------------
+PROF_PROMPT_PATH = REPO_ROOT / "packages/prompts/proficiency_v1.txt"
+PROF_SCHEMA_PATH = REPO_ROOT / "packages/schemas/proficiency_v1.json"
+
+_prof_prompt = None
+_prof_schema = None
+
+def _load_prof_assets():
+    global _prof_prompt, _prof_schema
+    if _prof_prompt is None:
+        _prof_prompt = PROF_PROMPT_PATH.read_text(encoding="utf-8")
+    if _prof_schema is None:
+        _prof_schema = load_schema(str(PROF_SCHEMA_PATH))
+
+@app.post("/ai/proficiency")
+def ai_proficiency(payload: dict, request: Request):
+    """
+    Input:
+      {skill_id, doc_id optional, k optional, min_score optional}
+    Output:
+      {level, label, matched_criteria, evidence_chunk_ids, why}
+    """
+    _load_prof_assets()
+
+    skill_id = (payload.get("skill_id") or "").strip()
+    doc_id = payload.get("doc_id")
+    k = int(payload.get("k") or 8)
+    k = max(1, min(k, 20))
+    min_score = float(payload.get("min_score") or 0.20)
+
+    if not skill_id:
+        raise HTTPException(status_code=400, detail="Missing skill_id")
+
+    # vector retrieval
+    body = {"skill_id": skill_id, "k": k}
+    if doc_id:
+        body["doc_id"] = doc_id
+    ev = search_evidence_vector(body, request=request)
+    evidence_items = ev.get("items") or []
+
+    if not evidence_items:
+        return {"level": 0, "label": "novice", "matched_criteria": [], "evidence_chunk_ids": [], "why": "No relevant evidence retrieved."}
+
+    top_score = float((evidence_items[0].get("score") or 0.0))
+    if top_score < min_score:
+        return {"level": 0, "label": "novice", "matched_criteria": [], "evidence_chunk_ids": [], "why": "Retrieved evidence is too weak to support a proficiency claim."}
+
+    sk = get_skill_by_id(skill_id)
+    if not sk:
+        raise HTTPException(status_code=404, detail="Skill not found")
+
+    rubric = sk.get("rubric_v1")
+    if not rubric:
+        raise HTTPException(status_code=400, detail="Skill has no rubric_v1")
+
+    skill_text = f"{sk.get('canonical_name')}. {sk.get('definition')} Aliases: {' '.join(sk.get('aliases') or [])}".strip()
+
+    # Flatten rubric criterion ids
+    rubric_levels = rubric.get("levels") or {}
+    all_criterion_ids = []
+    for lvl, info in rubric_levels.items():
+        for c in (info.get("criteria") or []):
+            cid = c.get("id")
+            if cid:
+                all_criterion_ids.append(cid)
+
+    # Allowed chunk_ids from evidence
+    allowed_chunk_ids = [it.get("chunk_id") for it in evidence_items if it.get("chunk_id")]
+
+    evidence_list = []
+    for it in evidence_items:
+        evidence_list.append({
+            "chunk_id": it.get("chunk_id"),
+            "snippet": it.get("snippet"),
+            "section_path": it.get("section_path"),
+            "page_start": it.get("page_start"),
+            "page_end": it.get("page_end"),
+            "score": it.get("score"),
+        })
+
+    rubric_text = str(rubric_levels)
+
+    prompt = _prof_prompt.replace("{skill_text}", skill_text).replace("{rubric_text}", rubric_text).replace("{evidence_list}", str(evidence_list))
+
+    last_err = None
+    for attempt in (1, 2):
+        try:
+            raw = ollama_generate(DEMO_MODEL, prompt, temperature=0.0)
+            obj = extract_first_json_obj(raw)
+            validate_or_raise(obj, _prof_schema)
+
+            level = int(obj.get("level"))
+            label = obj.get("label") or ""
+            crit = obj.get("matched_criteria") or []
+            ids = obj.get("evidence_chunk_ids") or []
+            why = obj.get("why") or ""
+
+            # Grounding checks
+            if any(c not in all_criterion_ids for c in crit):
+                raise ValueError("matched_criteria contains unknown criterion id")
+            if any(i not in allowed_chunk_ids for i in ids):
+                raise ValueError("evidence_chunk_ids contains unknown chunk_id")
+
+            # Strict rule: if level > 0, must cite at least one chunk and one criterion
+            if level > 0:
+                if len(ids) == 0 or len(crit) == 0:
+                    raise ValueError("level>0 requires evidence_chunk_ids and matched_criteria")
+            else:
+                obj["evidence_chunk_ids"] = []
+                obj["matched_criteria"] = []
+
+            # normalize label by rubric (optional)
+            lvl_info = rubric_levels.get(str(level)) or {}
+            if lvl_info.get("label"):
+                obj["label"] = lvl_info["label"]
+
+            return obj
+
+        except Exception as e:
+            last_err = e
+            continue
+
+    # fallback
+    return {"level": 0, "label": "novice", "matched_criteria": [], "evidence_chunk_ids": [], "why": f"Fallback due to invalid model output: {type(last_err).__name__ if last_err else 'unknown'}."}

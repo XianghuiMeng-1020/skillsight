@@ -1,0 +1,40 @@
+{
+  "type": "object",
+  "required": [
+    "level",
+    "label",
+    "matched_criteria",
+    "evidence_chunk_ids",
+    "why"
+  ],
+  "properties": {
+    "level": {
+      "type": "integer",
+      "enum": [
+        0,
+        1,
+        2,
+        3
+      ]
+    },
+    "label": {
+      "type": "string"
+    },
+    "matched_criteria": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence_chunk_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "why": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}

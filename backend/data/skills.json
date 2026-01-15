@@ -2,13 +2,140 @@
   {
     "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
     "canonical_name": "Academic integrity",
-    "aliases": ["cheating", "plagiarism", "misconduct"],
-    "definition": "Demonstrates understanding of academic integrity rules, identifies violations (e.g., cheating, plagiarism), and explains appropriate responses that protect fairness and trust."
+    "aliases": [
+      "cheating",
+      "plagiarism",
+      "misconduct"
+    ],
+    "definition": "Demonstrates understanding of academic integrity rules, identifies violations (e.g., cheating, plagiarism), and explains appropriate responses that protect fairness and trust.",
+    "rubric_v1": {
+      "levels": {
+        "0": {
+          "label": "novice",
+          "criteria": [
+            {
+              "id": "AI0-1",
+              "text": "No evidence of academic integrity concepts or practices in the artifact."
+            },
+            {
+              "id": "AI0-2",
+              "text": "Mentions are too vague to locate or verify in the text."
+            }
+          ]
+        },
+        "1": {
+          "label": "developing",
+          "criteria": [
+            {
+              "id": "AI1-1",
+              "text": "Mentions academic integrity or misconduct terms, but does not show application or decision-making."
+            },
+            {
+              "id": "AI1-2",
+              "text": "Describes integrity at a general level without concrete actions or examples."
+            }
+          ]
+        },
+        "2": {
+          "label": "proficient",
+          "criteria": [
+            {
+              "id": "AI2-1",
+              "text": "Describes a concrete integrity practice (e.g., paraphrasing, citing sources, avoiding copy-paste)."
+            },
+            {
+              "id": "AI2-2",
+              "text": "Identifies misconduct and states an appropriate response or prevention step."
+            }
+          ]
+        },
+        "3": {
+          "label": "advanced",
+          "criteria": [
+            {
+              "id": "AI3-1",
+              "text": "Provides multiple concrete practices and connects them to fairness/trust or policy reasoning."
+            },
+            {
+              "id": "AI3-2",
+              "text": "Describes a realistic risk case and a corrective workflow (detect → remove/redo → document)."
+            },
+            {
+              "id": "AI3-3",
+              "text": "Evidence spans multiple chunks/sections, not a single mention."
+            }
+          ]
+        }
+      }
+    }
   },
   {
     "skill_id": "HKU.SKILL.PRIVACY.v1",
     "canonical_name": "Privacy awareness",
-    "aliases": ["confidentiality", "student privacy"],
-    "definition": "Recognizes privacy-sensitive information in educational contexts and proposes actions that reduce exposure, protect individuals, and comply with expected privacy norms."
+    "aliases": [
+      "confidentiality",
+      "student privacy"
+    ],
+    "definition": "Recognizes privacy-sensitive information in educational contexts and proposes actions that reduce exposure, protect individuals, and comply with expected privacy norms.",
+    "rubric_v1": {
+      "levels": {
+        "0": {
+          "label": "novice",
+          "criteria": [
+            {
+              "id": "PR0-1",
+              "text": "No evidence of privacy-sensitive thinking or protective actions."
+            },
+            {
+              "id": "PR0-2",
+              "text": "Cannot locate any privacy-related handling in the artifact."
+            }
+          ]
+        },
+        "1": {
+          "label": "developing",
+          "criteria": [
+            {
+              "id": "PR1-1",
+              "text": "Mentions privacy/confidentiality, but lacks concrete handling steps."
+            },
+            {
+              "id": "PR1-2",
+              "text": "Identifies a sensitive concept without specifying what data/fields are sensitive."
+            }
+          ]
+        },
+        "2": {
+          "label": "proficient",
+          "criteria": [
+            {
+              "id": "PR2-1",
+              "text": "Names specific sensitive fields (e.g., email/name) and describes an anonymization/removal step."
+            },
+            {
+              "id": "PR2-2",
+              "text": "Describes a minimum-data or access control practice tied to the artifact workflow."
+            }
+          ]
+        },
+        "3": {
+          "label": "advanced",
+          "criteria": [
+            {
+              "id": "PR3-1",
+              "text": "Defines a clear deletion/revocation workflow (revoke → delete artifacts) and how it is enforced."
+            },
+            {
+              "id": "PR3-2",
+              "text": "Evidence spans multiple chunks (policy + implementation detail)."
+            },
+            {
+              "id": "PR3-3",
+              "text": "Explains tradeoffs (what is stored vs optional) with concrete rules."
+            }
+          ]
+        }
+      }
+    }
   }
 ]
