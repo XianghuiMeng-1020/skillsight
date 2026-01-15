@@ -2122,3 +2122,113 @@ def ai_proficiency(payload: dict, request: Request):
 
     # fallback
     return {"level": 0, "label": "novice", "matched_criteria": [], "evidence_chunk_ids": [], "why": f"Fallback due to invalid model output: {type(last_err).__name__ if last_err else 'unknown'}."}
+
+
+# -------------------------
+# Week2-backfill: Courses import + search + detail
+# -------------------------
+@app.post("/courses/import")
+def import_courses(payload: dict, request: Request):
+    """
+    Import courses from JSON:
+    payload = {"items": [ {course_id, course_code, title, description}, ... ]}
+    staff/admin only (demo).
+    """
+    user = get_current_user(request)
+    if user["role"] not in {"staff", "admin"}:
+        raise HTTPException(status_code=403, detail="staff/admin only")
+
+    items = payload.get("items")
+    if not isinstance(items, list) or not items:
+        raise HTTPException(status_code=400, detail="Missing items (list)")
+
+    n = 0
+    with engine.begin() as conn:
+        for c in items:
+            course_id = (c.get("course_id") or "").strip()
+            course_code = (c.get("course_code") or "").strip()
+            title = (c.get("title") or "").strip()
+            description = (c.get("description") or None)
+
+            if not course_id or not course_code or not title:
+                continue
+
+            conn.execute(
+                text("""
+                    INSERT INTO courses (course_id, course_code, title, description, created_at)
+                    VALUES (:course_id, :course_code, :title, :description, now())
+                    ON CONFLICT (course_id) DO UPDATE
+                    SET course_code = EXCLUDED.course_code,
+                        title = EXCLUDED.title,
+                        description = EXCLUDED.description
+                """),
+                {"course_id": course_id, "course_code": course_code, "title": title, "description": description},
+            )
+            n += 1
+
+    return {"ok": True, "count": n}
+
+
+@app.get("/courses")
+def list_courses(query: str = "", limit: int = 50):
+    """
+    Simple search by course_code/title (ILIKE).
+    """
+    limit = max(1, min(limit, 200))
+    q = (query or "").strip()
+
+    with engine.connect() as conn:
+        if q:
+            rows = conn.execute(
+                text("""
+                    SELECT course_id, course_code, title, description, created_at
+                    FROM courses
+                    WHERE course_code ILIKE :q OR title ILIKE :q
+                    ORDER BY created_at DESC
+                    LIMIT :limit
+                """),
+                {"q": f"%{q}%", "limit": limit},
+            ).mappings().all()
+        else:
+            rows = conn.execute(
+                text("""
+                    SELECT course_id, course_code, title, description, created_at
+                    FROM courses
+                    ORDER BY created_at DESC
+                    LIMIT :limit
+                """),
+                {"limit": limit},
+            ).mappings().all()
+
+    return {"items": [dict(r) for r in rows]}
+
+
+@app.get("/courses/{course_id}")
+def get_course(course_id: str):
+    """
+    Return course + course_skill_map rows (pending/approved/rejected).
+    """
+    with engine.connect() as conn:
+        c = conn.execute(
+            text("""
+                SELECT course_id, course_code, title, description, created_at
+                FROM courses
+                WHERE course_id = :course_id
+            """),
+            {"course_id": course_id},
+        ).mappings().first()
+
+        if not c:
+            raise HTTPException(status_code=404, detail="Course not found")
+
+        maps = conn.execute(
+            text("""
+                SELECT map_id::text as map_id, course_id, skill_id, intended_level, evidence_type, status, note, created_at, updated_at
+                FROM course_skill_map
+                WHERE course_id = :course_id
+                ORDER BY created_at DESC
+            """),
+            {"course_id": course_id},
+        ).mappings().all()
+
+    return {"course": dict(c), "course_skill_map": [dict(r) for r in maps]}

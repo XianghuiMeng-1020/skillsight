@@ -1,0 +1,32 @@
+[
+  {
+    "course_id": "HKU.COURSE.DEMO.001",
+    "course_code": "DEMO1001",
+    "title": "Intro to Academic Writing",
+    "description": "Academic integrity, citation practices, paraphrasing."
+  },
+  {
+    "course_id": "HKU.COURSE.DEMO.002",
+    "course_code": "DEMO1002",
+    "title": "Project Management Basics",
+    "description": "Planning, risk management, documentation."
+  },
+  {
+    "course_id": "HKU.COURSE.DEMO.003",
+    "course_code": "DEMO1003",
+    "title": "Data Ethics & Privacy",
+    "description": "Privacy, consent, deletion policies, governance."
+  },
+  {
+    "course_id": "HKU.COURSE.DEMO.004",
+    "course_code": "DEMO1004",
+    "title": "Software Engineering Studio",
+    "description": "Teamwork, version control, traceable evidence."
+  },
+  {
+    "course_id": "HKU.COURSE.DEMO.005",
+    "course_code": "DEMO1005",
+    "title": "Research Methods",
+    "description": "Evidence-based reasoning and reporting."
+  }
+]
