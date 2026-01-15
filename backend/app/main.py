@@ -1699,8 +1699,14 @@ from app.vector_store import get_client, ensure_collection, upsert_points, searc
 from app.embeddings import embed_texts, emb_dim, MODEL_NAME
 
 @app.post("/embeddings/reindex")
-def reindex_embeddings(request: Request, payload: dict = None):
-    # RBAC：staff/admin 才能跑全量；student 只允许跑自己的 doc（v0：先 staff/admin）
+def embeddings_reindex(request: Request):
+    """
+    Week10: index all chunks for documents with consent status='granted'
+    into Qdrant, with payload including created_at_ts for time filtering.
+    staff/admin only.
+    """
+    from datetime import datetime, timezone
+
     user = get_current_user(request)
     if user["role"] not in {"staff", "admin"}:
         raise HTTPException(status_code=403, detail="staff/admin only")
@@ -1708,22 +1714,44 @@ def reindex_embeddings(request: Request, payload: dict = None):
     client = get_client()
     ensure_collection(client, emb_dim())
 
-    # 只索引 documents 表中存在的 chunks（已 purge 的不会进来）
     with engine.connect() as conn:
         rows = conn.execute(text("""
-            SELECT c.chunk_id::text as chunk_id, c.doc_id::text as doc_id, c.idx, c.snippet, c.chunk_text,
-                   c.section_path, c.page_start, c.page_end,
-                   d.doc_type, d.subject_id, d.created_at
+            SELECT
+              c.chunk_id::text as chunk_id,
+              c.doc_id::text as doc_id,
+              c.idx,
+              c.snippet,
+              c.chunk_text,
+              c.section_path,
+              c.page_start,
+              c.page_end,
+              d.doc_type,
+              d.subject_id,
+              d.created_at
             FROM chunks c
             JOIN documents d ON d.doc_id = c.doc_id
+            JOIN consents  x ON x.doc_id = d.doc_id AND x.status = 'granted'
             ORDER BY d.created_at DESC, c.idx ASC
         """)).mappings().all()
+
+    if not rows:
+        return {"ok": True, "count": 0, "model": MODEL_NAME, "note": "No granted documents to index."}
 
     texts = [r["chunk_text"] for r in rows]
     vecs = embed_texts(texts)
 
     points = []
     for r, v in zip(rows, vecs):
+        # created_at is timestamptz from DB; convert to epoch seconds
+        created_at_str = str(r["created_at"])
+        try:
+            dt = datetime.fromisoformat(created_at_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            created_at_ts = int(dt.timestamp())
+        except Exception:
+            created_at_ts = None
+
         payload = {
             "chunk_id": r["chunk_id"],
             "doc_id": r["doc_id"],
@@ -1734,19 +1762,13 @@ def reindex_embeddings(request: Request, payload: dict = None):
             "page_end": r["page_end"],
             "doc_type": r["doc_type"],
             "subject_id": r["subject_id"],
-            "created_at": str(r["created_at"]),
+            "created_at": created_at_str,
+            "created_at_ts": created_at_ts,
         }
         points.append(qm.PointStruct(id=r["chunk_id"], vector=v, payload=payload))
 
     upsert_points(client, points)
     return {"ok": True, "count": len(points), "model": MODEL_NAME}
-
-# -------------------------
-# Week10: Embeddings + Vector Search (Decision 1)
-# -------------------------
-from qdrant_client.http import models as qm
-from app.embeddings import embed_texts, emb_dim, MODEL_NAME
-from app.vector_store import get_client, ensure_collection, upsert_points, search as q_search, delete_by_doc_id
 
 @app.post("/embeddings/reindex")
 def embeddings_reindex(request: Request):
@@ -1810,84 +1832,239 @@ def embeddings_reindex(request: Request):
 @app.post("/search/evidence_vector")
 def search_evidence_vector(payload: dict, request: Request):
     """
-    Week10 Decision 1: vector retrieval.
-    Dev-safe: on error, return JSON detail with exception type/message.
+    Week10 Decision 1: vector retrieval (Qdrant).
+
+    Input:
+      - skill_id OR query_text
+      - k (default 10)
+      - optional filters:
+          doc_id (strict: requires granted consent + RBAC doc access)
+          doc_type
+          time_from (epoch seconds, inclusive)
+          time_to   (epoch seconds, inclusive)
+
+    RBAC:
+      - student can only see own subject_id (global filter)
+      - if doc_id is provided: require_doc_access(engine, user, doc_id)
+    """
+    user = get_current_user(request)
+
+    top_k = int(payload.get("k") or 10)
+    top_k = max(1, min(top_k, 50))
+
+    doc_id = payload.get("doc_id")
+    doc_type = payload.get("doc_type")
+    skill_id = payload.get("skill_id")
+    query_text = (payload.get("query_text") or "").strip()
+
+    time_from = payload.get("time_from")  # epoch seconds
+    time_to = payload.get("time_to")      # epoch seconds
+
+    if time_from is not None and not isinstance(time_from, int):
+        raise HTTPException(status_code=400, detail="time_from must be epoch seconds (int)")
+    if time_to is not None and not isinstance(time_to, int):
+        raise HTTPException(status_code=400, detail="time_to must be epoch seconds (int)")
+
+    if skill_id:
+        sk = get_skill_by_id(skill_id)
+        if not sk:
+            raise HTTPException(status_code=404, detail="Skill not found")
+        canonical = sk.get("canonical_name") or ""
+        definition = sk.get("definition") or ""
+        aliases = " ".join(sk.get("aliases") or [])
+        query_text = f"{canonical}. {definition} Aliases: {aliases}".strip()
+
+    if not query_text:
+        raise HTTPException(status_code=400, detail="Missing query_text or skill_id")
+
+    # strict: doc scope requires granted consent + RBAC
+    if doc_id:
+        require_consent_granted(doc_id)
+        require_doc_access(engine, user, doc_id)
+
+    client = get_client()
+    ensure_collection(client, emb_dim())
+    qvec = embed_texts([query_text])[0]
+
+    must = []
+    # RBAC: student sees only own subject_id
+    if user["role"] == "student":
+        must.append(qm.FieldCondition(key="subject_id", match=qm.MatchValue(value=user["subject_id"])))
+    if doc_id:
+        must.append(qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id)))
+    if doc_type:
+        must.append(qm.FieldCondition(key="doc_type", match=qm.MatchValue(value=doc_type)))
+
+    # time range filter (if created_at_ts exists in payload)
+    if time_from is not None or time_to is not None:
+        rng = qm.Range(gte=time_from, lte=time_to)
+        must.append(qm.FieldCondition(key="created_at_ts", range=rng))
+
+    flt = qm.Filter(must=must) if must else None
+    hits = q_search(client, qvec, top_k, flt)
+
+    items = []
+    for h in hits:
+        # qdrant-client hit can be object/dict/pydantic-like
+        if isinstance(h, dict):
+            score = float(h.get("score", 0.0) or 0.0)
+            pld = h.get("payload") or {}
+        elif hasattr(h, "payload"):
+            score = float(getattr(h, "score", 0.0) or 0.0)
+            pld = getattr(h, "payload") or {}
+        elif hasattr(h, "dict"):
+            d = h.dict()
+            score = float(d.get("score", 0.0) or 0.0)
+            pld = d.get("payload") or {}
+        else:
+            score, pld = 0.0, {}
+
+        items.append({
+            "chunk_id": pld.get("chunk_id"),
+            "doc_id": pld.get("doc_id"),
+            "idx": pld.get("idx"),
+            "snippet": pld.get("snippet"),
+            "section_path": pld.get("section_path"),
+            "page_start": pld.get("page_start"),
+            "page_end": pld.get("page_end"),
+            "score": score,
+            "score_meta": {"type": "vector_cosine", "model": MODEL_NAME},
+        })
+
+    return {"items": items, "query_text": query_text}
+
+# -------------------------
+# Week11: LLM Demonstration (Ollama) + schema + strict refusal (v1)
+# -------------------------
+from pathlib import Path as _Path2
+from app.ollama_client import ollama_generate
+from app.schema_validate import load_schema, extract_first_json_obj, validate_or_raise
+
+# repo root = .../skillsight (main.py is in skillsight/backend/app/)
+REPO_ROOT = _Path2(__file__).resolve().parents[2]
+DEMO_PROMPT_PATH = REPO_ROOT / "packages/prompts/demonstration_v1.txt"
+DEMO_SCHEMA_PATH = REPO_ROOT / "packages/schemas/demonstration_v1.json"
+
+DEMO_MODEL = "deepseek-r1:14b"
+
+_demo_prompt = None
+_demo_schema = None
+
+def _load_demo_assets():
+    global _demo_prompt, _demo_schema
+    if _demo_prompt is None:
+        _demo_prompt = DEMO_PROMPT_PATH.read_text(encoding="utf-8")
+    if _demo_schema is None:
+        _demo_schema = load_schema(str(DEMO_SCHEMA_PATH))
+
+@app.post("/ai/demonstration")
+def ai_demonstration(payload: dict, request: Request):
+    """
+    Input:
+      {skill_id, doc_id optional, k optional, min_score optional}
+    Output:
+      JSON schema validated; strict refusal if evidence weak/invalid.
+    Dev-safe: returns JSON detail on unexpected failure.
     """
     try:
-        user = get_current_user(request)
+        _load_demo_assets()
 
-        top_k = int(payload.get("k") or 10)
-        top_k = max(1, min(top_k, 50))
-
+        skill_id = (payload.get("skill_id") or "").strip()
         doc_id = payload.get("doc_id")
-        doc_type = payload.get("doc_type")
-        skill_id = payload.get("skill_id")
-        query_text = (payload.get("query_text") or "").strip()
+        k = int(payload.get("k") or 5)
+        k = max(1, min(k, 20))
+        min_score = float(payload.get("min_score") or 0.20)
 
-        if skill_id:
-            sk = get_skill_by_id(skill_id)
-            if not sk:
-                raise HTTPException(status_code=404, detail="Skill not found")
-            canonical = sk.get("canonical_name") or ""
-            definition = sk.get("definition") or ""
-            aliases = " ".join(sk.get("aliases") or [])
-            query_text = f"{canonical}. {definition} Aliases: {aliases}".strip()
+        if not skill_id:
+            raise HTTPException(status_code=400, detail="Missing skill_id")
 
-        if not query_text:
-            raise HTTPException(status_code=400, detail="Missing query_text or skill_id")
-
-        # strict: if doc_id specified, enforce consent + RBAC doc access
+        # retrieve evidence via vector search (Decision 1)
+        body = {"skill_id": skill_id, "k": k}
         if doc_id:
-            require_consent_granted(doc_id)
-            require_doc_access(engine, user, doc_id)
+            body["doc_id"] = doc_id
 
-        client = get_client()
-        ensure_collection(client, emb_dim())
-        qvec = embed_texts([query_text])[0]
+        ev = search_evidence_vector(body, request=request)
+        evidence_items = ev.get("items") or []
 
-        must = []
-        # RBAC: student only sees own chunks
-        if user["role"] == "student":
-            must.append(qm.FieldCondition(key="subject_id", match=qm.MatchValue(value=user["subject_id"])))
-        if doc_id:
-            must.append(qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id)))
-        if doc_type:
-            must.append(qm.FieldCondition(key="doc_type", match=qm.MatchValue(value=doc_type)))
+        if not evidence_items:
+            return {
+                "label": "not_enough_information",
+                "evidence_chunk_ids": [],
+                "rationale": "No relevant evidence chunks were retrieved for this skill.",
+                "refusal_reason": "no_evidence_retrieved"
+            }
 
-        flt = qm.Filter(must=must) if must else None
-        hits = q_search(client, qvec, top_k, flt)
+        top_score = float((evidence_items[0].get("score") or 0.0))
+        if top_score < min_score:
+            return {
+                "label": "not_enough_information",
+                "evidence_chunk_ids": [],
+                "rationale": "Retrieved evidence is too weak to support a claim.",
+                "refusal_reason": "evidence_score_too_low"
+            }
 
-        items = []
-        for h in hits:
-            # compatibility: hit may be object/dict/pydantic
-            if isinstance(h, dict):
-                score = float(h.get("score", 0.0) or 0.0)
-                pld = h.get("payload") or {}
-            elif hasattr(h, "payload"):
-                score = float(getattr(h, "score", 0.0) or 0.0)
-                pld = getattr(h, "payload") or {}
-            elif hasattr(h, "dict"):
-                d = h.dict()
-                score = float(d.get("score", 0.0) or 0.0)
-                pld = d.get("payload") or {}
-            else:
-                score, pld = 0.0, {}
+        sk = get_skill_by_id(skill_id)
+        if not sk:
+            raise HTTPException(status_code=404, detail="Skill not found")
 
-            items.append({
-                "chunk_id": pld.get("chunk_id"),
-                "doc_id": pld.get("doc_id"),
-                "idx": pld.get("idx"),
-                "snippet": pld.get("snippet"),
-                "section_path": pld.get("section_path"),
-                "page_start": pld.get("page_start"),
-                "page_end": pld.get("page_end"),
-                "score": score,
-                "score_meta": {"type": "vector_cosine", "model": MODEL_NAME},
+        skill_text = f"{sk.get('canonical_name')}. {sk.get('definition')} Aliases: {' '.join(sk.get('aliases') or [])}".strip()
+
+        allowed_ids = [it.get("chunk_id") for it in evidence_items if it.get("chunk_id")]
+        evidence_list = []
+        for it in evidence_items:
+            evidence_list.append({
+                "chunk_id": it.get("chunk_id"),
+                "snippet": it.get("snippet"),
+                "section_path": it.get("section_path"),
+                "page_start": it.get("page_start"),
+                "page_end": it.get("page_end"),
+                "score": it.get("score"),
             })
 
-        return {"items": items, "query_text": query_text}
+        prompt = _demo_prompt.replace("{skill_text}", skill_text).replace("{evidence_list}", str(evidence_list))
+
+        last_err = None
+        for attempt in (1, 2):
+            try:
+                raw = ollama_generate(DEMO_MODEL, prompt, temperature=0.0)
+            except Exception as e:
+                last_err = e
+                continue
+
+            try:
+                obj = extract_first_json_obj(raw)
+                validate_or_raise(obj, _demo_schema)
+
+                label = obj.get("label")
+                ids = obj.get("evidence_chunk_ids") or []
+
+                if any(i not in allowed_ids for i in ids):
+                    raise ValueError("evidence_chunk_ids contains unknown chunk_id")
+
+                if label in ("demonstrated", "mentioned") and len(ids) == 0:
+                    raise ValueError("label requires evidence_chunk_ids")
+
+                if label == "not_enough_information":
+                    obj["evidence_chunk_ids"] = []
+                    if not obj.get("refusal_reason"):
+                        obj["refusal_reason"] = "insufficient_evidence"
+                else:
+                    obj["refusal_reason"] = None
+
+                return obj
+
+            except Exception as e:
+                last_err = e
+                continue
+
+        return {
+            "label": "not_enough_information",
+            "evidence_chunk_ids": [],
+            "rationale": "Model output was invalid or not grounded in provided evidence.",
+            "refusal_reason": f"schema_or_grounding_failure:{type(last_err).__name__ if last_err else 'unknown'}"
+        }
 
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"evidence_vector failed: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"ai_demonstration failed: {type(e).__name__}: {e}")

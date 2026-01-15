@@ -1,0 +1,35 @@
+{
+  "type": "object",
+  "required": [
+    "label",
+    "evidence_chunk_ids",
+    "rationale",
+    "refusal_reason"
+  ],
+  "properties": {
+    "label": {
+      "type": "string",
+      "enum": [
+        "demonstrated",
+        "mentioned",
+        "not_enough_information"
+      ]
+    },
+    "evidence_chunk_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "rationale": {
+      "type": "string"
+    },
+    "refusal_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": false
+}
