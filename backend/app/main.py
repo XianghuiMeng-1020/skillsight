@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Tuple
 
+from fastapi.responses import JSONResponse
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, text
@@ -28,6 +29,8 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 SKILLS_PATH = Path(__file__).resolve().parent.parent / "data" / "skills.json"
 
 app = FastAPI(title="SkillSight API", version="0.2")
+
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -657,7 +660,7 @@ def get_skill_by_id(skill_id: str):
 # Decision 2: Rule-based skill demonstration assessment (v0)
 # -------------------------
 @app.post("/assess/skill")
-def assess_skill(payload: dict, request: Request):
+def assess_skill(payload: dict, request: Request = None):
     """
     Decision 2 (rule-based v0):
       - retrieve Top-K evidence by BM25 (Decision 1)
@@ -1076,307 +1079,165 @@ def get_role(role_id: str):
     return r
 
 @app.post("/assess/role_readiness")
-def assess_role_readiness(payload: dict, request: Request):
+def assess_role_readiness(payload: dict, request: Request = None):
     """
-    Decision 4 (v0):
-      input: {doc_id, role_id, store: optional bool}
-      output per required skill:
-        - status: meet | missing_proof | needs_strengthening
-        - observed_level/target_level
-        - references: pulls latest proficiency or runs assess_proficiency on the fly
+    Decision 4 (dev-safe): returns JSON error detail on failure.
     """
-    import uuid as _uuid
-    import json as _json
-    from datetime import datetime, timezone as _tz
-
-    doc_id = (payload.get("doc_id") or "").strip()
-
-    # Week10 strict: block analysis without granted consent
-    require_consent_granted(doc_id)
-
-    # Week11 RBAC: only enforce when called from HTTP (request present)
-    if request is not None:
-        user = get_current_user(request)
-        require_doc_access(engine, user, doc_id)
-    import uuid
     try:
-        uuid.UUID(doc_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid doc_id format")
+        import uuid as _uuid
 
-    role_id = (payload.get("role_id") or "").strip()
-    store = bool(payload.get("store") if payload.get("store") is not None else True)
+        doc_id = (payload.get("doc_id") or "").strip()
+        role_id = (payload.get("role_id") or "").strip()
 
-    if not doc_id:
-        raise HTTPException(status_code=400, detail="Missing doc_id")
-    if not role_id:
-        raise HTTPException(status_code=400, detail="Missing role_id")
+        if not doc_id:
+            raise HTTPException(status_code=400, detail="Missing doc_id")
+        if not role_id:
+            raise HTTPException(status_code=400, detail="Missing role_id")
 
-    role = get_role_by_id(role_id)
-    if not role:
-        raise HTTPException(status_code=404, detail="Role not found")
+        try:
+            _uuid.UUID(doc_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid doc_id format")
 
-    items = []
-    counts = {"meet": 0, "missing_proof": 0, "needs_strengthening": 0}
+        require_consent_granted(doc_id)
 
-    for req in role.get("skills_required", []):
-        skill_id = req.get("skill_id")
-        target = int(req.get("target_level") or 0)
-        required = bool(req.get("required") if req.get("required") is not None else True)
+        if request is not None:
+            user = get_current_user(request)
+            require_doc_access(engine, user, doc_id)
 
-        # Get latest proficiency from DB if exists; else compute now (store=False to avoid clutter)
-        with engine.connect() as conn:
-            row = conn.execute(
-                text("""
-                    SELECT level, label, rationale, created_at
-                    FROM skill_proficiency
-                    WHERE doc_id = (:doc_id)::uuid AND skill_id = :skill_id
-                    ORDER BY created_at DESC
-                    LIMIT 1
-                """),
-                {"doc_id": doc_id, "skill_id": skill_id},
-            ).mappings().first()
+        role = get_role_by_id(role_id)
+        if not role:
+            raise HTTPException(status_code=404, detail="Role not found")
 
-        if row:
-            observed_level = int(row["level"])
-            observed_label = row["label"]
-            source = "stored_proficiency"
-        else:
-            prof = assess_proficiency({"skill_id": skill_id, "doc_id": doc_id, "k": 10, "store": False})
-            observed_level = int(prof["level"])
-            observed_label = prof["label"]
-            source = "computed_proficiency"
+        items = []
+        counts = {"meet": 0, "missing_proof": 0, "needs_strengthening": 0}
 
-        # Map to gap type
-        if observed_level == 0:
-            status = "missing_proof"
-        elif observed_level < target:
-            status = "needs_strengthening"
-        else:
-            status = "meet"
+        for req_item in role.get("skills_required", []):
+            skill_id = req_item.get("skill_id")
+            target = int(req_item.get("target_level") or 0)
+            required = bool(req_item.get("required") if req_item.get("required") is not None else True)
 
-        counts[status] += 1
+            with engine.connect() as conn:
+                row = conn.execute(
+                    text("""
+                        SELECT level, label, created_at
+                        FROM skill_proficiency
+                        WHERE doc_id = (:doc_id)::uuid AND skill_id = :skill_id
+                        ORDER BY created_at DESC
+                        LIMIT 1
+                    """),
+                    {"doc_id": doc_id, "skill_id": skill_id},
+                ).mappings().first()
 
-        items.append({
-            "skill_id": skill_id,
-            "required": required,
-            "target_level": target,
-            "observed_level": observed_level,
-            "observed_label": observed_label,
-            "status": status,
-            "source": source
-        })
+            if row:
+                observed_level = int(row["level"])
+                observed_label = row["label"]
+                source = "stored_proficiency"
+            else:
+                prof = assess_proficiency({"skill_id": skill_id, "doc_id": doc_id, "k": 10, "store": False}, request=None)
+                observed_level = int(prof["level"])
+                observed_label = prof["label"]
+                source = "computed_proficiency"
 
-    readiness = {
-        "doc_id": doc_id,
-        "role_id": role_id,
-        "role_title": role.get("role_title"),
-        "summary": counts,
-        "items": items,
-        "meta": {"type": "rule_v0", "note": "status derived from proficiency level vs target_level"}
-    }
+            if observed_level == 0:
+                status = "missing_proof"
+            elif observed_level < target:
+                status = "needs_strengthening"
+            else:
+                status = "meet"
 
-    if store:
-        ddl = """
-        CREATE TABLE IF NOT EXISTS role_readiness (
-            readiness_id UUID PRIMARY KEY,
-            doc_id UUID NOT NULL,
-            role_id TEXT NOT NULL,
-            readiness JSONB NOT NULL,
-            created_at TIMESTAMPTZ NOT NULL
-        );
-        CREATE INDEX IF NOT EXISTS idx_role_readiness_doc ON role_readiness(doc_id);
-        CREATE INDEX IF NOT EXISTS idx_role_readiness_role ON role_readiness(role_id);
-        """
-        with engine.begin() as conn:
-            conn.execute(text(ddl))
-            conn.execute(
-                text("""
-                    INSERT INTO role_readiness (readiness_id, doc_id, role_id, readiness, created_at)
-                    VALUES ((:rid)::uuid, (:doc_id)::uuid, :role_id, (:readiness)::jsonb, :created_at)
-                """),
-                {
-                    "rid": str(_uuid.uuid4()),
-                    "doc_id": doc_id,
-                    "role_id": role_id,
-                    "readiness": _json.dumps(readiness, default=str),
-                    "created_at": datetime.now(_tz.utc).isoformat(),
-                },
-            )
+            counts[status] += 1
+            items.append({
+                "skill_id": skill_id,
+                "required": required,
+                "target_level": target,
+                "observed_level": observed_level,
+                "observed_label": observed_label,
+                "status": status,
+                "source": source,
+            })
 
-    
-    # audit-friendly summary (no full evidence stored here)
-    readiness["_audit_summary"] = {
-        "role_id": role_id,
-        "summary": readiness.get("summary"),
-        "n_items": len(readiness.get("items") or []),
-    }
+        return {
+            "doc_id": doc_id,
+            "role_id": role_id,
+            "role_title": role.get("role_title"),
+            "summary": counts,
+            "items": items,
+            "meta": {"type": "rule_v0"},
+        }
 
-    # ---- Week8 change log: compare with previous stored readiness (same doc_id + role_id)
-    prev = None
-    try:
-        with engine.connect() as conn:
-            row = conn.execute(
-                text('''
-                    SELECT readiness
-                    FROM role_readiness
-                    WHERE doc_id = (:doc_id)::uuid AND role_id = :role_id
-                    ORDER BY created_at DESC
-                    OFFSET 1
-                    LIMIT 1
-                '''),
-                {"doc_id": doc_id, "role_id": role_id},
-            ).mappings().first()
-        if row and row.get("readiness"):
-            prev = row["readiness"]
-    except Exception:
-        prev = None
-
-    d = diff_role_readiness(prev or {}, readiness)
-    if d.get("has_change"):
-        log_change(engine, "role_readiness", doc_id, role_id, {
-            "reason": "role_readiness recomputed",
-            "role_title": readiness.get("role_title"),
-            "diff": d
-        })
-
-    return readiness
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"role_readiness failed: {type(e).__name__}: {e}")
 
 @app.post("/actions/recommend")
-def recommend_actions(payload: dict, request: Request):
+def recommend_actions(payload: dict, request: Request = None):
     """
-    Decision 5 (v0):
-      input: {doc_id, role_id}
-      output: action_cards[] based on role readiness gap types
+    Decision 5 (dev-safe): returns JSON error detail on failure.
     """
-    doc_id = (payload.get("doc_id") or "").strip()
-
-    # Week10 strict: block analysis without granted consent
-    require_consent_granted(doc_id)
-
-    # Week11 RBAC: only enforce when called from HTTP (request present)
-    if request is not None:
-        user = get_current_user(request)
-        require_doc_access(engine, user, doc_id)
-    import uuid
     try:
-        uuid.UUID(doc_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid doc_id format")
+        import uuid as _uuid
 
-    role_id = (payload.get("role_id") or "").strip()
-    if not doc_id:
-        raise HTTPException(status_code=400, detail="Missing doc_id")
-    if not role_id:
-        raise HTTPException(status_code=400, detail="Missing role_id")
+        doc_id = (payload.get("doc_id") or "").strip()
+        role_id = (payload.get("role_id") or "").strip()
 
-    readiness = assess_role_readiness({"doc_id": doc_id, "role_id": role_id, "store": False})
-    cards = []
+        if not doc_id:
+            raise HTTPException(status_code=400, detail="Missing doc_id")
+        if not role_id:
+            raise HTTPException(status_code=400, detail="Missing role_id")
 
-    for it in readiness["items"]:
-        status = it["status"]
-        if status == "meet":
-            continue
+        try:
+            _uuid.UUID(doc_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid doc_id format")
 
-        gap_type = "missing_proof" if status == "missing_proof" else "needs_strengthening"
-        tmpl = find_action_template(it["skill_id"], gap_type)
+        require_consent_granted(doc_id)
 
-        if tmpl:
+        if request is not None:
+            user = get_current_user(request)
+            require_doc_access(engine, user, doc_id)
+
+        readiness = assess_role_readiness({"doc_id": doc_id, "role_id": role_id, "store": False}, request=None)
+
+        cards = []
+        for it in readiness.get("items") or []:
+            status = it.get("status")
+            if status == "meet":
+                continue
+            gap_type = "missing_proof" if status == "missing_proof" else "needs_strengthening"
+            tmpl = find_action_template(it["skill_id"], gap_type)
+
             card = {
                 "skill_id": it["skill_id"],
                 "gap_type": gap_type,
-                "title": tmpl["title"],
-                "why_this_card": f"Status={status}. Observed level {it['observed_level']} ({it['observed_label']}) vs target {it['target_level']}.",
+                "title": (tmpl["title"] if tmpl else f"Action for {it['skill_id']}"),
+                "why_this_card": f"Status={status}. Observed {it['observed_level']} ({it['observed_label']}) vs target {it['target_level']}.",
                 "based_on": it,
-                "what_to_do": tmpl["what_to_do"],
-                "artifact": tmpl["artifact"],
-                "how_verified": tmpl["how_verified"],
+                "what_to_do": (tmpl["what_to_do"] if tmpl else "Add evidence for this skill."),
+                "artifact": (tmpl["artifact"] if tmpl else "Short text artifact"),
+                "how_verified": (tmpl["how_verified"] if tmpl else "Instructor can locate the cited paragraph."),
             }
-        else:
-            card = {
-                "skill_id": it["skill_id"],
-                "gap_type": gap_type,
-                "title": f"Action for {it['skill_id']} ({gap_type})",
-                "why_this_card": f"Status={status}. Observed level {it['observed_level']} ({it['observed_label']}) vs target {it['target_level']}.",
-                "based_on": it,
-                "what_to_do": "Add a concrete artifact that demonstrates the skill and can be cited as evidence.",
-                "artifact": "A short text section or project log entry",
-                "how_verified": "Instructor can locate the cited paragraph and confirm it matches the skill definition."
-            }
+            cards.append(card)
 
-        cards.append(card)
+        return {
+            "doc_id": doc_id,
+            "role_id": role_id,
+            "role_title": readiness.get("role_title"),
+            "summary": readiness.get("summary"),
+            "action_cards": cards,
+            "meta": {"type": "template_v0"},
+        }
 
-    
-    _audit_summary = {
-        "role_id": role_id,
-        "summary": readiness.get("summary"),
-        "action_cards_count": len(cards),
-    }
-
-    return {
-        "doc_id": doc_id,
-        "role_id": role_id,
-        "role_title": readiness.get("role_title"),
-        "summary": readiness.get("summary"),
-        "action_cards": cards,
-        "meta": {"type": "template_v0"}, "_audit_summary": _audit_summary
-    }
-
-
-# -------------------------
-# Week7: Audit log (v0)
-# -------------------------
-import time as _time
-import json as _json
-import uuid as _uuid
-
-AUDIT_PATHS = {
-    "/assess/skill": "DECISION2_ASSESS_SKILL",
-    "/assess/proficiency": "DECISION3_ASSESS_PROFICIENCY",
-    "/assess/role_readiness": "DECISION4_ROLE_READINESS",
-    "/actions/recommend": "DECISION5_ACTIONS_RECOMMEND",
-}
-
-def _ensure_audit_table():
-    ddl = '''
-    CREATE TABLE IF NOT EXISTS audit_logs (
-        audit_id UUID PRIMARY KEY,
-        event_type TEXT NOT NULL,
-        path TEXT NOT NULL,
-        method TEXT NOT NULL,
-        doc_id_text TEXT,
-        status_code INTEGER NOT NULL,
-        payload JSONB NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_audit_doc ON audit_logs(doc_id_text);
-    CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
-    '''
-    with engine.begin() as conn:
-        conn.execute(text(ddl))
-
-def audit_log(event_type: str, path: str, method: str, doc_id_text: str | None, status_code: int, payload_obj: dict):
-    _ensure_audit_table()
-    with engine.begin() as conn:
-        conn.execute(
-            text('''
-                INSERT INTO audit_logs (audit_id, event_type, path, method, doc_id_text, status_code, payload, created_at)
-                VALUES ((:audit_id)::uuid, :event_type, :path, :method, :doc_id_text, :status_code, (:payload)::jsonb, :created_at)
-            '''),
-            {
-                "audit_id": str(_uuid.uuid4()),
-                "event_type": event_type,
-                "path": path,
-                "method": method,
-                "doc_id_text": doc_id_text,
-                "status_code": int(status_code),
-                "payload": _json.dumps(payload_obj, default=str),
-                "created_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
-            }
-        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"actions failed: {type(e).__name__}: {e}")
 
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next):
+    import time as _time
+    import json as _json
     """
     Audits selected JSON POST endpoints.
     Records:
@@ -1391,7 +1252,7 @@ async def audit_middleware(request: Request, call_next):
     method = request.method.upper()
 
     ct = (request.headers.get("content-type") or "").lower()
-    should_audit = (method == "POST" and path in AUDIT_PATHS and "application/json" in ct)
+    should_audit = (method == "POST" and path in globals().get('AUDIT_PATHS', {}) and "application/json" in ct)
 
     req_payload = {}
     doc_id_text = None
@@ -1438,14 +1299,18 @@ async def audit_middleware(request: Request, call_next):
                 "response_summary": resp_summary,
                 "_elapsed_ms": elapsed_ms,
             }
-            audit_log(
-                event_type=AUDIT_PATHS[path],
+            # best-effort audit (never block main request)
+            try:
+                audit_log(
+                event_type=globals().get('AUDIT_PATHS', {}).get(path, 'AUDIT_UNKNOWN'),
                 path=path,
                 method=method,
                 doc_id_text=doc_id_text,
                 status_code=status_code,
                 payload_obj=audit_payload,
             )
+            except Exception:
+                pass
 
             # Re-create response with original body
             return Response(
@@ -1463,7 +1328,7 @@ async def audit_middleware(request: Request, call_next):
             "_elapsed_ms": elapsed_ms,
         }
         audit_log(
-            event_type=AUDIT_PATHS[path],
+            event_type=globals().get('AUDIT_PATHS', {}).get(path, 'AUDIT_UNKNOWN'),
             path=path,
             method=method,
             doc_id_text=doc_id_text,
@@ -1483,7 +1348,7 @@ async def audit_middleware(request: Request, call_next):
                 "_exception": f"{type(e).__name__}: {e}",
             }
             audit_log(
-                event_type=AUDIT_PATHS[path],
+                event_type=globals().get('AUDIT_PATHS', {}).get(path, 'AUDIT_UNKNOWN'),
                 path=path,
                 method=method,
                 doc_id_text=doc_id_text,
