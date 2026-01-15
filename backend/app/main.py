@@ -1236,23 +1236,20 @@ def recommend_actions(payload: dict, request: Request = None):
 
 @app.middleware("http")
 async def audit_middleware(request: Request, call_next):
+    """
+    Safe audit middleware:
+      - audits selected JSON POST endpoints (request payload only)
+      - NEVER consumes response body (prevents empty responses)
+      - best-effort: any audit failure is swallowed
+    """
     import time as _time
-    import json as _json
-    """
-    Audits selected JSON POST endpoints.
-    Records:
-      - request payload (parsed JSON)
-      - response _audit_summary (if JSON response contains it)
-      - status_code + elapsed_ms
-    """
-    from starlette.responses import Response
     import json as _json
 
     path = request.url.path
     method = request.method.upper()
 
     ct = (request.headers.get("content-type") or "").lower()
-    should_audit = (method == "POST" and path in globals().get('AUDIT_PATHS', {}) and "application/json" in ct)
+    should_audit = (method == "POST" and path in globals().get("AUDIT_PATHS", {}) and "application/json" in ct)
 
     req_payload = {}
     doc_id_text = None
@@ -1270,92 +1267,22 @@ async def audit_middleware(request: Request, call_next):
     try:
         response = await call_next(request)
         status_code = getattr(response, "status_code", 200)
-
-        if not should_audit:
-            return response
-
-        # Only attempt to parse small JSON responses
-        resp_ct = (response.headers.get("content-type") or "").lower()
-        if "application/json" in resp_ct:
-            # Buffer response body (safe size cap)
-            body_bytes = b""
-            async for chunk in response.body_iterator:
-                body_bytes += chunk
-                if len(body_bytes) > 200_000:
-                    break
-
-            resp_summary = None
-            if body_bytes and len(body_bytes) <= 200_000:
-                try:
-                    obj = _json.loads(body_bytes.decode("utf-8"))
-                    if isinstance(obj, dict) and "_audit_summary" in obj:
-                        resp_summary = obj.get("_audit_summary")
-                except Exception:
-                    resp_summary = None
-
-            elapsed_ms = int((_time.time() - start) * 1000)
-            audit_payload = {
-                "request": req_payload if isinstance(req_payload, dict) else {"request": str(req_payload)},
-                "response_summary": resp_summary,
-                "_elapsed_ms": elapsed_ms,
-            }
-            # best-effort audit (never block main request)
+        return response
+    finally:
+        if should_audit:
             try:
+                elapsed_ms = int((_time.time() - start) * 1000)
+                audit_payload = {"request": req_payload, "_elapsed_ms": elapsed_ms}
                 audit_log(
-                event_type=globals().get('AUDIT_PATHS', {}).get(path, 'AUDIT_UNKNOWN'),
-                path=path,
-                method=method,
-                doc_id_text=doc_id_text,
-                status_code=status_code,
-                payload_obj=audit_payload,
-            )
+                    event_type=globals().get("AUDIT_PATHS", {}).get(path, "AUDIT_UNKNOWN"),
+                    path=path,
+                    method=method,
+                    doc_id_text=doc_id_text,
+                    status_code=status_code,
+                    payload_obj=audit_payload,
+                )
             except Exception:
                 pass
-
-            # Re-create response with original body
-            return Response(
-                content=body_bytes,
-                status_code=status_code,
-                headers=dict(response.headers),
-                media_type=response.media_type,
-            )
-
-        # Non-JSON response: still log request + elapsed
-        elapsed_ms = int((_time.time() - start) * 1000)
-        audit_payload = {
-            "request": req_payload if isinstance(req_payload, dict) else {"request": str(req_payload)},
-            "response_summary": None,
-            "_elapsed_ms": elapsed_ms,
-        }
-        audit_log(
-            event_type=globals().get('AUDIT_PATHS', {}).get(path, 'AUDIT_UNKNOWN'),
-            path=path,
-            method=method,
-            doc_id_text=doc_id_text,
-            status_code=status_code,
-            payload_obj=audit_payload,
-        )
-        return response
-
-    except Exception as e:
-        # If the endpoint crashes, record that too
-        if should_audit:
-            elapsed_ms = int((_time.time() - start) * 1000)
-            audit_payload = {
-                "request": req_payload if isinstance(req_payload, dict) else {"request": str(req_payload)},
-                "response_summary": None,
-                "_elapsed_ms": elapsed_ms,
-                "_exception": f"{type(e).__name__}: {e}",
-            }
-            audit_log(
-                event_type=globals().get('AUDIT_PATHS', {}).get(path, 'AUDIT_UNKNOWN'),
-                path=path,
-                method=method,
-                doc_id_text=doc_id_text,
-                status_code=500,
-                payload_obj=audit_payload,
-            )
-        raise
 
 @app.get("/audit")
 def list_audit(doc_id: str | None = None, limit: int = 20):
