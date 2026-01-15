@@ -303,7 +303,101 @@ export default function Home() {
         )}
       </section>
 
-      {/* Upload */}
+      {
+      {/* Vector Evidence Search */}
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 24 }}>
+        <h2 style={{ fontSize: 18, marginBottom: 10 }}>Vector evidence search (Decision 1)</h2>
+        <div style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>
+          Uses embeddings + Qdrant to retrieve Top-K chunks. (RBAC applies: student only sees own docs.)
+        </div>
+
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            onClick={async () => {
+              setSearchMsg("");
+              setEvidence([]);
+              setTokens([]);
+              setGeneratedQuery("");
+              setSearching(true);
+              try {
+                const docScope = selectedDocId !== "ALL" ? selectedDocId : undefined;
+
+                let body: any = { k };
+                if (selectedSkillId === "FREE_TEXT") {
+                  const q = query.trim();
+                  if (!q) {
+                    setSearchMsg("Please enter a query first.");
+                    setSearching(false);
+                    return;
+                  }
+                  body.query_text = q;
+                } else {
+                  body.skill_id = selectedSkillId;
+                }
+                if (docScope) body.doc_id = docScope;
+
+                // NOTE: use staff headers for now in demo; you can switch to RBAC later
+                const res = await fetch(`${apiBase}/search/evidence_vector`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "X-Subject-Id": "staff_demo", "X-Role": "staff" },
+                  body: JSON.stringify(body),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) {
+                  setSearchMsg(`Vector search failed: ${data?.detail || `HTTP ${res.status}`}`);
+                  return;
+                }
+                setEvidence(data.items || []);
+                if (data.query_text) setGeneratedQuery(data.query_text);
+                if ((data.items || []).length === 0) setSearchMsg("No vector hits. Try reindex or different query.");
+              } catch (e: any) {
+                setSearchMsg(`Vector search error: ${String(e.message || e)}`);
+              } finally {
+                setSearching(false);
+              }
+            }}
+            disabled={searching}
+            style={{ padding: "8px 14px", cursor: "pointer" }}
+          >
+            {searching ? "Searching..." : "Search (Vector)"}
+          </button>
+        </div>
+
+        {generatedQuery && (
+          <div style={{ marginTop: 10, color: "#666", fontSize: 13 }}>
+            query_text: {generatedQuery}
+          </div>
+        )}
+
+        {searchMsg && <div style={{ marginTop: 10, color: "crimson" }}>{searchMsg}</div>}
+
+        {evidence.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <h3 style={{ fontSize: 16, marginBottom: 10 }}>Top evidence</h3>
+            <ul style={{ paddingLeft: 16 }}>
+              {evidence.map((ev) => (
+                <li key={ev.chunk_id} style={{ marginBottom: 12 }}>
+                  <div style={{ marginBottom: 4 }}>
+                    <b>score={ev.score.toFixed(3)}</b>{" "}
+                    <span style={{ color: "#666" }}>
+                      (doc {ev.doc_id.slice(0, 8)}…, chunk {ev.idx})
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "#333", marginBottom: 4 }}>{ev.snippet}</div>
+                  <div style={{ fontSize: 13 }}>
+                    <Link href={`/documents/${ev.doc_id}`} style={{ textDecoration: "underline" }}>
+                      Open document chunks →
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+
+
+      /* Upload */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 24 }}>
         <h2 style={{ fontSize: 18, marginBottom: 12 }}>Upload a .txt document</h2>
 

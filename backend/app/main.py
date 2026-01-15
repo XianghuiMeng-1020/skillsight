@@ -1764,6 +1764,12 @@ def purge_document(doc_id: str):
         except Exception:
             pass
 
+    # Week10: also delete vectors for this doc_id (best-effort)
+    try:
+        delete_by_doc_id(get_client(), doc_id)
+    except Exception:
+        pass
+
 @app.post("/consent/revoke")
 def consent_revoke(payload: dict, request: Request):
     """
@@ -1822,3 +1828,201 @@ def consent_revoke(payload: dict, request: Request):
 def whoami(request: Request):
     user = get_current_user(request)
     return {"subject_id": user["subject_id"], "role": user["role"]}
+
+from qdrant_client.http import models as qm
+from app.vector_store import get_client, ensure_collection, upsert_points, search as q_search, delete_by_doc_id
+from app.embeddings import embed_texts, emb_dim, MODEL_NAME
+
+@app.post("/embeddings/reindex")
+def reindex_embeddings(request: Request, payload: dict = None):
+    # RBAC：staff/admin 才能跑全量；student 只允许跑自己的 doc（v0：先 staff/admin）
+    user = get_current_user(request)
+    if user["role"] not in {"staff", "admin"}:
+        raise HTTPException(status_code=403, detail="staff/admin only")
+
+    client = get_client()
+    ensure_collection(client, emb_dim())
+
+    # 只索引 documents 表中存在的 chunks（已 purge 的不会进来）
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT c.chunk_id::text as chunk_id, c.doc_id::text as doc_id, c.idx, c.snippet, c.chunk_text,
+                   c.section_path, c.page_start, c.page_end,
+                   d.doc_type, d.subject_id, d.created_at
+            FROM chunks c
+            JOIN documents d ON d.doc_id = c.doc_id
+            ORDER BY d.created_at DESC, c.idx ASC
+        """)).mappings().all()
+
+    texts = [r["chunk_text"] for r in rows]
+    vecs = embed_texts(texts)
+
+    points = []
+    for r, v in zip(rows, vecs):
+        payload = {
+            "chunk_id": r["chunk_id"],
+            "doc_id": r["doc_id"],
+            "idx": int(r["idx"]),
+            "snippet": r["snippet"],
+            "section_path": r["section_path"],
+            "page_start": r["page_start"],
+            "page_end": r["page_end"],
+            "doc_type": r["doc_type"],
+            "subject_id": r["subject_id"],
+            "created_at": str(r["created_at"]),
+        }
+        points.append(qm.PointStruct(id=r["chunk_id"], vector=v, payload=payload))
+
+    upsert_points(client, points)
+    return {"ok": True, "count": len(points), "model": MODEL_NAME}
+
+# -------------------------
+# Week10: Embeddings + Vector Search (Decision 1)
+# -------------------------
+from qdrant_client.http import models as qm
+from app.embeddings import embed_texts, emb_dim, MODEL_NAME
+from app.vector_store import get_client, ensure_collection, upsert_points, search as q_search, delete_by_doc_id
+
+@app.post("/embeddings/reindex")
+def embeddings_reindex(request: Request):
+    """
+    Staff/admin only: index all chunks for documents with consent status='granted'.
+    """
+    user = get_current_user(request)
+    if user["role"] not in {"staff", "admin"}:
+        raise HTTPException(status_code=403, detail="staff/admin only")
+
+    client = get_client()
+    ensure_collection(client, emb_dim())
+
+    # Only index documents that are currently granted in consents (strict mode)
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT
+              c.chunk_id::text as chunk_id,
+              c.doc_id::text as doc_id,
+              c.idx,
+              c.snippet,
+              c.chunk_text,
+              c.section_path,
+              c.page_start,
+              c.page_end,
+              d.doc_type,
+              d.subject_id,
+              d.created_at
+            FROM chunks c
+            JOIN documents d ON d.doc_id = c.doc_id
+            JOIN consents  x ON x.doc_id = d.doc_id AND x.status = 'granted'
+            ORDER BY d.created_at DESC, c.idx ASC
+        """)).mappings().all()
+
+    if not rows:
+        return {"ok": True, "count": 0, "model": MODEL_NAME, "note": "No granted documents to index."}
+
+    texts = [r["chunk_text"] for r in rows]
+    vecs = embed_texts(texts)
+
+    points = []
+    for r, v in zip(rows, vecs):
+        payload = {
+            "chunk_id": r["chunk_id"],
+            "doc_id": r["doc_id"],
+            "idx": int(r["idx"]),
+            "snippet": r["snippet"],
+            "section_path": r["section_path"],
+            "page_start": r["page_start"],
+            "page_end": r["page_end"],
+            "doc_type": r["doc_type"],
+            "subject_id": r["subject_id"],
+            "created_at": str(r["created_at"]),
+        }
+        points.append(qm.PointStruct(id=r["chunk_id"], vector=v, payload=payload))
+
+    upsert_points(client, points)
+    return {"ok": True, "count": len(points), "model": MODEL_NAME}
+
+
+@app.post("/search/evidence_vector")
+def search_evidence_vector(payload: dict, request: Request):
+    """
+    Week10 Decision 1: vector retrieval.
+    Dev-safe: on error, return JSON detail with exception type/message.
+    """
+    try:
+        user = get_current_user(request)
+
+        top_k = int(payload.get("k") or 10)
+        top_k = max(1, min(top_k, 50))
+
+        doc_id = payload.get("doc_id")
+        doc_type = payload.get("doc_type")
+        skill_id = payload.get("skill_id")
+        query_text = (payload.get("query_text") or "").strip()
+
+        if skill_id:
+            sk = get_skill_by_id(skill_id)
+            if not sk:
+                raise HTTPException(status_code=404, detail="Skill not found")
+            canonical = sk.get("canonical_name") or ""
+            definition = sk.get("definition") or ""
+            aliases = " ".join(sk.get("aliases") or [])
+            query_text = f"{canonical}. {definition} Aliases: {aliases}".strip()
+
+        if not query_text:
+            raise HTTPException(status_code=400, detail="Missing query_text or skill_id")
+
+        # strict: if doc_id specified, enforce consent + RBAC doc access
+        if doc_id:
+            require_consent_granted(doc_id)
+            require_doc_access(engine, user, doc_id)
+
+        client = get_client()
+        ensure_collection(client, emb_dim())
+        qvec = embed_texts([query_text])[0]
+
+        must = []
+        # RBAC: student only sees own chunks
+        if user["role"] == "student":
+            must.append(qm.FieldCondition(key="subject_id", match=qm.MatchValue(value=user["subject_id"])))
+        if doc_id:
+            must.append(qm.FieldCondition(key="doc_id", match=qm.MatchValue(value=doc_id)))
+        if doc_type:
+            must.append(qm.FieldCondition(key="doc_type", match=qm.MatchValue(value=doc_type)))
+
+        flt = qm.Filter(must=must) if must else None
+        hits = q_search(client, qvec, top_k, flt)
+
+        items = []
+        for h in hits:
+            # compatibility: hit may be object/dict/pydantic
+            if isinstance(h, dict):
+                score = float(h.get("score", 0.0) or 0.0)
+                pld = h.get("payload") or {}
+            elif hasattr(h, "payload"):
+                score = float(getattr(h, "score", 0.0) or 0.0)
+                pld = getattr(h, "payload") or {}
+            elif hasattr(h, "dict"):
+                d = h.dict()
+                score = float(d.get("score", 0.0) or 0.0)
+                pld = d.get("payload") or {}
+            else:
+                score, pld = 0.0, {}
+
+            items.append({
+                "chunk_id": pld.get("chunk_id"),
+                "doc_id": pld.get("doc_id"),
+                "idx": pld.get("idx"),
+                "snippet": pld.get("snippet"),
+                "section_path": pld.get("section_path"),
+                "page_start": pld.get("page_start"),
+                "page_end": pld.get("page_end"),
+                "score": score,
+                "score_meta": {"type": "vector_cosine", "model": MODEL_NAME},
+            })
+
+        return {"items": items, "query_text": query_text}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"evidence_vector failed: {type(e).__name__}: {e}")
