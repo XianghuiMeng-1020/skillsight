@@ -2630,3 +2630,299 @@ async def skills_resolve_override_middleware(request: Request, call_next):
             return _JSONResponse(status_code=500, content={"detail": f"resolve failed: {type(e).__name__}: {e}"})
 
     return await call_next(request)
+
+
+# -------------------------
+# Week6-backfill: Roles DB CRUD + role_skill_requirements
+# -------------------------
+def _require_staff(user):
+    if user["role"] not in {"staff", "admin"}:
+        raise HTTPException(status_code=403, detail="staff/admin only")
+
+@app.post("/roles/db")
+def upsert_role_db(payload: dict, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    role_id = (payload.get("role_id") or "").strip()
+    role_title = (payload.get("role_title") or "").strip()
+    description = payload.get("description")
+
+    if not role_id or not role_title:
+        raise HTTPException(status_code=400, detail="Missing role_id or role_title")
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO roles (role_id, role_title, description, created_at, updated_at)
+                VALUES (:role_id, :role_title, :description, now(), now())
+                ON CONFLICT (role_id) DO UPDATE
+                SET role_title = EXCLUDED.role_title,
+                    description = EXCLUDED.description,
+                    updated_at = now()
+            """),
+            {"role_id": role_id, "role_title": role_title, "description": description},
+        )
+
+    return {"ok": True, "role_id": role_id}
+
+
+@app.get("/roles/db")
+def list_roles_db(query: str = "", limit: int = 50, request: Request = None):
+    user = get_current_user(request) if request is not None else {"role":"staff","subject_id":"staff_demo"}
+    _require_staff(user)
+
+    limit = max(1, min(limit, 200))
+    q = (query or "").strip()
+
+    with engine.connect() as conn:
+        if q:
+            rows = conn.execute(
+                text("""
+                    SELECT role_id, role_title, description, created_at, updated_at
+                    FROM roles
+                    WHERE role_id ILIKE :q OR role_title ILIKE :q
+                    ORDER BY created_at DESC
+                    LIMIT :limit
+                """),
+                {"q": f"%{q}%", "limit": limit},
+            ).mappings().all()
+        else:
+            rows = conn.execute(
+                text("""
+                    SELECT role_id, role_title, description, created_at, updated_at
+                    FROM roles
+                    ORDER BY created_at DESC
+                    LIMIT :limit
+                """),
+                {"limit": limit},
+            ).mappings().all()
+    return {"items": [dict(r) for r in rows]}
+
+
+@app.get("/roles/db/{role_id}")
+def get_role_db(role_id: str, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    with engine.connect() as conn:
+        r = conn.execute(
+            text("""
+                SELECT role_id, role_title, description, created_at, updated_at
+                FROM roles
+                WHERE role_id = :role_id
+            """),
+            {"role_id": role_id},
+        ).mappings().first()
+        if not r:
+            raise HTTPException(status_code=404, detail="Role not found")
+
+        reqs = conn.execute(
+            text("""
+                SELECT req_id::text as req_id, role_id, skill_id, required, target_level,
+                       weight::float8 as weight, created_at, updated_at
+                FROM role_skill_requirements
+                WHERE role_id = :role_id
+                ORDER BY required DESC, target_level DESC, weight DESC, created_at DESC
+            """),
+            {"role_id": role_id},
+        ).mappings().all()
+
+    return {"role": dict(r), "requirements": [dict(x) for x in reqs]}
+
+
+@app.put("/roles/db/{role_id}")
+def update_role_db(role_id: str, payload: dict, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    role_title = payload.get("role_title")
+    description = payload.get("description")
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE roles
+                SET role_title = COALESCE(:role_title, role_title),
+                    description = COALESCE(:description, description),
+                    updated_at = now()
+                WHERE role_id = :role_id
+            """),
+            {"role_id": role_id, "role_title": role_title, "description": description},
+        )
+
+    return {"ok": True, "role_id": role_id}
+
+
+@app.delete("/roles/db/{role_id}")
+def delete_role_db(role_id: str, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM roles WHERE role_id = :role_id"), {"role_id": role_id})
+    return {"ok": True, "role_id": role_id}
+
+
+@app.post("/roles/db/{role_id}/requirements")
+def upsert_role_requirement(role_id: str, payload: dict, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    skill_id = (payload.get("skill_id") or "").strip()
+    required = bool(payload.get("required") if payload.get("required") is not None else True)
+    target_level = int(payload.get("target_level") or 0)
+    weight = float(payload.get("weight") or 1.0)
+
+    if not skill_id:
+        raise HTTPException(status_code=400, detail="Missing skill_id")
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO role_skill_requirements (req_id, role_id, skill_id, required, target_level, weight, created_at, updated_at)
+                VALUES ((:req_id)::uuid, :role_id, :skill_id, :required, :target_level, :weight, now(), now())
+                ON CONFLICT (role_id, skill_id) DO UPDATE
+                SET required = EXCLUDED.required,
+                    target_level = EXCLUDED.target_level,
+                    weight = EXCLUDED.weight,
+                    updated_at = now()
+            """),
+            {
+                "req_id": str(uuid.uuid4()),
+                "role_id": role_id,
+                "skill_id": skill_id,
+                "required": required,
+                "target_level": target_level,
+                "weight": weight,
+            },
+        )
+
+    return {"ok": True, "role_id": role_id, "skill_id": skill_id}
+
+
+@app.delete("/roles/db/{role_id}/requirements/{skill_id}")
+def delete_role_requirement(role_id: str, skill_id: str, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                DELETE FROM role_skill_requirements
+                WHERE role_id = :role_id AND skill_id = :skill_id
+            """),
+            {"role_id": role_id, "skill_id": skill_id},
+        )
+    return {"ok": True, "role_id": role_id, "skill_id": skill_id}
+
+
+@app.post("/roles/db/import_from_json")
+def import_roles_from_json(request: Request):
+    import json
+    """
+    Import backend/data/roles.json into DB roles + role_skill_requirements.
+    staff/admin only.
+    """
+    try:
+        user = get_current_user(request)
+        _require_staff(user)
+
+        roles_path = _Path2(__file__).resolve().parents[2] / "backend/data/roles.json"
+        if not roles_path.exists():
+            raise HTTPException(status_code=404, detail="backend/data/roles.json not found")
+
+        data = json.loads(roles_path.read_text(encoding="utf-8"))
+        if not isinstance(data, list):
+            raise HTTPException(status_code=400, detail="roles.json must be a list")
+
+        n_roles = 0
+        n_reqs = 0
+
+        with engine.begin() as conn:
+            for r in data:
+                role_id = (r.get("role_id") or "").strip()
+                role_title = (r.get("role_title") or r.get("role_title") or "").strip()
+                if not role_title:
+                    role_title = (r.get("title") or "").strip()
+                if not role_id or not role_title:
+                    continue
+                desc = r.get("description")
+
+                conn.execute(
+                    text("""
+                        INSERT INTO roles (role_id, role_title, description, created_at, updated_at)
+                        VALUES (:role_id, :role_title, :description, now(), now())
+                        ON CONFLICT (role_id) DO UPDATE
+                        SET role_title=EXCLUDED.role_title,
+                            description=EXCLUDED.description,
+                            updated_at=now()
+                    """),
+                    {"role_id": role_id, "role_title": role_title, "description": desc},
+                )
+                n_roles += 1
+
+                # requirements: accept both keys
+                reqs = r.get("skills_required") or r.get("skills") or []
+                for it in reqs:
+                    sid = (it.get("skill_id") or "").strip()
+                    if not sid:
+                        continue
+                    required = bool(it.get("required") if it.get("required") is not None else True)
+                    target = int(it.get("target_level") or 0)
+                    weight = float(it.get("weight") or 1.0)
+
+                    conn.execute(
+                        text("""
+                            INSERT INTO role_skill_requirements (req_id, role_id, skill_id, required, target_level, weight, created_at, updated_at)
+                            VALUES ((:req_id)::uuid, :role_id, :skill_id, :required, :target_level, :weight, now(), now())
+                            ON CONFLICT (role_id, skill_id) DO UPDATE
+                            SET required=EXCLUDED.required,
+                                target_level=EXCLUDED.target_level,
+                                weight=EXCLUDED.weight,
+                                updated_at=now()
+                        """),
+                        {"req_id": str(uuid.uuid4()), "role_id": role_id, "skill_id": sid, "required": required, "target_level": target, "weight": weight},
+                    )
+                    n_reqs += 1
+
+        return {"ok": True, "roles_imported": n_roles, "requirements_imported": n_reqs}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"import_roles_from_json failed: {type(e).__name__}: {e}")
+
+
+# -------------------------
+# Week6-backfill: Stable DB roles routes (avoid /roles/{role_id} conflict)
+# -------------------------
+@app.post("/db/roles")
+def upsert_role_db2(payload: dict, request: Request):
+    return upsert_role_db(payload, request)
+
+@app.get("/db/roles")
+def list_roles_db2(query: str = "", limit: int = 50, request: Request = None):
+    # reuse existing list_roles_db
+    return list_roles_db(query=query, limit=limit, request=request)
+
+@app.get("/db/roles/{role_id}")
+def get_role_db2(role_id: str, request: Request):
+    return get_role_db(role_id, request)
+
+@app.put("/db/roles/{role_id}")
+def update_role_db2(role_id: str, payload: dict, request: Request):
+    return update_role_db(role_id, payload, request)
+
+@app.delete("/db/roles/{role_id}")
+def delete_role_db2(role_id: str, request: Request):
+    return delete_role_db(role_id, request)
+
+@app.post("/db/roles/{role_id}/requirements")
+def upsert_role_requirement2(role_id: str, payload: dict, request: Request):
+    return upsert_role_requirement(role_id, payload, request)
+
+@app.delete("/db/roles/{role_id}/requirements/{skill_id}")
+def delete_role_requirement2(role_id: str, skill_id: str, request: Request):
+    return delete_role_requirement(role_id, skill_id, request)
+
+@app.post("/db/roles/import_from_json")
+def import_roles_from_json2(request: Request):
+    return import_roles_from_json(request)
