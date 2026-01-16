@@ -2926,3 +2926,207 @@ def delete_role_requirement2(role_id: str, skill_id: str, request: Request):
 @app.post("/db/roles/import_from_json")
 def import_roles_from_json2(request: Request):
     return import_roles_from_json(request)
+
+
+# -------------------------
+# Week7-backfill: course_skill_map import + review queue (approve/reject) + audit
+# -------------------------
+def _audit_event(event_type: str, path: str, method: str, doc_id_text: str | None, status_code: int, payload_obj: dict):
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO audit_logs (audit_id, event_type, path, method, doc_id_text, status_code, created_at, payload)
+                    VALUES ((:audit_id)::uuid, :event_type, :path, :method, :doc_id_text, :status_code, now(), (:payload)::jsonb)
+                """),
+                {
+                    "audit_id": str(uuid.uuid4()),
+                    "event_type": event_type,
+                    "path": path,
+                    "method": method,
+                    "doc_id_text": doc_id_text,
+                    "status_code": int(status_code),
+                    "payload": json.dumps(payload_obj),
+                },
+            )
+    except Exception:
+        pass
+
+
+@app.post("/db/course_skill_map/import")
+def import_course_skill_map(payload: dict, request: Request):
+    user = get_current_user(request)
+    try:
+        _require_staff(user)
+
+        items = payload.get("items")
+        if not isinstance(items, list) or not items:
+            raise HTTPException(status_code=400, detail="Missing items (list)")
+
+        n = 0
+        with engine.begin() as conn:
+            for it in items:
+                course_id = (it.get("course_id") or "").strip()
+                skill_id = (it.get("skill_id") or "").strip()
+                intended_level = it.get("intended_level")
+                evidence_type = it.get("evidence_type")
+                note = it.get("note")
+
+                if not course_id or not skill_id:
+                    continue
+
+                conn.execute(
+                    text("""
+                        INSERT INTO course_skill_map (
+                          map_id, course_id, skill_id, intended_level, evidence_type,
+                          status, note, created_at, updated_at, reviewer_subject_id, decision, decision_at
+                        )
+                        VALUES (
+                          (:map_id)::uuid, :course_id, :skill_id, :intended_level, :evidence_type,
+                          'pending', :note, now(), now(), NULL, NULL, NULL
+                        )
+                        ON CONFLICT (course_id, skill_id) DO UPDATE
+                        SET intended_level = EXCLUDED.intended_level,
+                            evidence_type = EXCLUDED.evidence_type,
+                            note = EXCLUDED.note,
+                            status = 'pending',
+                            updated_at = now(),
+                            reviewer_subject_id = NULL,
+                            decision = NULL,
+                            decision_at = NULL
+                    """),
+                    {
+                        "map_id": str(uuid.uuid4()),
+                        "course_id": course_id,
+                        "skill_id": skill_id,
+                        "intended_level": intended_level,
+                        "evidence_type": evidence_type,
+                        "note": note,
+                    },
+                )
+                n += 1
+
+        _audit_event(
+            event_type="COURSE_SKILL_MAP_IMPORT",
+            path="/db/course_skill_map/import",
+            method="POST",
+            doc_id_text=None,
+            status_code=200,
+            payload_obj={"count": n, "reviewer_subject_id": user["subject_id"]},
+        )
+        return {"ok": True, "count": n}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"course_skill_map_import failed: {type(e).__name__}: {e}")
+
+@app.get("/db/course_skill_map")
+def list_course_skill_map(status: str = "pending", course_id: str = "", skill_id: str = "", limit: int = 200, request: Request = None):
+    user = get_current_user(request) if request is not None else {"role": "staff", "subject_id": "staff_demo"}
+    _require_staff(user)
+
+    limit = max(1, min(limit, 1000))
+    st = (status or "pending").strip().lower()
+    if st not in {"pending", "approved", "rejected"}:
+        raise HTTPException(status_code=400, detail="status must be pending/approved/rejected")
+
+    cid = (course_id or "").strip()
+    sid = (skill_id or "").strip()
+
+    where = "WHERE status = :status"
+    params = {"status": st, "limit": limit}
+
+    if cid:
+        where += " AND course_id = :course_id"
+        params["course_id"] = cid
+    if sid:
+        where += " AND skill_id = :skill_id"
+        params["skill_id"] = sid
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(f"""
+                SELECT map_id::text as map_id, course_id, skill_id, intended_level, evidence_type,
+                       status, note, created_at, reviewer_subject_id, decision, decision_at, updated_at
+                FROM course_skill_map
+                {where}
+                ORDER BY created_at DESC
+                LIMIT :limit
+            """),
+            params,
+        ).mappings().all()
+
+    return {"items": [dict(r) for r in rows]}
+
+
+@app.post("/db/course_skill_map/{map_id}/approve")
+def approve_course_skill_map(map_id: str, payload: dict, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    note = payload.get("note")
+
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("""
+                UPDATE course_skill_map
+                SET status='approved',
+                    decision='approved',
+                    reviewer_subject_id=:reviewer,
+                    decision_at=now(),
+                    updated_at=now(),
+                    note=COALESCE(:note, note)
+                WHERE map_id = (:map_id)::uuid
+                RETURNING course_id, skill_id
+            """),
+            {"map_id": map_id, "reviewer": user["subject_id"], "note": note},
+        ).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="map_id not found")
+
+    _audit_event(
+        event_type="COURSE_SKILL_MAP_APPROVE",
+        path=f"/db/course_skill_map/{map_id}/approve",
+        method="POST",
+        doc_id_text=None,
+        status_code=200,
+        payload_obj={"map_id": map_id, "course_id": row["course_id"], "skill_id": row["skill_id"], "reviewer_subject_id": user["subject_id"], "note": note},
+    )
+    return {"ok": True, "map_id": map_id, "status": "approved"}
+
+
+@app.post("/db/course_skill_map/{map_id}/reject")
+def reject_course_skill_map(map_id: str, payload: dict, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    note = payload.get("note")
+
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("""
+                UPDATE course_skill_map
+                SET status='rejected',
+                    decision='rejected',
+                    reviewer_subject_id=:reviewer,
+                    decision_at=now(),
+                    updated_at=now(),
+                    note=COALESCE(:note, note)
+                WHERE map_id = (:map_id)::uuid
+                RETURNING course_id, skill_id
+            """),
+            {"map_id": map_id, "reviewer": user["subject_id"], "note": note},
+        ).mappings().first()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="map_id not found")
+
+    _audit_event(
+        event_type="COURSE_SKILL_MAP_REJECT",
+        path=f"/db/course_skill_map/{map_id}/reject",
+        method="POST",
+        doc_id_text=None,
+        status_code=200,
+        payload_obj={"map_id": map_id, "course_id": row["course_id"], "skill_id": row["skill_id"], "reviewer_subject_id": user["subject_id"], "note": note},
+    )
+    return {"ok": True, "map_id": map_id, "status": "rejected"}
