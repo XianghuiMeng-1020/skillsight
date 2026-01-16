@@ -1,149 +1,129 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
-type ChunkItem = {
-  chunk_id: string;
-  doc_id: string;
-  idx: number;
-  char_start: number;
-  char_end: number;
-  snippet: string;
-  created_at: string;
-  section_path?: string | null;
-  page_start?: number | null;
-  page_end?: number | null;
-};
+function pillStyle(kind: "good" | "bad" | "neutral") {
+  if (kind === "good") return { background: "#e7f6ec", color: "#146c2e", border: "1px solid #b7e0c2" };
+  if (kind === "bad") return { background: "#ffecec", color: "#b42318", border: "1px solid #f5c2c2" };
+  return { background: "#f2f2f2", color: "#555", border: "1px solid #ddd" };
+}
 
-type SkillItem = {
-  skill_id: string;
-  canonical_name: string;
-};
+function Pill({ text, kind }: { text: string; kind: "good" | "bad" | "neutral" }) {
+  return (
+    <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: 999, fontSize: 12, fontWeight: 800, ...pillStyle(kind) }}>
+      {text}
+    </span>
+  );
+}
 
-type RoleItem = {
-  role_id: string;
-  role_title: string;
-};
-
-type RoleReadiness = {
-  role_id: string;
-  role_title: string;
-  summary: any;
-  items: Array<{
-    skill_id: string;
-    required: boolean;
-    target_level: number;
-    observed_level: number;
-    observed_label: string;
-    status: "meet" | "missing_proof" | "needs_strengthening";
-    source: string;
-  }>;
-};
-
-type ActionPlan = {
-  role_id: string;
-  role_title: string;
-  summary: any;
-  action_cards: Array<{
-    skill_id: string;
-    gap_type: string;
-    title: string;
-    why_this_card?: string;
-    based_on?: any;
-    what_to_do: string;
-    artifact: string;
-    how_verified: string;
-  }>;
-};
-
-type AssessResult = {
-  decision: string;
-  matched_terms: string[];
-};
-
-type ProfResult = {
-  level: number;
-  label: string;
-  rationale: string;
-};
-
-type AuditItem = {
-  audit_id: string;
-  event_type: string;
-  path: string;
-  method: string;
-  doc_id_text: string | null;
-  status_code: number;
-  created_at: string;
-  payload: any;
-};
-
-type ChangeItem = {
-  change_id: string;
-  object_type: string;
-  doc_id_text: string | null;
-  key_text: string | null;
-  change_summary: any;
-  created_at: string;
-};
+function Chip({ text }: { text: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-block",
+        padding: "3px 10px",
+        borderRadius: 999,
+        fontSize: 12,
+        border: "1px solid #e5e5e5",
+        background: "#fafafa",
+      }}
+    >
+      {text}
+    </span>
+  );
+}
 
 export default function DocPage() {
   const params = useParams<{ docId: string }>();
   const docId = params?.docId;
   const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
 
-  // Dev identity (RBAC headers)
+  // Dev identity
   const [subjectId, setSubjectId] = useState<string>("staff_demo");
   const [role, setRole] = useState<string>("staff");
+  const headers = { "X-Subject-Id": subjectId, "X-Role": role };
 
-  const [chunks, setChunks] = useState<ChunkItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [err, setErr] = useState<string>("");
+  const [chunks, setChunks] = useState<any[]>([]);
+  const [chunksErr, setChunksErr] = useState<string>("");
+  const [highlightChunkId, setHighlightChunkId] = useState<string>("");
 
-  const [skills, setSkills] = useState<SkillItem[]>([]);
+  const [skills, setSkills] = useState<any[]>([]);
   const [skillId, setSkillId] = useState<string>("");
 
-  const [roles, setRoles] = useState<RoleItem[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
   const [roleId, setRoleId] = useState<string>("");
 
-  const [assessRes, setAssessRes] = useState<AssessResult | null>(null);
+  // Decision 2
+  const [assessRes, setAssessRes] = useState<any>(null);
   const [assessErr, setAssessErr] = useState<string>("");
   const [assessing, setAssessing] = useState<boolean>(false);
 
-  const [profRes, setProfRes] = useState<ProfResult | null>(null);
+  // Decision 3 (rule-based)
+  const [profRes, setProfRes] = useState<any>(null);
   const [profErr, setProfErr] = useState<string>("");
   const [profing, setProfing] = useState<boolean>(false);
 
+  // AI Proficiency
   const [aiProfRes, setAiProfRes] = useState<any>(null);
   const [aiProfErr, setAiProfErr] = useState<string>("");
   const [aiProfing, setAiProfing] = useState<boolean>(false);
 
+  // AI Demonstration
   const [aiDemoRes, setAiDemoRes] = useState<any>(null);
   const [aiDemoErr, setAiDemoErr] = useState<string>("");
   const [aiDemoing, setAiDemoing] = useState<boolean>(false);
 
-  const [readiness, setReadiness] = useState<RoleReadiness | null>(null);
+  // Decision 4/5
+  const [readiness, setReadiness] = useState<any>(null);
   const [readinessErr, setReadinessErr] = useState<string>("");
   const [reading, setReading] = useState<boolean>(false);
 
-  const [plan, setPlan] = useState<ActionPlan | null>(null);
+  const [plan, setPlan] = useState<any>(null);
   const [planErr, setPlanErr] = useState<string>("");
   const [planning, setPlanning] = useState<boolean>(false);
 
-  const [audit, setAudit] = useState<AuditItem[]>([]);
-  const [auditErr, setAuditErr] = useState<string>("");
-  const [auditing, setAuditing] = useState<boolean>(false);
+  const chunksRef = useRef<HTMLDivElement | null>(null);
 
-  const [changes, setChanges] = useState<ChangeItem[]>([]);
-  const [changesErr, setChangesErr] = useState<string>("");
-  const [changing, setChanging] = useState<boolean>(false);
+  const skillNameById = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const s of skills) m[s.skill_id] = s.canonical_name || s.skill_id;
+    return m;
+  }, [skills]);
 
-  const headers = {
-    "X-Subject-Id": subjectId,
-    "X-Role": role,
-  };
+  function skillLabel(id: string) {
+    return skillNameById[id] || id;
+  }
+
+  async function copyText(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  }
+
+  function jumpToChunk(chunkId: string) {
+    setHighlightChunkId(chunkId);
+    chunksRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // also try to scroll to the specific chunk card
+    setTimeout(() => {
+      const el = document.getElementById(`chunk-${chunkId}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 250);
+  }
 
   useEffect(() => {
     try {
@@ -154,60 +134,22 @@ export default function DocPage() {
     } catch {}
   }, []);
 
-  async function refreshAudit() {
-    if (!docId) return;
-    setAuditing(true);
-    setAuditErr("");
-    try {
-      const r = await fetch(`${apiBase}/audit?doc_id=${docId}&limit=20`, { headers });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
-      setAudit(data.items || []);
-    } catch (e: any) {
-      setAuditErr(String(e.message || e));
-    } finally {
-      setAuditing(false);
-    }
-  }
-
-  async function refreshChanges() {
-    if (!docId) return;
-    setChanging(true);
-    setChangesErr("");
-    try {
-      const r = await fetch(`${apiBase}/changes?doc_id=${docId}&limit=20`, { headers });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
-      setChanges(data.items || []);
-    } catch (e: any) {
-      setChangesErr(String(e.message || e));
-    } finally {
-      setChanging(false);
-    }
-  }
-
   useEffect(() => {
     fetch(`${apiBase}/skills`)
       .then((r) => r.json())
-      .then((data) => {
-        const items: SkillItem[] = (data.items || []).map((x: any) => ({
-          skill_id: x.skill_id,
-          canonical_name: x.canonical_name,
-        }));
+      .then((d) => {
+        const items = d.items || [];
         setSkills(items);
-        if (!skillId && items.length > 0) setSkillId(items[0].skill_id);
+        if (!skillId && items[0]) setSkillId(items[0].skill_id);
       })
       .catch(() => {});
 
     fetch(`${apiBase}/roles`)
       .then((r) => r.json())
-      .then((data) => {
-        const items: RoleItem[] = (data.items || []).map((x: any) => ({
-          role_id: x.role_id,
-          role_title: x.role_title,
-        }));
+      .then((d) => {
+        const items = d.items || [];
         setRoles(items);
-        if (!roleId && items.length > 0) setRoleId(items[0].role_id);
+        if (!roleId && items[0]) setRoleId(items[0].role_id);
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -215,26 +157,18 @@ export default function DocPage() {
 
   useEffect(() => {
     if (!docId) return;
-    setLoading(true);
-    setErr("");
-
+    setChunksErr("");
     fetch(`${apiBase}/documents/${docId}/chunks?limit=200`, { headers })
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
         setChunks(data.items || []);
       })
-      .catch((e) => setErr(`Failed to load chunks: ${String(e.message || e)}`))
-      .finally(() => setLoading(false));
-
-    refreshAudit();
-    refreshChanges();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBase, docId, subjectId, role]);
+      .catch((e: any) => setChunksErr(String(e.message || e)));
+  }, [docId, subjectId, role]);
 
   async function runDecision2() {
-    setAssessErr("");
-    setAssessRes(null);
+    setAssessErr(""); setAssessRes(null);
     if (!docId || !skillId) return;
     setAssessing(true);
     try {
@@ -245,18 +179,16 @@ export default function DocPage() {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
-      setAssessRes({ decision: data.decision, matched_terms: data.matched_terms || [] });
+      setAssessRes(data);
     } catch (e: any) {
       setAssessErr(String(e.message || e));
     } finally {
       setAssessing(false);
-      refreshAudit();
     }
   }
 
   async function runDecision3() {
-    setProfErr("");
-    setProfRes(null);
+    setProfErr(""); setProfRes(null);
     if (!docId || !skillId) return;
     setProfing(true);
     try {
@@ -267,18 +199,16 @@ export default function DocPage() {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
-      setProfRes({ level: data.level, label: data.label, rationale: data.rationale });
+      setProfRes(data);
     } catch (e: any) {
       setProfErr(String(e.message || e));
     } finally {
       setProfing(false);
-      refreshAudit();
     }
   }
 
   async function runAIProficiency() {
-    setAiProfErr("");
-    setAiProfRes(null);
+    setAiProfErr(""); setAiProfRes(null);
     if (!docId || !skillId) return;
     setAiProfing(true);
     try {
@@ -294,12 +224,11 @@ export default function DocPage() {
       setAiProfErr(String(e.message || e));
     } finally {
       setAiProfing(false);
-      refreshAudit();
     }
+  }
 
   async function runAIDemonstration() {
-    setAiDemoErr("");
-    setAiDemoRes(null);
+    setAiDemoErr(""); setAiDemoRes(null);
     if (!docId || !skillId) return;
     setAiDemoing(true);
     try {
@@ -315,14 +244,11 @@ export default function DocPage() {
       setAiDemoErr(String(e.message || e));
     } finally {
       setAiDemoing(false);
-      refreshAudit?.();
     }
-  }
   }
 
   async function runReadiness() {
-    setReadinessErr("");
-    setReadiness(null);
+    setReadinessErr(""); setReadiness(null);
     if (!docId || !roleId) return;
     setReading(true);
     try {
@@ -338,14 +264,11 @@ export default function DocPage() {
       setReadinessErr(String(e.message || e));
     } finally {
       setReading(false);
-      refreshAudit();
-      refreshChanges();
     }
   }
 
   async function runPlan() {
-    setPlanErr("");
-    setPlan(null);
+    setPlanErr(""); setPlan(null);
     if (!docId || !roleId) return;
     setPlanning(true);
     try {
@@ -361,12 +284,11 @@ export default function DocPage() {
       setPlanErr(String(e.message || e));
     } finally {
       setPlanning(false);
-      refreshAudit();
     }
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 980 }}>
+    <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 1100 }}>
       <div style={{ marginBottom: 14 }}>
         <Link href="/" style={{ textDecoration: "underline" }}>← Back</Link>
       </div>
@@ -374,225 +296,283 @@ export default function DocPage() {
       <h1 style={{ fontSize: 22, marginBottom: 6 }}>Document view</h1>
       <div style={{ color: "#666", marginBottom: 16 }}>doc_id: {docId}</div>
 
-      {/* Dev identity */}
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 12, marginBottom: 16 }}>
-        <div style={{ fontWeight: 600, marginBottom: 8 }}>Dev identity</div>
+        <div style={{ fontWeight: 800, marginBottom: 8 }}>Dev identity</div>
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <label style={{ fontSize: 13, color: "#666" }}>subject_id</label>
-          <input
-            value={subjectId}
-            onChange={(e) => {
-              const v = e.target.value;
-              setSubjectId(v);
-              try { localStorage.setItem("skillsight_subject_id", v); } catch {}
-            }}
-            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 220 }}
-          />
+          <input value={subjectId} onChange={(e)=>{setSubjectId(e.target.value); try{localStorage.setItem("skillsight_subject_id", e.target.value)}catch{}}}
+            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 220 }} />
           <label style={{ fontSize: 13, color: "#666" }}>role</label>
-          <select
-            value={role}
-            onChange={(e) => {
-              const v = e.target.value;
-              setRole(v);
-              try { localStorage.setItem("skillsight_role", v); } catch {}
-            }}
-            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }}
-          >
-            <option value="student">student</option>
+          <select value={role} onChange={(e)=>{setRole(e.target.value); try{localStorage.setItem("skillsight_role", e.target.value)}catch{}}}
+            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 140 }}>
             <option value="staff">staff</option>
             <option value="admin">admin</option>
+            <option value="student">student</option>
           </select>
         </div>
       </section>
 
-      {/* Skill assessment */}
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
+      <section style={{ border: "1px solid #ddd", borderRadius: 10, padding: 16, marginBottom: 18 }}>
         <h2 style={{ fontSize: 16, marginBottom: 10 }}>Skill assessment</h2>
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-          <select value={skillId} onChange={(e) => setSkillId(e.target.value)} style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 320 }}>
-            {skills.length === 0 && <option>Loading skills...</option>}
-            {skills.map((s) => (
-              <option key={s.skill_id} value={s.skill_id}>
-                {s.canonical_name} ({s.skill_id})
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 12 }}>
+          <select value={skillId} onChange={(e)=>setSkillId(e.target.value)} style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 520 }}>
+            {skills.map((x:any)=>(
+              <option key={x.skill_id} value={x.skill_id}>
+                {x.canonical_name} ({x.skill_id})
               </option>
             ))}
           </select>
 
-          <button onClick={runDecision2} disabled={assessing} style={{ padding: "8px 14px", cursor: "pointer" }}>
-            {assessing ? "Running..." : "Decision 2"}
-          </button>
-
-          <button onClick={runDecision3} disabled={profing} style={{ padding: "8px 14px", cursor: "pointer" }}>
-            {profing ? "Running..." : "Decision 3"}
-          </button>
-
-          <button onClick={runAIProficiency} disabled={aiProfing} style={{ padding: "8px 14px", cursor: "pointer" }}>
-            {aiProfing ? "Running..." : "AI Proficiency (Rubric v1)"}
-          </button>
-
-          <button onClick={runAIDemonstration} disabled={aiDemoing} style={{ padding: "8px 14px", cursor: "pointer" }}>
-            {aiDemoing ? "Running..." : "AI Demonstration (LLM)"}
-          </button>
+          <button onClick={runDecision2} disabled={assessing} style={{ padding:"8px 14px", cursor:"pointer" }}>{assessing?"Running...":"Decision 2"}</button>
+          <button onClick={runDecision3} disabled={profing} style={{ padding:"8px 14px", cursor:"pointer" }}>{profing?"Running...":"Decision 3"}</button>
+          <button onClick={runAIProficiency} disabled={aiProfing} style={{ padding:"8px 14px", cursor:"pointer" }}>{aiProfing?"Running...":"AI Proficiency"}</button>
+          <button onClick={runAIDemonstration} disabled={aiDemoing} style={{ padding:"8px 14px", cursor:"pointer" }}>{aiDemoing?"Running...":"AI Demonstration"}</button>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <div style={{ border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Decision 2</div>
-            {assessErr && <div style={{ color: "crimson" }}>{assessErr}</div>}
-            {!assessErr && !assessRes && <div style={{ color: "#666" }}>Click Decision 2.</div>}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap: 12 }}>
+          <div style={{ border:"1px solid #eee", borderRadius: 12, padding: 12 }}>
+            <div style={{ fontWeight: 900, marginBottom: 8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span>Decision 2</span>
+              {assessRes?.decision && <Pill text={assessRes.decision} kind={assessRes.decision==="not_enough_information" ? "bad" : "good"} />}
+            </div>
+            {assessErr && <div style={{ color:"crimson" }}>{assessErr}</div>}
+            {!assessErr && !assessRes && <div style={{ color:"#666" }}>Run Decision 2.</div>}
             {assessRes && (
-              <>
-                <div><b>decision:</b> {assessRes.decision}</div>
-                <div style={{ marginTop: 6 }}><b>matched_terms:</b> {assessRes.matched_terms?.join(", ") || "(none)"}</div>
-              </>
+              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <div><b>Skill:</b> {skillLabel(skillId)} <span style={{ color:"#999" }}>[{skillId}]</span></div>
+                <div><b>Matched terms:</b> {(assessRes.matched_terms || []).join(", ") || "—"}</div>
+                {assessRes.best_evidence?.chunk_id && (
+                  <div style={{ marginTop: 8 }}>
+                    <b>Best evidence:</b>{" "}
+                    <a onClick={()=>jumpToChunk(assessRes.best_evidence.chunk_id)} style={{ cursor:"pointer", textDecoration:"underline" }}>
+                      open chunk
+                    </a>
+                    <div style={{ marginTop: 6, color:"#555" }}>{assessRes.best_evidence.snippet || "—"}</div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
-          <div style={{ border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Decision 3</div>
-            {profErr && <div style={{ color: "crimson" }}>{profErr}</div>}
-            {!profErr && !profRes && <div style={{ color: "#666" }}>Click Decision 3.</div>}
+          <div style={{ border:"1px solid #eee", borderRadius: 12, padding: 12 }}>
+            <div style={{ fontWeight: 900, marginBottom: 8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span>Decision 3 (rule)</span>
+              {typeof profRes?.level === "number" && <Pill text={`L${profRes.level} ${profRes.label}`} kind={profRes.level>=2 ? "good" : "neutral"} />}
+            </div>
+            {profErr && <div style={{ color:"crimson" }}>{profErr}</div>}
+            {!profErr && !profRes && <div style={{ color:"#666" }}>Run Decision 3.</div>}
             {profRes && (
-              <>
-                <div><b>level:</b> {profRes.level} ({profRes.label})</div>
-                <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}><b>rationale:</b> {profRes.rationale}</div>
-              </>
+              <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+                <div><b>Rationale:</b> {profRes.rationale}</div>
+                {profRes.best_evidence?.chunk_id && (
+                  <div style={{ marginTop: 8 }}>
+                    <b>Best evidence:</b>{" "}
+                    <a onClick={()=>jumpToChunk(profRes.best_evidence.chunk_id)} style={{ cursor:"pointer", textDecoration:"underline" }}>
+                      open chunk
+                    </a>
+                    <div style={{ marginTop: 6, color:"#555" }}>{profRes.best_evidence.snippet || "—"}</div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
 
-        <div style={{ marginTop: 12, border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>AI Proficiency result (Rubric v1)</div>
-          {aiProfErr && <div style={{ color: "crimson" }}>{aiProfErr}</div>}
-          {!aiProfErr && !aiProfRes && <div style={{ color: "#666" }}>Click AI Proficiency (Rubric v1).</div>}
+        <div style={{ marginTop: 12, border:"1px solid #eee", borderRadius: 12, padding: 12 }}>
+          <div style={{ fontWeight: 900, marginBottom: 8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span>AI Proficiency (Rubric v1)</span>
+            {typeof aiProfRes?.level === "number" && <Pill text={`L${aiProfRes.level} ${aiProfRes.label}`} kind={aiProfRes.level>=2 ? "good" : "neutral"} />}
+          </div>
+          {aiProfErr && <div style={{ color:"crimson" }}>{aiProfErr}</div>}
+          {!aiProfErr && !aiProfRes && <div style={{ color:"#666" }}>Run AI Proficiency.</div>}
           {aiProfRes && (
-            <>
-              <div><b>level:</b> {aiProfRes.level} ({aiProfRes.label})</div>
-              <div style={{ marginTop: 6, fontSize: 13 }}><b>matched_criteria:</b> {(aiProfRes.matched_criteria || []).join(", ")}</div>
-              <div style={{ marginTop: 6, fontSize: 13 }}><b>evidence_chunk_ids:</b> {(aiProfRes.evidence_chunk_ids || []).join(", ")}</div>
-              <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}><b>why:</b> {aiProfRes.why}</div>
-            </>
+            <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+              <div style={{ display:"flex", gap: 8, flexWrap:"wrap", marginBottom: 8 }}>
+                {(aiProfRes.matched_criteria || []).map((c:string)=> <Chip key={c} text={c} />)}
+              </div>
+              <div><b>Why:</b> {aiProfRes.why}</div>
+              <div style={{ marginTop: 8 }}>
+                <b>Evidence:</b>{" "}
+                {(aiProfRes.evidence_chunk_ids || []).slice(0,8).map((cid:string)=>(
+                  <a key={cid} onClick={()=>jumpToChunk(cid)} style={{ cursor:"pointer", textDecoration:"underline", marginRight: 10 }}>
+                    {cid.slice(0,8)}…
+                  </a>
+                ))}
+              </div>
+            </div>
           )}
         </div>
-      
-        <div style={{ marginTop: 12, border: "1px solid #eee", borderRadius: 8, padding: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>AI Demonstration result (LLM)</div>
-          {aiDemoErr && <div style={{ color: "crimson" }}>{aiDemoErr}</div>}
-          {!aiDemoErr && !aiDemoRes && <div style={{ color: "#666" }}>Click AI Demonstration (LLM).</div>}
+
+        <div style={{ marginTop: 12, border:"1px solid #eee", borderRadius: 12, padding: 12 }}>
+          <div style={{ fontWeight: 900, marginBottom: 8, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <span>AI Demonstration (LLM)</span>
+            {aiDemoRes?.label && <Pill text={aiDemoRes.label} kind={aiDemoRes.label==="not_enough_information" ? "bad" : "good"} />}
+          </div>
+          {aiDemoErr && <div style={{ color:"crimson" }}>{aiDemoErr}</div>}
+          {!aiDemoErr && !aiDemoRes && <div style={{ color:"#666" }}>Run AI Demonstration.</div>}
           {aiDemoRes && (
-            <>
-              <div><b>label:</b> {aiDemoRes.label}</div>
-              <div style={{ marginTop: 6, fontSize: 13 }}><b>evidence_chunk_ids:</b> {(aiDemoRes.evidence_chunk_ids || []).join(", ")}</div>
-              <div style={{ marginTop: 6, fontSize: 13, color: "#333" }}><b>rationale:</b> {aiDemoRes.rationale}</div>
-              <div style={{ marginTop: 6, fontSize: 13, color: "#666" }}><b>refusal_reason:</b> {String(aiDemoRes.refusal_reason)}</div>
-            </>
+            <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+              <div><b>Rationale:</b> {aiDemoRes.rationale}</div>
+              <div style={{ marginTop: 8 }}>
+                <b>Evidence:</b>{" "}
+                {(aiDemoRes.evidence_chunk_ids || []).slice(0,8).map((cid:string)=>(
+                  <a key={cid} onClick={()=>jumpToChunk(cid)} style={{ cursor:"pointer", textDecoration:"underline", marginRight: 10 }}>
+                    {cid.slice(0,8)}…
+                  </a>
+                ))}
+              </div>
+              {aiDemoRes.refusal_reason && (
+                <div style={{ marginTop: 8, color:"#666" }}>
+                  <b>Refusal reason:</b> {String(aiDemoRes.refusal_reason)}
+                </div>
+              )}
+            </div>
           )}
         </div>
+      </section>
 
-</section>
-
-      {/* Role readiness + actions */}
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 18 }}>
+      <section style={{ border:"1px solid #ddd", borderRadius: 10, padding: 16, marginBottom: 18 }}>
         <h2 style={{ fontSize: 16, marginBottom: 10 }}>Role readiness + actions</h2>
 
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-          <select value={roleId} onChange={(e) => setRoleId(e.target.value)} style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 360 }}>
-            {roles.length === 0 && <option>Loading roles...</option>}
-            {roles.map((r) => (
-              <option key={r.role_id} value={r.role_id}>
-                {r.role_title} ({r.role_id})
+        <div style={{ display:"flex", gap: 10, flexWrap:"wrap", alignItems:"center", marginBottom: 12 }}>
+          <select value={roleId} onChange={(e)=>setRoleId(e.target.value)} style={{ padding:8, border:"1px solid #ccc", borderRadius:6, minWidth: 680 }}>
+            {roles.map((x:any)=>(
+              <option key={x.role_id} value={x.role_id}>
+                {x.role_title} ({x.role_id})
               </option>
             ))}
           </select>
 
-          <button onClick={runReadiness} disabled={reading} style={{ padding: "8px 14px", cursor: "pointer" }}>
-            {reading ? "Running..." : "Decision 4: Readiness"}
-          </button>
-
-          <button onClick={runPlan} disabled={planning} style={{ padding: "8px 14px", cursor: "pointer" }}>
-            {planning ? "Generating..." : "Decision 5: Actions"}
-          </button>
+          <button onClick={runReadiness} disabled={reading} style={{ padding:"8px 14px", cursor:"pointer" }}>{reading?"Running...":"Decision 4"}</button>
+          <button onClick={runPlan} disabled={planning} style={{ padding:"8px 14px", cursor:"pointer" }}>{planning?"Generating...":"Decision 5"}</button>
         </div>
 
-        {readinessErr && <div style={{ color: "crimson" }}>{readinessErr}</div>}
+        {readinessErr && <div style={{ color:"crimson" }}>{readinessErr}</div>}
         {readiness && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ color: "#666", fontSize: 13 }}>
-              summary: meet={readiness.summary.meet}, missing={readiness.summary.missing_proof}, needs={readiness.summary.needs_strengthening}
+          <div style={{ border:"1px solid #eee", borderRadius: 12, padding: 12, marginBottom: 12 }}>
+            <div style={{ fontWeight: 900, marginBottom: 6 }}>
+              {readiness.role_title} <span style={{ color:"#999", fontWeight:600 }}>({readiness.role_id})</span>
             </div>
-            <ul style={{ marginTop: 10 }}>
-              {readiness.items.map((it) => (
-                <li key={it.skill_id} style={{ marginBottom: 8 }}>
-                  <b>{it.skill_id}</b> — status: <b>{it.status}</b> — observed {it.observed_level} ({it.observed_label}) / target {it.target_level}
-                </li>
-              ))}
-            </ul>
+            <div style={{ color:"#666", fontSize: 13, marginBottom: 10 }}>
+              summary: meet={readiness.summary?.meet ?? 0}, missing_proof={readiness.summary?.missing_proof ?? 0}, needs_strengthening={readiness.summary?.needs_strengthening ?? 0}
+            </div>
+
+            <div style={{ display:"grid", gap: 8 }}>
+              {(readiness.items || []).map((it:any)=>{
+                const kind = it.status==="meet" ? "good" : (it.status==="missing_proof" ? "neutral" : "bad");
+                return (
+                  <div key={it.skill_id} style={{ padding: 10, border:"1px solid #f0f0f0", borderRadius: 12 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", gap: 10, flexWrap:"wrap" }}>
+                      <div style={{ display:"flex", gap: 10, flexWrap:"wrap", alignItems:"center" }}>
+                        <span style={{ fontWeight: 800 }}>{skillLabel(it.skill_id)}</span>
+                        <span style={{ color:"#999", fontSize: 12 }}>{it.skill_id}</span>
+                        <Pill text={it.status} kind={kind} />
+                      </div>
+                      <div style={{ color:"#666", fontSize: 13 }}>
+                        observed {it.observed_level} ({it.observed_label}) / target {it.target_level}{it.required ? " (required)" : " (optional)"}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        {planErr && <div style={{ color: "crimson" }}>{planErr}</div>}
+        {planErr && <div style={{ color:"crimson" }}>{planErr}</div>}
         {plan && (
-          <div>
-            <div style={{ fontWeight: 600, marginBottom: 8 }}>Action cards</div>
-            {plan.action_cards.length === 0 && <div style={{ color: "#666" }}>No actions needed (all meet).</div>}
-            {plan.action_cards.length > 0 && (
-              <ul>
-                {plan.action_cards.map((c, idx) => (
-                  <li key={idx} style={{ marginBottom: 12, padding: 12, border: "1px solid #eee", borderRadius: 8 }}>
-                    <div><b>{c.title}</b> <span style={{ color: "#666" }}>({c.gap_type})</span></div>
-                    {c.why_this_card && (
-                      <div style={{ marginTop: 6, fontSize: 13, color: "#444" }}>
-                        <b>why:</b> {c.why_this_card}
-                      </div>
-                    )}
-                    {c.based_on && (
-                      <div style={{ marginTop: 6, fontSize: 13, color: "#666" }}>
-                        <b>based_on:</b> observed {c.based_on.observed_level} ({c.based_on.observed_label}) / target {c.based_on.target_level} — status {c.based_on.status}
-                      </div>
-                    )}
-                    <div style={{ marginTop: 6, fontSize: 13 }}><b>what_to_do:</b> {c.what_to_do}</div>
-                    <div style={{ marginTop: 6, fontSize: 13 }}><b>artifact:</b> {c.artifact}</div>
-                    <div style={{ marginTop: 6, fontSize: 13 }}><b>how_verified:</b> {c.how_verified}</div>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div style={{ border:"1px solid #eee", borderRadius: 12, padding: 12 }}>
+            <div style={{ fontWeight: 900, marginBottom: 6 }}>Action cards (Decision 5)</div>
+            {(plan.action_cards || []).length === 0 && <div style={{ color:"#666" }}>No actions needed (all meet).</div>}
+
+            <div style={{ display:"grid", gap: 10 }}>
+              {(plan.action_cards || []).map((c:any, idx:number)=>(
+                <CopyActionCard key={idx} c={c} skillName={skillLabel(c.skill_id)} toText={(x:any)=>actionText(x)} onCopy={copyText} />
+              ))}
+            </div>
           </div>
         )}
       </section>
 
-      {/* Chunks */}
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-        <h2 style={{ fontSize: 18, marginBottom: 12 }}>Chunks</h2>
-        {loading && <p style={{ color: "#666" }}>Loading...</p>}
-        {!loading && err && <p style={{ color: "crimson" }}>{err}</p>}
-        {!loading && !err && chunks.length === 0 && <p style={{ color: "#666" }}>No chunks found for this document.</p>}
-        {!loading && !err && chunks.length > 0 && (
-          <ul style={{ marginTop: 12 }}>
-            {chunks.map((c) => (
-              <li key={c.chunk_id} style={{ marginBottom: 14, padding: 12, border: "1px solid #eee", borderRadius: 8 }}>
-                <div style={{ marginBottom: 6 }}>
-                  <b>Chunk {c.idx}</b> | char [{c.char_start}, {c.char_end}]
-                </div>
-                {c.section_path && (
-                  <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
-                    section: {c.section_path}
+      <section ref={chunksRef} style={{ border:"1px solid #ddd", borderRadius: 10, padding: 16 }}>
+        <h2 style={{ fontSize: 16, marginBottom: 10 }}>Chunks</h2>
+        {chunksErr && <div style={{ color:"crimson" }}>{chunksErr}</div>}
+        {!chunksErr && chunks.length===0 && <div style={{ color:"#666" }}>No chunks.</div>}
+        {chunks.length>0 && (
+          <div style={{ display:"grid", gap: 10 }}>
+            {chunks.slice(0, 50).map((c:any)=>{
+              const isHi = highlightChunkId && c.chunk_id === highlightChunkId;
+              return (
+                <div
+                  id={`chunk-${c.chunk_id}`}
+                  key={c.chunk_id}
+                  style={{
+                    border:"1px solid #eee",
+                    borderRadius:12,
+                    padding: 12,
+                    background: isHi ? "#fff7e6" : "white",
+                    outline: isHi ? "2px solid #f5b041" : "none"
+                  }}
+                >
+                  <div style={{ color:"#666", fontSize: 12 }}>
+                    chunk {c.idx} · section {c.section_path ?? "—"} · id {String(c.chunk_id).slice(0,8)}…
                   </div>
-                )}
-                {c.page_start && (
-                  <div style={{ fontSize: 12, color: "#666", marginBottom: 4 }}>
-                    pages: {c.page_start}-{c.page_end}
+                  <div style={{ fontFamily:"ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 13, marginTop: 6 }}>
+                    {c.snippet}
                   </div>
-                )}
-                <div style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 13 }}>
-                  {c.snippet}
                 </div>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
         )}
       </section>
     </main>
+  );
+}
+
+function CopyActionCard({ c, skillName, toText, onCopy }: any) {
+  const [copied, setCopied] = useState(false);
+  const text = toText(c);
+
+  async function doCopy() {
+    const ok = await onCopy(text.replace(`[${c.skill_id}]`, `[${c.skill_id}]`));
+    setCopied(ok);
+    setTimeout(()=>setCopied(false), 1200);
+  }
+
+  return (
+    <div style={{ padding: 12, border:"1px solid #f0f0f0", borderRadius: 14 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", gap: 10, flexWrap:"wrap", alignItems:"center" }}>
+        <div>
+          <b>{c.title}</b> <span style={{ color:"#666" }}>({c.gap_type})</span>
+        </div>
+        <div style={{ display:"flex", gap: 10, alignItems:"center" }}>
+          <span style={{ color:"#666", fontSize: 12 }}>{skillName} <span style={{ color:"#999" }}>[{c.skill_id}]</span></span>
+          <button onClick={doCopy} style={{ padding:"6px 12px", cursor:"pointer" }}>{copied ? "Copied" : "Copy"}</button>
+        </div>
+      </div>
+
+      {c.why_this_card && <div style={{ marginTop: 8, fontSize: 13 }}><b>Why:</b> {c.why_this_card}</div>}
+      {c.what_to_do && <div style={{ marginTop: 6, fontSize: 13 }}><b>What to do:</b> {c.what_to_do}</div>}
+      {c.artifact && <div style={{ marginTop: 6, fontSize: 13 }}><b>Artifact:</b> {c.artifact}</div>}
+      {c.how_verified && <div style={{ marginTop: 6, fontSize: 13 }}><b>How verified:</b> {c.how_verified}</div>}
+
+      <textarea
+        readOnly
+        value={text.replace(`Skill: ${c.skill_id}`, `Skill: ${skillName} [${c.skill_id}]`)}
+        style={{
+          marginTop: 10,
+          width: "100%",
+          minHeight: 110,
+          padding: 10,
+          borderRadius: 12,
+          border: "1px solid #e5e5e5",
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontSize: 12,
+          background: "#fafafa"
+        }}
+      />
+    </div>
   );
 }
