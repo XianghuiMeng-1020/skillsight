@@ -3130,3 +3130,106 @@ def reject_course_skill_map(map_id: str, payload: dict, request: Request):
         payload_obj={"map_id": map_id, "course_id": row["course_id"], "skill_id": row["skill_id"], "reviewer_subject_id": user["subject_id"], "note": note},
     )
     return {"ok": True, "map_id": map_id, "status": "rejected"}
+
+
+# -------------------------
+# Week8-backfill: Redis queue jobs (enqueue / status / retry)
+# -------------------------
+from app.queue import get_queue
+
+@app.post("/db/jobs/enqueue")
+def enqueue_parse_embed(payload: dict, request: Request):
+    """
+    Enqueue parse+chunk+embed job for a doc_id.
+    staff/admin only.
+    """
+    user = get_current_user(request)
+    _require_staff(user)
+
+    doc_id = (payload.get("doc_id") or "").strip()
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="Missing doc_id")
+
+    # strict: only granted consent docs should be processed
+    require_consent_granted(doc_id)
+
+    job_id = str(uuid.uuid4())
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                INSERT INTO jobs (job_id, doc_id, job_type, status, attempts, last_error, created_at, updated_at)
+                VALUES ((:job_id)::uuid, (:doc_id)::uuid, 'parse_embed', 'queued', 0, NULL, now(), now())
+            """),
+            {"job_id": job_id, "doc_id": doc_id},
+        )
+
+    q = get_queue()
+    # Call backend.worker.run_job(doc_id, job_id)
+    q.enqueue("worker.run_job", doc_id, job_id, job_id=job_id)
+
+    return {"ok": True, "job_id": job_id, "doc_id": doc_id, "status": "queued"}
+
+
+@app.get("/db/jobs")
+def list_jobs(status: str = "", doc_id: str = "", limit: int = 50, request: Request = None):
+    user = get_current_user(request) if request is not None else {"role":"staff","subject_id":"staff_demo"}
+    _require_staff(user)
+
+    limit = max(1, min(limit, 200))
+    st = (status or "").strip().lower()
+    did = (doc_id or "").strip()
+
+    where = "WHERE 1=1"
+    params = {"limit": limit}
+
+    if st:
+        where += " AND status = :status"
+        params["status"] = st
+    if did:
+        where += " AND doc_id::text = :doc_id"
+        params["doc_id"] = did
+
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text(f"""
+                SELECT job_id::text as job_id, doc_id::text as doc_id, job_type, status, attempts, last_error, created_at, updated_at
+                FROM jobs
+                {where}
+                ORDER BY created_at DESC
+                LIMIT :limit
+            """),
+            params,
+        ).mappings().all()
+
+    return {"items": [dict(r) for r in rows]}
+
+
+@app.post("/db/jobs/{job_id}/retry")
+def retry_job(job_id: str, request: Request):
+    user = get_current_user(request)
+    _require_staff(user)
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT doc_id::text as doc_id, status, job_type FROM jobs WHERE job_id = (:job_id)::uuid"),
+            {"job_id": job_id},
+        ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="job_id not found")
+
+    doc_id = row["doc_id"]
+
+    with engine.begin() as conn:
+        conn.execute(
+            text("""
+                UPDATE jobs SET status='queued', last_error=NULL, updated_at=now()
+                WHERE job_id = (:job_id)::uuid
+            """),
+            {"job_id": job_id},
+        )
+
+    q = get_queue()
+    q.enqueue("worker.run_job", doc_id, job_id, job_id=job_id)
+
+    return {"ok": True, "job_id": job_id, "doc_id": doc_id, "status": "queued"}

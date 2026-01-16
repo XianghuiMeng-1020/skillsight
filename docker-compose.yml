@@ -12,6 +12,13 @@ services:
     volumes:
       - skillsight_skillsight_pgdata:/var/lib/postgresql/data
 
+
+  redis:
+    image: redis:7
+    container_name: skillsight_redis
+    ports:
+      - "6379:6379"
+
   qdrant:
     image: qdrant/qdrant:latest
     container_name: skillsight_qdrant
