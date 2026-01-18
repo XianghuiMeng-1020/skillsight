@@ -1,0 +1,99 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "doc_id": {
+      "title": "Doc Id",
+      "type": "string"
+    },
+    "chunk_id": {
+      "title": "Chunk Id",
+      "type": "string"
+    },
+    "page_start": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page Start"
+    },
+    "page_end": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Page End"
+    },
+    "char_start": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Char Start"
+    },
+    "char_end": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Char End"
+    },
+    "snippet": {
+      "maxLength": 300,
+      "title": "Snippet",
+      "type": "string"
+    },
+    "quote_hash": {
+      "description": "SHA-256 over canonical span + locator",
+      "title": "Quote Hash",
+      "type": "string"
+    },
+    "storage_uri": {
+      "title": "Storage Uri",
+      "type": "string"
+    },
+    "pointer_type": {
+      "default": "TEXT_OFFSETS",
+      "enum": [
+        "TEXT_OFFSETS",
+        "PAGE_RANGE",
+        "PAGE_ONLY"
+      ],
+      "title": "Pointer Type",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "doc_id",
+    "chunk_id",
+    "snippet",
+    "quote_hash",
+    "storage_uri"
+  ],
+  "title": "EvidencePointer",
+  "type": "object"
+}

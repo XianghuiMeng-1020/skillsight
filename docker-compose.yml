@@ -1,33 +1,15 @@
-version: "3.8"
 services:
-  db:
+  postgres:
     image: postgres:16
-    container_name: skillsight_db
+    container_name: skillsight_postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: skillsight
-      POSTGRES_PASSWORD: skillsight_pw
+      POSTGRES_PASSWORD: skillsight
       POSTGRES_DB: skillsight
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
-      - skillsight_skillsight_pgdata:/var/lib/postgresql/data
-
-
-  redis:
-    image: redis:7
-    container_name: skillsight_redis
-    ports:
-      - "6379:6379"
-
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: skillsight_qdrant
-    ports:
-      - "6333:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-
+      - skillsight_pgdata:/var/lib/postgresql/data
 volumes:
-  skillsight_skillsight_pgdata:
-    external: true
-  qdrant_data:
+  skillsight_pgdata:

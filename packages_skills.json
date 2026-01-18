@@ -1,0 +1,14 @@
+[
+  {
+    "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
+    "canonical_name": "Academic integrity",
+    "aliases": ["cheating", "plagiarism", "misconduct"],
+    "definition": "Demonstrates understanding of academic integrity rules, identifies violations (e.g., cheating, plagiarism), and explains appropriate responses that protect fairness and trust."
+  },
+  {
+    "skill_id": "HKU.SKILL.PRIVACY.v1",
+    "canonical_name": "Privacy awareness",
+    "aliases": ["confidentiality", "student privacy"],
+    "definition": "Recognizes privacy-sensitive information in educational contexts and proposes actions that reduce exposure, protect individuals, and comply with expected privacy norms."
+  }
+]

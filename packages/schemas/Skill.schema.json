@@ -1,0 +1,86 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "skill_id": {
+      "description": "Stable public ID, versioned, e.g., HKU.SSKILL.000123.v1",
+      "title": "Skill Id",
+      "type": "string"
+    },
+    "canonical_name": {
+      "title": "Canonical Name",
+      "type": "string"
+    },
+    "aliases": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Aliases",
+      "type": "array"
+    },
+    "definition": {
+      "description": "1\u20133 sentences, clear and searchable",
+      "title": "Definition",
+      "type": "string"
+    },
+    "evidence_rules": {
+      "description": "What counts as evidence",
+      "title": "Evidence Rules",
+      "type": "string"
+    },
+    "level_rubric": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "description": "Observable criteria per level",
+      "title": "Level Rubric",
+      "type": "object"
+    },
+    "version": {
+      "description": "v1/v2",
+      "title": "Version",
+      "type": "string"
+    },
+    "source": {
+      "description": "HKU or external framework",
+      "title": "Source",
+      "type": "string"
+    },
+    "created_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
+    },
+    "updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    }
+  },
+  "required": [
+    "skill_id",
+    "canonical_name",
+    "definition",
+    "evidence_rules",
+    "level_rubric",
+    "version",
+    "source"
+  ],
+  "title": "Skill",
+  "type": "object"
+}

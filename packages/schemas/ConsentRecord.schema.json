@@ -1,0 +1,50 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "consent_id": {
+      "title": "Consent Id",
+      "type": "string"
+    },
+    "doc_id": {
+      "title": "Doc Id",
+      "type": "string"
+    },
+    "user_id": {
+      "title": "User Id",
+      "type": "string"
+    },
+    "state": {
+      "enum": [
+        "granted",
+        "revoked"
+      ],
+      "title": "State",
+      "type": "string"
+    },
+    "timestamp": {
+      "format": "date-time",
+      "title": "Timestamp",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    }
+  },
+  "required": [
+    "consent_id",
+    "doc_id",
+    "user_id",
+    "state"
+  ],
+  "title": "ConsentRecord",
+  "type": "object"
+}

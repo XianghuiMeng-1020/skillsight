@@ -1,0 +1,11 @@
+[
+  {
+    "role_id": "HKU.ROLE.000001.v1",
+    "role_title": "Junior Data Analyst",
+    "description": "Entry-level analyst role focusing on data cleaning, basic analysis, and reporting.",
+    "version": "v1",
+    "skills_required": [
+      {"skill_id": "HKU.SSKILL.000001.v1", "target_level": "2", "required": true, "weight": 1.0}
+    ]
+  }
+]

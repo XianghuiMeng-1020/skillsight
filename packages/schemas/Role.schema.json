@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "RoleSkillRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "skill_id": {
+          "title": "Skill Id",
+          "type": "string"
+        },
+        "target_level": {
+          "title": "Target Level",
+          "type": "string"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Weight"
+        }
+      },
+      "required": [
+        "skill_id",
+        "target_level",
+        "required"
+      ],
+      "title": "RoleSkillRequirement",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "role_id": {
+      "title": "Role Id",
+      "type": "string"
+    },
+    "role_title": {
+      "title": "Role Title",
+      "type": "string"
+    },
+    "skills_required": {
+      "items": {
+        "$ref": "#/$defs/RoleSkillRequirement"
+      },
+      "title": "Skills Required",
+      "type": "array"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Version"
+    },
+    "created_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Created At"
+    },
+    "updated_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Updated At"
+    }
+  },
+  "required": [
+    "role_id",
+    "role_title",
+    "skills_required"
+  ],
+  "title": "Role",
+  "type": "object"
+}

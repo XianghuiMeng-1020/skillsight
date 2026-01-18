@@ -3,16 +3,32 @@
     "role_id": "HKU.ROLE.ASSISTANT_PM.v1",
     "role_title": "Assistant Project Manager (Demo)",
     "skills_required": [
-      {"skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1", "target_level": 2, "required": true},
-      {"skill_id": "HKU.SKILL.PRIVACY.v1", "target_level": 2, "required": true}
+      {
+        "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
+        "target_level": 2,
+        "required": true
+      },
+      {
+        "skill_id": "HKU.SKILL.PRIVACY.v1",
+        "target_level": 3,
+        "required": true
+      }
     ]
   },
   {
     "role_id": "HKU.ROLE.EDTECH_RESEARCH_ASSISTANT.v1",
     "role_title": "EdTech Research Assistant (Demo)",
     "skills_required": [
-      {"skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1", "target_level": 3, "required": true},
-      {"skill_id": "HKU.SKILL.PRIVACY.v1", "target_level": 1, "required": false}
+      {
+        "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
+        "target_level": 3,
+        "required": true
+      },
+      {
+        "skill_id": "HKU.SKILL.PRIVACY.v1",
+        "target_level": 1,
+        "required": false
+      }
     ]
   }
 ]

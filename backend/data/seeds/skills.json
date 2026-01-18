@@ -1,0 +1,12 @@
+[
+  {
+    "skill_id": "HKU.SSKILL.000001.v1",
+    "canonical_name": "Python Programming",
+    "aliases": ["Python", "Python coding"],
+    "definition": "Ability to write, debug, and maintain Python programs for data processing and automation.",
+    "evidence_rules": "Counts as evidence when the artifact includes runnable Python code and demonstrates correct logic for the stated task.",
+    "level_rubric": {"0":"No usable code artifact.","1":"Small scripts with guidance.","2":"Multi-step tasks independently.","3":"Robust modules, tests, clear APIs."},
+    "version": "v1",
+    "source": "HKU"
+  }
+]

@@ -1,0 +1,13 @@
+Title: Project Reflection (Synthetic Demo - No Privacy Evidence)
+
+Context
+This is a synthetic student artifact for testing.
+
+Academic Integrity Evidence
+We wrote our own answers and did not copy from others. When we used documentation, we paraphrased and cited it in our notes. Our team reviewed drafts to ensure no pasted content remained.
+
+Teamwork Evidence
+We used a shared task board and weekly check-ins. We documented decisions and resolved disagreements through a short written vote.
+
+Limitations
+We did not discuss data protection topics in this report.

@@ -1,0 +1,27 @@
+Title: Group Project Reflection + Deliverable Summary (Synthetic Demo)
+
+Context
+This document is a synthetic student artifact created for system testing. It contains no real personal data.
+
+Project Overview
+Our team built a small web demo that helps instructors review student work evidence. We implemented: file upload, chunking by paragraphs, and evidence search based on a skill description. The goal was to make every claim traceable to a specific text span.
+
+Teamwork and Collaboration Evidence
+- We used a shared task board. Each member owned one module and wrote a short handoff note before merging.
+- When we disagreed on the chunking strategy, we ran a small A/B test: paragraph split vs fixed-length split. We compared readability and retrieval quality, then chose paragraph split because it produced more coherent evidence.
+- We held a 30-minute review meeting to resolve conflicts. We summarized decisions and next steps in writing so everyone had the same understanding.
+
+Academic Integrity Evidence
+- We did not copy any external answers. We wrote our own code and explanations.
+- When we used external references (e.g., documentation), we recorded the source link in our notes and paraphrased in our own words.
+- We detected a risk: one teammate accidentally pasted a paragraph from an online forum into a draft. We removed it, rewrote the idea in our own words, and added a citation note.
+
+Privacy Awareness Evidence
+- We avoided uploading real student submissions for testing. We used synthetic data only.
+- We removed names and emails from screenshots. We replaced identifiers with placeholders like StudentA.
+- We planned a deletion mechanism so users can revoke consent and remove artifacts.
+
+Deliverables
+- Upload + document list
+- Chunk viewer with char offsets
+- Evidence search with document scope and Top-K
