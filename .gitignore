@@ -6,11 +6,23 @@ backend/.env
 
 # Upload artifacts
 backend/uploads/
-
 # Node / Next.js
 web/node_modules/
 web/.next/
 web/.env.local
-
 # OS
 .DS_Store
+# local logs
+logs/
+# backups created by patch scripts
+*.bak.*
+backend/**/*.bak.*
+backend/**/env.py.bak.*
+backend/**/main.py.bak.*
+# python
+__pycache__/
+*.pyc
+# venv
+.venv/
+*.bak
+*.bak_*
