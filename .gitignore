@@ -26,3 +26,9 @@ __pycache__/
 .venv/
 *.bak
 *.bak_*
+
+# web local / generated (keep repo clean)
+web/backend/
+web/docs/
+web/scripts/
+web/src/app/admin/
