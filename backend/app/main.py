@@ -69,55 +69,58 @@ def _startup_check():
 
 
 import os as _os
+import re as _re
 
-_CORS_ORIGINS_SET = set(
+_CORS_ORIGINS_RAW = [
     o.strip()
     for o in _os.getenv(
         "CORS_ALLOWED_ORIGINS",
         "http://localhost:3000,http://127.0.0.1:3000",
     ).split(",")
     if o.strip()
-)
+]
+_CORS_PATTERNS = [
+    _re.compile(r"^https://[a-z0-9-]+\.trycloudflare\.com$"),
+    _re.compile(r"^https://[a-z0-9-]+\.skillsight-\d+\.pages\.dev$"),
+    _re.compile(r"^https://skillsight-\d+\.pages\.dev$"),
+]
 
 
-class CORSPreflight(BaseHTTPMiddleware):
+def _origin_allowed(origin: str) -> bool:
+    if not origin:
+        return False
+    if origin in _CORS_ORIGINS_RAW:
+        return True
+    return any(p.match(origin) for p in _CORS_PATTERNS)
+
+
+class DynamicCORSMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         origin = request.headers.get("origin", "")
 
         if request.method == "OPTIONS":
-            if origin in _CORS_ORIGINS_SET:
+            if _origin_allowed(origin):
                 response = Response(status_code=200)
                 response.headers["Access-Control-Allow-Origin"] = origin
                 response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-Purpose, X-Idempotency-Key, X-Model-Version, X-Rubric-Version, Accept, Origin"
                 response.headers["Access-Control-Allow-Credentials"] = "true"
                 response.headers["Access-Control-Max-Age"] = "3600"
                 return response
             return Response(status_code=204)
 
         response = await call_next(request)
-        if origin in _CORS_ORIGINS_SET:
+        if _origin_allowed(origin):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
 
+
 # Rate limiting (P1): /auth, /documents/upload*, /ai, /search when RATE_LIMIT_ENABLED truthy
 if _parse_bool_env("RATE_LIMIT_ENABLED"):
     app.add_middleware(RateLimitMiddleware)
-# Audit middleware: one row per request for audited routes (P1)
 app.add_middleware(AuditMiddleware)
-# Add custom CORS middleware first
-app.add_middleware(CORSPreflight)
-
-_CORS_ORIGINS = list(_CORS_ORIGINS_SET)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_CORS_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-    allow_headers=["*"],
-    expose_headers=["*"],
-)
+app.add_middleware(DynamicCORSMiddleware)
 
 @app.get("/__routes")
 def __routes():
