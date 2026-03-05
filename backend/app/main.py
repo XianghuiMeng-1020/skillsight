@@ -1,57 +1,123 @@
-from backend.app.db.session import SessionLocal, engine
-
+import logging
 from sqlalchemy import text
-from sqlalchemy.orm import Session
-from fastapi import HTTPException
-
-def hard_get_role(role_id: str):
-    """Hard-wired role lookup to guarantee JSON output."""
-    db: Session = SessionLocal()
-    try:
-        row = db.execute(
-            text("SELECT * FROM roles WHERE role_id = :rid LIMIT 1"),
-            {"rid": role_id},
-        ).mappings().first()
-        if not row:
-            raise HTTPException(status_code=404, detail=f"role_id not found: {role_id}")
-        return {"status": "ok", "item": dict(row)}
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"/roles/{{role_id}} failed: {type(e).__name__}: {e}")
-    finally:
-        db.close()
-
-from sqlalchemy import text, inspect
-from fastapi import Depends, FastAPI
-from fastapi import HTTPException
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-
-try:
-    from backend.app.db.session import SessionLocal  # type: ignore
-except Exception:
-    try:
-        from backend.app.database import SessionLocal  # type: ignore
-    except Exception:
-        SessionLocal = None  # type: ignore
-
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response
+
+from backend.app.db.deps import get_db
+from backend.app.db.session import SessionLocal
+from backend.app.middleware.audit_middleware import AuditMiddleware
+from backend.app.middleware.rate_limit_middleware import RateLimitMiddleware
+from backend.app.rate_limit import _parse_bool_env
+from backend.app.security import require_production_secret
 
 # SkillSight schemas (Week1 Day3)
 # NOTE: repo-root/ is expected to be on PYTHONPATH when running uvicorn from repo root.
-from schemas.skillsight_models import Skill, Role, EvidencePointer, AuditLog, ConsentRecord  # noqa: F401
+try:
+    from schemas.skillsight_models import Skill, Role, EvidencePointer, AuditLog, ConsentRecord  # noqa: F401
+except ImportError:
+    pass  # Schemas optional for demo
 
 app = FastAPI(title="SkillSight API", version="0.1.0")
 
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+logger = logging.getLogger(__name__)
+_SCHEMA_HEALTH: dict = {"ok": True, "missing": [], "checked_at": None}
 
-from fastapi.responses import JSONResponse
+
+def _run_schema_health_check() -> dict:
+    required = {
+        "assessment_sessions": ["session_id", "user_id", "assessment_type", "status", "config"],
+        "assessment_attempts": ["attempt_id", "session_id", "evaluation", "score"],
+        "skill_assessments": ["assessment_id", "doc_id", "skill_id", "decision", "decision_meta"],
+        "skill_proficiency": ["prof_id", "doc_id", "skill_id", "level", "label"],
+        "consents": ["doc_id", "user_id", "status"],
+    }
+    missing = []
+    try:
+        with SessionLocal() as db:
+            rows = db.execute(text("""
+                SELECT table_name, column_name
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+            """)).mappings().all()
+        by_table = {}
+        for row in rows:
+            by_table.setdefault(str(row["table_name"]), set()).add(str(row["column_name"]))
+        for table_name, cols in required.items():
+            if table_name not in by_table:
+                missing.append(f"missing_table:{table_name}")
+                continue
+            for col in cols:
+                if col not in by_table[table_name]:
+                    missing.append(f"missing_column:{table_name}.{col}")
+    except Exception as e:
+        missing.append(f"schema_check_error:{type(e).__name__}:{e}")
+
+    return {"ok": len(missing) == 0, "missing": missing, "checked_at": None}
+
+
+@app.on_event("startup")
+def _startup_check():
+    require_production_secret()
+    global _SCHEMA_HEALTH
+    _SCHEMA_HEALTH = _run_schema_health_check()
+    if not _SCHEMA_HEALTH.get("ok", False):
+        logger.warning("Schema health check warnings: %s", _SCHEMA_HEALTH.get("missing"))
+
+
+import os as _os
+
+_CORS_ORIGINS_SET = set(
+    o.strip()
+    for o in _os.getenv(
+        "CORS_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:3000",
+    ).split(",")
+    if o.strip()
+)
+
+
+class CORSPreflight(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        origin = request.headers.get("origin", "")
+
+        if request.method == "OPTIONS":
+            if origin in _CORS_ORIGINS_SET:
+                response = Response(status_code=200)
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+                response.headers["Access-Control-Allow-Credentials"] = "true"
+                response.headers["Access-Control-Max-Age"] = "3600"
+                return response
+            return Response(status_code=204)
+
+        response = await call_next(request)
+        if origin in _CORS_ORIGINS_SET:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+        return response
+
+# Rate limiting (P1): /auth, /documents/upload*, /ai, /search when RATE_LIMIT_ENABLED truthy
+if _parse_bool_env("RATE_LIMIT_ENABLED"):
+    app.add_middleware(RateLimitMiddleware)
+# Audit middleware: one row per request for audited routes (P1)
+app.add_middleware(AuditMiddleware)
+# Add custom CORS middleware first
+app.add_middleware(CORSPreflight)
+
+_CORS_ORIGINS = list(_CORS_ORIGINS_SET)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["*"],
+    expose_headers=["*"],
+)
 
 @app.get("/__routes")
 def __routes():
@@ -60,46 +126,148 @@ def __routes():
         for r in app.router.routes
     ])
 
-# Local dev CORS (tighten later)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "ok": True, "schema": _SCHEMA_HEALTH}
+
+
+@app.get("/health/schema")
+def health_schema():
+    return _SCHEMA_HEALTH
+
+
+@app.get("/readyz")
+def readyz():
+    """Readiness: health + Qdrant connectivity."""
+    from backend.app.vector_store import qdrant_health
+    qdrant = qdrant_health()
+    ok = qdrant.get("ok", False)
+    return {
+        "status": "ok" if ok else "degraded",
+        "ok": ok,
+        "qdrant": qdrant,
+    }
+
+
+@app.get("/debug/routes_count")
+def debug_routes_count():
+    """Debug endpoint to count routes."""
+    return {
+        "total_routes": len(app.routes),
+        "routes_preview": [r.path for r in app.routes if hasattr(r, 'path')][:20],
+        "version": "v2_with_interactive"
+    }
+
+
+@app.get("/api/overview")
+def api_overview():
+    """
+    API Overview - List all available endpoints grouped by feature.
+    """
+    return {
+        "version": "0.2.0",
+        "mvp_features": {
+            "document_management": {
+                "POST /documents/upload": "Upload TXT/DOCX/PDF/Images/Video with consent",
+                "POST /documents/upload_multimodal": "Upload any supported file with multimodal parsing",
+                "GET /documents": "List uploaded documents",
+                "GET /documents/{doc_id}": "Get document details",
+                "GET /documents/{doc_id}/chunks": "Get document chunks",
+                "POST /documents/{doc_id}/reindex": "Trigger re-indexing",
+            },
+            "evidence_search": {
+                "POST /search/evidence_vector": "Vector search for skill evidence (Decision 1)",
+                "POST /search/evidence_keyword": "Keyword fallback search",
+            },
+            "ai_assessment": {
+                "POST /ai/demonstration": "Skill demonstration classification (Decision 2)",
+                "POST /ai/proficiency": "Proficiency level assessment (Decision 3)",
+            },
+            "role_readiness": {
+                "POST /assess/role_readiness": "Role readiness assessment (Decision 4)",
+            },
+            "action_recommendations": {
+                "POST /actions/recommend": "Action cards for skill gaps (Decision 5)",
+                "GET /actions/templates": "List action templates",
+            },
+            "consent_management": {
+                "POST /consent/grant": "Grant consent for document",
+                "POST /consent/revoke": "Revoke consent (cascade delete)",
+                "GET /consent/status/{doc_id}": "Check consent status",
+            },
+            "background_jobs": {
+                "GET /jobs": "List background jobs",
+                "GET /jobs/{job_id}": "Get job status",
+                "POST /jobs/{job_id}/retry": "Retry failed job",
+                "POST /jobs/enqueue/{doc_id}": "Enqueue new job",
+                "GET /jobs/queue/status": "Redis queue status",
+            },
+            "direct_embedding": {
+                "POST /chunks/embed/{doc_id}": "Sync embedding (no Redis)",
+            },
+        },
+        "interactive_assessments": {
+            "communication_kira_style": {
+                "POST /interactive/communication/start": "Start video response session (random topic)",
+                "POST /interactive/communication/submit": "Submit speech transcript for evaluation",
+                "description": "Kira-style assessment: random topic, 30/60/90 sec response, retry support",
+            },
+            "programming_leetcode_style": {
+                "POST /interactive/programming/start": "Start coding challenge (easy/medium/hard)",
+                "POST /interactive/programming/submit": "Submit code solution for evaluation",
+                "description": "LeetCode-style challenges with auto-generated problems",
+            },
+            "writing_timed": {
+                "POST /interactive/writing/start": "Start timed writing session",
+                "POST /interactive/writing/submit": "Submit essay for evaluation",
+                "description": "Timed writing with anti-copy protection (300-500 words, 30 min)",
+            },
+            "session_management": {
+                "GET /interactive/sessions/{session_id}": "Get session details and attempts",
+                "GET /interactive/sessions/user/{user_id}": "Get all sessions for a user",
+                "GET /interactive/sessions/{session_id}/consistency": "Calculate consistency across retries",
+            },
+        },
+        "multimodal_support": {
+            "supported_formats": {
+                "documents": [".txt", ".docx", ".pdf", ".pptx"],
+                "images": [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".gif"],
+                "video_audio": [".mp4", ".webm", ".mov", ".avi", ".mp3", ".wav", ".m4a"],
+                "code": [".py", ".js", ".ts", ".java", ".cpp", ".c", ".go", ".rs"],
+            },
+            "processing": {
+                "images": "OCR text extraction (pytesseract/easyocr) + vision model support",
+                "video_audio": "Whisper transcription + metadata extraction",
+                "presentations": "Slide text + speaker notes extraction",
+            },
+        },
+        "data_management": {
+            "skills": "GET/POST /skills, /skills/search, /skills/import",
+            "roles": "GET/POST /roles, /roles/{id}, /roles/{id}/requirements",
+            "courses": "GET /courses",
+        },
+    }
 
 @app.get("/stats")
-def stats():
+def stats(db: Session = Depends(get_db)):
     """
     Lightweight counts for demo smoke-check.
     Defensive: should not fail if table names change.
     """
-    from sqlalchemy import text
-    from .db.session import SessionLocal
-
-    db = SessionLocal()
-    try:
-        tables = db.execute(
-            text("""
-                SELECT table_name
-                FROM information_schema.tables
-                WHERE table_schema = 'public'
-                  AND table_type = 'BASE TABLE'
-                ORDER BY table_name
-            """)
-        ).fetchall()
-        return {
-            "status": "ok",
-            "public_tables": [r[0] for r in tables],
-            "public_table_count": len(tables),
-        }
-    finally:
-        db.close()
+    tables = db.execute(
+        text("""
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
+              AND table_type = 'BASE TABLE'
+            ORDER BY table_name
+        """)
+    ).fetchall()
+    return {
+        "status": "ok",
+        "public_tables": [r[0] for r in tables],
+        "public_table_count": len(tables),
+    }
 
 @app.get("/schemas/summary")
 def schemas_summary():
@@ -117,52 +285,47 @@ def schemas_summary():
 
 from backend.app.routers.skills import router as skills_router
 from backend.app.routers.roles import router as roles_router
+from backend.app.routers.documents import router as documents_router
+from backend.app.routers.chunks import router as chunks_router
+from backend.app.routers.consents import router as consents_router
+from backend.app.routers.jobs import router as jobs_router
+from backend.app.routers.courses import router as courses_router
+from backend.app.routers.assessments import router as assessments_router
+from backend.app.routers.proficiency import router as proficiency_router
+from backend.app.routers.ai import router as ai_router
+from backend.app.routers.assess import router as assess_router
+from backend.app.routers.search import router as search_router
+from backend.app.routers.actions import router as actions_router
+from backend.app.routers.interactive_assess import router as interactive_router
+from backend.app.routers.auth import router as auth_router
+# BFF tier routers (P2)
+from backend.app.routers.bff_student import router as bff_student_router
+from backend.app.routers.bff_staff import router as bff_staff_router
+from backend.app.routers.bff_programme import router as bff_programme_router
+from backend.app.routers.bff_admin import router as bff_admin_router
 
-# Week2 MVP routers
-app.include_router(skills_router)
-app.include_router(roles_router)
 
-@app.get("/skills")
-def skills_list(q: str = "", limit: int = 50):
-    """
-    Demo endpoint. Auto-detect the real skills table name in public schema.
-    Supports q search when columns exist.
-    """
-    insp = inspect(engine)
-    tables = set(insp.get_table_names(schema="public"))
-    candidates = ["skills", "skill_registry", "skill_proficiency", "skill_assessments", "skill_aliases"]
-    table = next((t for t in candidates if t in tables), None)
-    if not table:
-        return {"status": "error", "detail": "no skills-like table found", "public_tables": sorted(list(tables))}
+ROUTERS = [skills_router, roles_router]
 
-    cols = [c["name"] for c in insp.get_columns(table, schema="public")]
-    limit = max(1, min(int(limit), 500))
-    q2 = (q or "").strip()
-
-    db = SessionLocal()
-    try:
-        # Prefer search on canonical_name/skill_id if present
-        has_cn = "canonical_name" in cols
-        has_sid = "skill_id" in cols
-
-        if q2 and (has_cn or has_sid):
-            parts = []
-            if has_cn:
-                parts.append("canonical_name ILIKE :q")
-            if has_sid:
-                parts.append("skill_id ILIKE :q")
-            where = " OR ".join(parts)
-            sql = text(f"""
-                SELECT * FROM {table}
-                WHERE ({where})
-                ORDER BY 1 NULLS LAST
-                LIMIT :limit
-            """)
-            rows = db.execute(sql, {"q": f"%{q2}%", "limit": limit}).mappings().all()
-        else:
-            sql = text(f"SELECT * FROM {table} ORDER BY 1 NULLS LAST LIMIT :limit")
-            rows = db.execute(sql, {"limit": limit}).mappings().all()
-
-        return {"status": "ok", "table": table, "count": len(rows), "items": [dict(r) for r in rows]}
-    finally:
-        db.close()
+for r in ROUTERS:
+    app.include_router(r)
+app.include_router(documents_router)
+app.include_router(chunks_router)
+app.include_router(consents_router)
+app.include_router(jobs_router)
+app.include_router(courses_router)
+app.include_router(assessments_router)
+app.include_router(proficiency_router)
+app.include_router(ai_router)
+app.include_router(assess_router)
+app.include_router(search_router)
+app.include_router(actions_router)
+app.include_router(interactive_router)
+app.include_router(auth_router)
+# BFF tier (P2)
+app.include_router(bff_student_router)
+app.include_router(bff_staff_router)
+app.include_router(bff_programme_router)
+app.include_router(bff_admin_router)
+# NOTE: /skills endpoint is now handled by skills_router from routers/skills.py
+# Removed duplicate endpoint to avoid route conflicts

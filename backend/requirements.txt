@@ -1,7 +1,42 @@
+# FastAPI and web
 fastapi>=0.110
 uvicorn[standard]>=0.27
 pydantic>=2.6
+httpx>=0.27
+python-multipart>=0.0.9
+
+# Database
 sqlalchemy>=2.0
 alembic>=1.13
 psycopg2-binary>=2.9
+
+# Vector store and embeddings
+sentence-transformers>=2.2
+qdrant-client>=1.7
+
+# Document parsing
+python-docx>=1.1
+pymupdf>=1.23
+python-pptx>=0.6.23
+openpyxl>=3.1
+xlrd>=2.0
+docx2txt>=0.8
+
+# Image processing and OCR
+pillow>=10.0
+pytesseract>=0.3.10
+
+# Audio/Video transcription
+openai-whisper>=20230918
+
+# Task queue
+redis>=5.0
+rq>=1.15
+
+# Utilities
 python-dotenv>=1.0
+requests>=2.31
+
+# Testing
+pytest>=8.0
+pytest-asyncio>=0.23

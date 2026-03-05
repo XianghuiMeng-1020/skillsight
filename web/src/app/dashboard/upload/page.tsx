@@ -1,0 +1,344 @@
+'use client';
+
+import { useState, useRef, DragEvent } from 'react';
+import Sidebar from '@/components/Sidebar';
+import { studentBff, getToken } from '@/lib/bffClient';
+import { useLanguage } from '@/lib/contexts';
+
+interface UploadResult {
+  doc_id: string;
+  filename: string;
+  chunks_created: number;
+}
+
+export default function UploadPage() {
+  const { t } = useLanguage();
+  const [files, setFiles] = useState<File[]>([]);
+  const [consent, setConsent] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [results, setResults] = useState<UploadResult[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const supportedFormats = [
+    { ext: 'PDF', icon: '📕', desc: 'Reports, papers' },
+    { ext: 'DOCX', icon: '📘', desc: 'Documents' },
+    { ext: 'TXT', icon: '📄', desc: 'Plain text' },
+    { ext: 'PPTX', icon: '📊', desc: 'Presentations' },
+    { ext: 'Images', icon: '🖼️', desc: 'JPG, PNG' },
+    { ext: 'Video', icon: '🎬', desc: 'MP4, recordings' },
+    { ext: 'Code', icon: '💻', desc: 'Python, JS, Java' },
+  ];
+
+  const handleDrag = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    
+    if (e.dataTransfer.files) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      setFiles(prev => [...prev, ...newFiles]);
+      setError(null);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const newFiles = Array.from(e.target.files);
+      setFiles(prev => [...prev, ...newFiles]);
+      setError(null);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpload = async () => {
+    if (files.length === 0 || !consent) return;
+
+    const token = getToken();
+    if (!token) {
+      setError(t('upload.loginRequired'));
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+    setResults([]);
+
+    try {
+      const uploadResults: UploadResult[] = [];
+
+      for (const file of files) {
+        const data = await studentBff.upload(file, 'skill_assessment', 'full', token);
+        uploadResults.push(data);
+      }
+
+      setResults(uploadResults);
+      setFiles([]);
+      setConsent(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('upload.failed'));
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const getFileIcon = (filename: string) => {
+    const ext = filename.split('.').pop()?.toLowerCase();
+    const icons: Record<string, string> = {
+      pdf: '📕', docx: '📘', doc: '📘', txt: '📄', pptx: '📊', ppt: '📊',
+      jpg: '🖼️', jpeg: '🖼️', png: '🖼️', mp4: '🎬', mp3: '🎵',
+      py: '🐍', js: '💛', ts: '💙', java: '☕', cpp: '⚙️',
+    };
+    return icons[ext || ''] || '📄';
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  return (
+    <div className="app-container">
+      <Sidebar />
+      <main className="main-content">
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">{t('dashboard.uploadEvidence')}</h1>
+            <p className="page-subtitle">{t('upload.pageSubtitle')}</p>
+          </div>
+        </div>
+
+        <div className="page-content">
+          {/* Success Message */}
+          {results.length > 0 && (
+            <div className="alert alert-success fade-in">
+              <span className="alert-icon">✓</span>
+              <div className="alert-content">
+                <div className="alert-title">{t('upload.success')}</div>
+                <p>{results.length} {t('upload.filesProcessedSuccess')}</p>
+                <ul style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                  {results.map((r, i) => (
+                    <li key={i}>&quot;{r.filename}&quot; - {r.chunks_created} {t('upload.sectionsExtracted')}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <div className="alert alert-error fade-in">
+              <span className="alert-icon">⚠</span>
+              <div className="alert-content">
+                <div className="alert-title">{t('upload.failed')}</div>
+                <p>{error}</p>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
+            {/* Main Upload Area */}
+            <div className="card">
+              <div className="card-header">
+                <h3 className="card-title">{t('upload.selectFiles')}</h3>
+              </div>
+              <div className="card-content">
+                {/* Drop Zone */}
+                <div
+                  className={`upload-zone ${dragActive ? 'active' : ''}`}
+                  onDragEnter={handleDrag}
+                  onDragLeave={handleDrag}
+                  onDragOver={handleDrag}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    onChange={handleFileSelect}
+                    style={{ display: 'none' }}
+                    accept=".pdf,.docx,.doc,.txt,.pptx,.ppt,.jpg,.jpeg,.png,.webp,.mp4,.webm,.mp3,.wav,.py,.js,.ts,.java,.cpp,.c,.go,.rs"
+                  />
+                  
+                  <div className="upload-zone-icon">📁</div>
+                  <div className="upload-zone-text">
+                    {t('upload.dropOrBrowse')}
+                  </div>
+                  <div className="upload-zone-hint">
+                    {t('upload.maxFileSize')}
+                  </div>
+                </div>
+
+                {/* Supported Formats */}
+                <div style={{ marginTop: '1.5rem' }}>
+                  <div style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.75rem' }}>
+                    {t('upload.supportedFormats')}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {supportedFormats.map((format) => (
+                      <span 
+                        key={format.ext}
+                        className="badge badge-neutral"
+                        title={format.desc}
+                        style={{ cursor: 'help' }}
+                      >
+                        {format.icon} {format.ext}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* File List */}
+                {files.length > 0 && (
+                  <div style={{ marginTop: '1.5rem' }}>
+                    <div style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.75rem' }}>
+                      {t('upload.selectedFiles')} ({files.length}):
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {files.map((file, index) => (
+                        <div 
+                          key={index}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.75rem',
+                            background: 'var(--gray-50)',
+                            borderRadius: 'var(--radius)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <span style={{ fontSize: '1.25rem' }}>{getFileIcon(file.name)}</span>
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{file.name}</div>
+                              <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+                                {formatSize(file.size)}
+                              </div>
+                            </div>
+                          </div>
+                          <button 
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => removeFile(index)}
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Consent Checkbox */}
+                <div style={{ 
+                  borderTop: '1px solid var(--gray-200)', 
+                  marginTop: '1.5rem', 
+                  paddingTop: '1.5rem' 
+                }}>
+                  <label className="checkbox-wrapper">
+                    <input
+                      type="checkbox"
+                      className="checkbox"
+                      checked={consent}
+                      onChange={(e) => setConsent(e.target.checked)}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 500 }}>
+                        {t('upload.consentCheckbox')}
+                      </span>
+                      <p style={{ fontSize: '0.813rem', color: 'var(--gray-500)', marginTop: '0.25rem' }}>
+                        {t('upload.consentWithdraw')}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+
+                {/* Upload Button */}
+                <button
+                  className="btn btn-primary btn-lg"
+                  style={{ width: '100%', marginTop: '1.5rem' }}
+                  onClick={handleUpload}
+                  disabled={files.length === 0 || !consent || uploading}
+                >
+                  {uploading ? (
+                    <>
+                      <span className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }}></span>
+                      {t('upload.processing')}
+                    </>
+                  ) : (
+                    <>{files.length > 0 ? t('upload.uploadNFiles').replace('{n}', String(files.length)) : t('upload.uploadFiles')}</>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Tips Sidebar */}
+            <div>
+              <div className="card">
+                <div className="card-header">
+                  <h3 className="card-title">{t('upload.tipsTitleResults')}</h3>
+                </div>
+                <div className="card-content">
+                  <ul style={{ 
+                    listStyle: 'none', 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    gap: '1rem',
+                    fontSize: '0.875rem',
+                    color: 'var(--gray-600)'
+                  }}>
+                    <li style={{ display: 'flex', gap: '0.75rem' }}>
+                      <span>✓</span>
+                      <span>{t('upload.tip1page')}</span>
+                    </li>
+                    <li style={{ display: 'flex', gap: '0.75rem' }}>
+                      <span>✓</span>
+                      <span>{t('upload.tip2page')}</span>
+                    </li>
+                    <li style={{ display: 'flex', gap: '0.75rem' }}>
+                      <span>✓</span>
+                      <span>{t('upload.tip3page')}</span>
+                    </li>
+                    <li style={{ display: 'flex', gap: '0.75rem' }}>
+                      <span>✓</span>
+                      <span>{t('upload.tip4page')}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginTop: '1rem' }}>
+                <div className="card-header">
+                  <h3 className="card-title">{t('upload.privacyCardTitle')}</h3>
+                </div>
+                <div className="card-content">
+                  <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>
+                    {t('upload.privacyCardDesc')}
+                  </p>
+                  <a href="/settings/privacy" className="btn btn-ghost btn-sm" style={{ width: '100%' }}>
+                    {t('upload.managePrivacy')}
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}

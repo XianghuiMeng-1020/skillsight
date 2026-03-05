@@ -1,7 +1,7 @@
 services:
   postgres:
-    image: postgres:16
-    container_name: skillsight_postgres
+    image: pgvector/pgvector:pg16
+    container_name: skillsight_db
     restart: unless-stopped
     environment:
       POSTGRES_USER: skillsight
@@ -11,5 +11,44 @@ services:
       - "55432:5432"
     volumes:
       - skillsight_pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: skillsight_redis
+    restart: unless-stopped
+    ports:
+      - "56379:6379"
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: skillsight_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - skillsight_ollama:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    # Uncomment for GPU support (NVIDIA)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: skillsight_qdrant
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - skillsight_qdrant:/qdrant/storage
+
 volumes:
   skillsight_pgdata:
+  skillsight_ollama:
+  skillsight_qdrant:

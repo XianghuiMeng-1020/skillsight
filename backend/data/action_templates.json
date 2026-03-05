@@ -30,5 +30,149 @@
     "what_to_do": "Propose a minimum-data policy: what fields are stored, what is optional, and how revocation deletes data.",
     "artifact": "One-page policy note + deletion checklist",
     "how_verified": "Evidence includes concrete stored fields and deletion steps."
+  },
+  {
+    "skill_id": "HKU.SKILL.TEAMWORK.v1",
+    "gap_type": "missing_proof",
+    "title": "Document teamwork contributions",
+    "what_to_do": "Write a team contribution log that details: (1) your specific responsibilities, (2) how tasks were divided, (3) how you communicated with team members.",
+    "artifact": "Team contribution log (text) + meeting notes or chat excerpts",
+    "how_verified": "Evidence shows specific tasks assigned and completed by you, with dates or milestones."
+  },
+  {
+    "skill_id": "HKU.SKILL.TEAMWORK.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Improve teamwork evidence depth",
+    "what_to_do": "Add concrete examples of conflict resolution, decision-making processes, or peer feedback you gave/received.",
+    "artifact": "Extended contribution log + peer feedback examples",
+    "how_verified": "Evidence includes at least one conflict/decision scenario and how it was resolved."
+  },
+  {
+    "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+    "gap_type": "missing_proof",
+    "title": "Add communication skill evidence",
+    "what_to_do": "Include a sample of written or verbal communication: presentation slides, written report section, or meeting summary you created.",
+    "artifact": "Communication artifact (slides, text, or recording link)",
+    "how_verified": "Evidence shows clear structure, audience awareness, and professional tone."
+  },
+  {
+    "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen communication evidence",
+    "what_to_do": "Add multiple communication samples across different formats (written, visual, verbal) or audiences (technical vs non-technical).",
+    "artifact": "Multiple communication artifacts with audience context",
+    "how_verified": "Evidence shows adaptation to different audiences or formats."
+  },
+  {
+    "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+    "gap_type": "missing_proof",
+    "title": "Document critical thinking process",
+    "what_to_do": "Write a decision analysis that shows: (1) the problem/question, (2) alternatives considered, (3) evaluation criteria, (4) your reasoning for the final choice.",
+    "artifact": "Decision analysis document (text)",
+    "how_verified": "Evidence shows explicit criteria and logical reasoning connecting criteria to decision."
+  },
+  {
+    "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Deepen critical analysis",
+    "what_to_do": "Add counterarguments you considered, limitations of your approach, or how you would decide differently with more information.",
+    "artifact": "Extended analysis with limitations section",
+    "how_verified": "Evidence includes explicit acknowledgment of trade-offs or uncertainties."
+  },
+  {
+    "skill_id": "HKU.SKILL.PROBLEM_SOLVING.v1",
+    "gap_type": "missing_proof",
+    "title": "Document problem-solving approach",
+    "what_to_do": "Describe a specific problem you solved: (1) what the problem was, (2) steps you took to diagnose it, (3) solution implemented, (4) outcome/result.",
+    "artifact": "Problem-solving case study (text)",
+    "how_verified": "Evidence shows clear problem definition, systematic approach, and measurable outcome."
+  },
+  {
+    "skill_id": "HKU.SKILL.PROBLEM_SOLVING.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen problem-solving evidence",
+    "what_to_do": "Add multiple problem-solving examples or show how you iterated on an initial solution after testing/feedback.",
+    "artifact": "Multiple case studies or iteration log",
+    "how_verified": "Evidence shows either breadth (multiple problems) or depth (iteration/refinement)."
+  },
+  {
+    "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",
+    "gap_type": "missing_proof",
+    "title": "Add technical writing sample",
+    "what_to_do": "Include a technical document you wrote: API documentation, system design doc, user guide, or technical report section.",
+    "artifact": "Technical document (text or markdown)",
+    "how_verified": "Evidence shows proper structure, technical accuracy, and appropriate detail level."
+  },
+  {
+    "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Improve technical documentation",
+    "what_to_do": "Add documentation for different audiences (developer vs user) or different formats (reference vs tutorial).",
+    "artifact": "Multiple technical documents with audience specification",
+    "how_verified": "Evidence shows adaptation to different documentation needs."
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "gap_type": "missing_proof",
+    "title": "Document data analysis work",
+    "what_to_do": "Describe a data analysis you performed: (1) data source, (2) analysis method, (3) key findings, (4) how findings were used.",
+    "artifact": "Data analysis report (text) + code/queries if applicable",
+    "how_verified": "Evidence shows clear methodology and actionable conclusions."
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen data analysis depth",
+    "what_to_do": "Add validation steps, sensitivity analysis, or show how you handled data quality issues.",
+    "artifact": "Extended analysis with validation section",
+    "how_verified": "Evidence includes explicit data quality checks or uncertainty quantification."
+  },
+  {
+    "skill_id": "HKU.SKILL.CODING.v1",
+    "gap_type": "missing_proof",
+    "title": "Add coding evidence",
+    "what_to_do": "Include a code sample you wrote with comments explaining: (1) what it does, (2) why you made key design decisions, (3) how to use it.",
+    "artifact": "Annotated code sample (text or repository link)",
+    "how_verified": "Evidence shows working code with clear documentation and rationale."
+  },
+  {
+    "skill_id": "HKU.SKILL.CODING.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen coding evidence",
+    "what_to_do": "Add evidence of code quality practices: tests, error handling, refactoring examples, or code review feedback.",
+    "artifact": "Code with tests, error handling, or review history",
+    "how_verified": "Evidence shows professional coding practices beyond basic functionality."
+  },
+  {
+    "skill_id": "HKU.SKILL.PROJECT_MANAGEMENT.v1",
+    "gap_type": "missing_proof",
+    "title": "Document project management",
+    "what_to_do": "Describe your project management approach: (1) how you planned/scoped, (2) how you tracked progress, (3) how you handled changes/risks.",
+    "artifact": "Project management summary (text) + planning artifacts",
+    "how_verified": "Evidence shows structured planning and tracking methodology."
+  },
+  {
+    "skill_id": "HKU.SKILL.PROJECT_MANAGEMENT.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen project management evidence",
+    "what_to_do": "Add examples of scope changes you managed, risks you mitigated, or stakeholder communication you led.",
+    "artifact": "Change/risk log or stakeholder communication samples",
+    "how_verified": "Evidence shows adaptive management beyond initial planning."
+  },
+  {
+    "skill_id": "HKU.SKILL.RESEARCH.v1",
+    "gap_type": "missing_proof",
+    "title": "Add research methodology evidence",
+    "what_to_do": "Describe your research approach: (1) research question, (2) methods used, (3) sources consulted, (4) how you synthesized findings.",
+    "artifact": "Research methodology section (text) + bibliography",
+    "how_verified": "Evidence shows systematic literature review or data collection approach."
+  },
+  {
+    "skill_id": "HKU.SKILL.RESEARCH.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen research evidence",
+    "what_to_do": "Add critical evaluation of sources, comparison of methodologies, or reflection on research limitations.",
+    "artifact": "Extended research analysis with critical evaluation",
+    "how_verified": "Evidence shows evaluation of source quality and methodological choices."
   }
 ]

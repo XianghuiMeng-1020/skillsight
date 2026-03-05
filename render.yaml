@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: skillsight-api
+    runtime: docker
+    dockerfilePath: backend/Dockerfile
+    dockerContext: backend
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: skillsight-db
+          property: connectionString
+      - key: REDIS_HOST
+        fromService:
+          name: skillsight-redis
+          type: redis
+          property: host
+      - key: REDIS_PORT
+        fromService:
+          name: skillsight-redis
+          type: redis
+          property: port
+      - key: SKILLSIGHT_AUTH_SECRET
+        generateValue: true
+      - key: SKILLSIGHT_ENV
+        value: production
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://skillsight.pages.dev
+      - key: DB_POOL_SIZE
+        value: "20"
+      - key: DB_MAX_OVERFLOW
+        value: "30"
+    healthCheckPath: /health
+    numInstances: 1
+
+databases:
+  - name: skillsight-db
+    plan: starter
+    postgresMajorVersion: "16"
+
+  - name: skillsight-redis
+    plan: starter
+    type: redis

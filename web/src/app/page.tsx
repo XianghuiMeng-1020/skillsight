@@ -1,362 +1,195 @@
-/* eslint-disable react/no-unescaped-entities */
-"use client";
+'use client';
 
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-type DocItem = {
-  doc_id: string;
-  filename: string;
-  created_at: string;
-  doc_type?: string;
-};
-
-type SkillItem = {
-  skill_id: string;
-  canonical_name: string;
-  aliases?: string[];
-  definition?: string;
-};
-
-type EvidenceItem = {
-  chunk_id: string;
-  doc_id: string;
-  idx: number;
-  char_start?: number;
-  char_end?: number;
-  snippet: string;
-  created_at?: string;
-  score: number;
-  section_path?: string | null;
-  page_start?: number | null;
-  page_end?: number | null;
-  score_meta?: any;
-};
+// SkillSight Logo - 代表技能洞察与成长的创意设计
+const SkillSightLogo = ({ size = 80 }: { size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path 
+      d="M16 6C8 6 2 16 2 16C2 16 8 26 16 26C24 26 30 16 30 16C30 16 24 6 16 6Z" 
+      fill="url(#eyeGradientHome)" 
+      stroke="white" 
+      strokeWidth="1.5"
+    />
+    <circle cx="16" cy="16" r="6" fill="white" opacity="0.9"/>
+    <path 
+      d="M12 19L14.5 16L16.5 17.5L20 13" 
+      stroke="#E18182" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+    <circle cx="13" cy="13" r="1.5" fill="white" opacity="0.8"/>
+    <circle cx="20" cy="13" r="1.5" fill="#E18182"/>
+    <defs>
+      <linearGradient id="eyeGradientHome" x1="2" y1="16" x2="30" y2="16" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#F9CE9C"/>
+        <stop offset="0.5" stopColor="#E18182"/>
+        <stop offset="1" stopColor="#C9DDE3"/>
+      </linearGradient>
+    </defs>
+  </svg>
+);
 
 export default function Home() {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-
-  const [status, setStatus] = useState<string>("checking...");
-  const [docs, setDocs] = useState<DocItem[]>([]);
-  const [loadingDocs, setLoadingDocs] = useState<boolean>(false);
-
-  // Upload
-  const [file, setFile] = useState<File | null>(null);
-  const [docType, setDocType] = useState<string>("demo");
-  const [uploadMsg, setUploadMsg] = useState<string>("");
-
-  // Skills
-  const [skills, setSkills] = useState<SkillItem[]>([]);
-  const [selectedSkillId, setSelectedSkillId] = useState<string>("FREE_TEXT");
-
-  // Search inputs
-  const [query, setQuery] = useState<string>("privacy academic integrity");
-  const [k, setK] = useState<number>(5);
-  const [selectedDocId, setSelectedDocId] = useState<string>("ALL");
-
-  // Results (shared UI list for simplicity)
-  const [searchMsg, setSearchMsg] = useState<string>("");
-  const [evidence, setEvidence] = useState<EvidenceItem[]>([]);
-  const [searching, setSearching] = useState<boolean>(false);
-  const [generatedQuery, setGeneratedQuery] = useState<string>("");
-
-  async function refreshDocs() {
-    setLoadingDocs(true);
-    try {
-      const res = await fetch(`${apiBase}/documents?limit=50`);
-      const data = await res.json();
-      setDocs(data.items || []);
-    } catch {
-      // ignore
-    } finally {
-      setLoadingDocs(false);
-    }
-  }
-
-  async function refreshSkills() {
-    try {
-      const res = await fetch(`${apiBase}/skills`);
-      const data = await res.json();
-      setSkills(data.items || []);
-    } catch {
-      // ignore
-    }
-  }
-
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  
   useEffect(() => {
-    fetch(`${apiBase}/health`)
-      .then((r) => r.json())
-      .then((data) => setStatus(data?.ok ? "API ok ✅" : "API not ok ❌"))
-      .catch(() => setStatus("API unreachable ❌"));
-
-    refreshDocs();
-    refreshSkills();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const docOptions = useMemo(() => {
-    return [
-      { value: "ALL", label: "All documents" },
-      ...docs.map((d) => ({
-        value: d.doc_id,
-        label: `${d.filename} [${d.doc_type || "demo"}] (${d.doc_id.slice(0, 8)}…)`,
-      })),
-    ];
-  }, [docs]);
-
-  const skillOptions = useMemo(() => {
-    return [
-      { value: "FREE_TEXT", label: "Free text (manual query)" },
-      ...skills.map((s) => ({
-        value: s.skill_id,
-        label: `${s.canonical_name} (${s.skill_id})`,
-      })),
-    ];
-  }, [skills]);
-
-  async function onUpload() {
-    setUploadMsg("");
-    if (!file) {
-      setUploadMsg("Please choose a file first.");
-      return;
+    setMounted(true);
+    // Check if user is logged in
+    const user = localStorage.getItem('user');
+    if (user) {
+      const userData = JSON.parse(user);
+      router.push(userData.role === 'admin' ? '/admin' : '/dashboard');
+    } else {
+      router.push('/login');
     }
-    const form = new FormData();
-    form.append("doc_type", docType);
-    form.append("file", file);
-
-    try {
-      const res = await fetch(`${apiBase}/documents/upload`, {
-        method: "POST",
-        body: form,
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setUploadMsg(`Upload failed: ${data?.detail || `HTTP ${res.status}`}`);
-        return;
-      }
-      setUploadMsg(`Uploaded ✅ doc_id=${data.doc_id}`);
-      setFile(null);
-      await refreshDocs();
-    } catch (e: any) {
-      setUploadMsg(`Upload error: ${String(e.message || e)}`);
-    }
-  }
-
-  async function runVectorSearch() {
-    setSearchMsg("");
-    setEvidence([]);
-    setGeneratedQuery("");
-    setSearching(true);
-
-    try {
-      const docScope = selectedDocId !== "ALL" ? selectedDocId : undefined;
-
-      const body: any = { k };
-      if (selectedSkillId === "FREE_TEXT") {
-        const q = query.trim();
-        if (!q) {
-          setSearchMsg("Please enter a query first.");
-          setSearching(false);
-          return;
-        }
-        body.query_text = q;
-      } else {
-        body.skill_id = selectedSkillId;
-      }
-      if (docScope) body.doc_id = docScope;
-
-      // NOTE: demo uses staff headers; later we can wire a real login/role picker UI.
-      const res = await fetch(`${apiBase}/search/evidence_vector`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Subject-Id": "staff_demo",
-          "X-Role": "staff",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setSearchMsg(`Vector search failed: ${data?.detail || `HTTP ${res.status}`}`);
-        return;
-      }
-      setEvidence(data.items || []);
-      if (data.query_text) setGeneratedQuery(data.query_text);
-      if ((data.items || []).length === 0) setSearchMsg("No vector hits. Try reindex or different query.");
-    } catch (e: any) {
-      setSearchMsg(`Vector search error: ${String(e.message || e)}`);
-    } finally {
-      setSearching(false);
-    }
-  }
+  }, [router]);
 
   return (
-    <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 980 }}>
-      <h1 style={{ fontSize: 28, marginBottom: 8 }}>SkillSight running</h1>
-      <p style={{ marginBottom: 12 }}>
-        Backend status: <b>{status}</b>
-      </p>
-      <p style={{ marginBottom: 24, color: "#666" }}>API base: {apiBase}</p>
+    <div style={{ 
+      minHeight: '100vh', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      background: `
+        radial-gradient(ellipse at 20% 20%, rgba(249, 206, 156, 0.4) 0%, transparent 50%),
+        radial-gradient(ellipse at 80% 80%, rgba(201, 221, 227, 0.4) 0%, transparent 50%),
+        radial-gradient(ellipse at 50% 50%, rgba(225, 129, 130, 0.2) 0%, transparent 50%),
+        linear-gradient(135deg, #BBCFC3 0%, #C9DDE3 50%, #F9CE9C 100%)
+      `,
+      position: 'relative',
+      overflow: 'hidden'
+    }}>
+      {/* Animated background elements */}
+      <div style={{
+        position: 'absolute',
+        top: '-50%',
+        left: '-50%',
+        width: '200%',
+        height: '200%',
+        background: `
+          radial-gradient(circle at 30% 30%, rgba(249, 206, 156, 0.3) 0%, transparent 30%),
+          radial-gradient(circle at 70% 70%, rgba(201, 221, 227, 0.3) 0%, transparent 30%)
+        `,
+        animation: 'floatBg 20s ease-in-out infinite',
+        pointerEvents: 'none'
+      }} />
 
-      {/* Vector Evidence Search */}
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 24 }}>
-        <h2 style={{ fontSize: 18, marginBottom: 10 }}>Vector evidence search (Decision 1)</h2>
-        <div style={{ color: "#666", fontSize: 13, marginBottom: 12 }}>
-          Uses embeddings + Qdrant to retrieve Top-K chunks. (Demo calls as staff.)
-        </div>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
-          <select
-            value={selectedSkillId}
-            onChange={(e) => setSelectedSkillId(e.target.value)}
-            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 360 }}
-          >
-            {skillOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            disabled={selectedSkillId !== "FREE_TEXT"}
-            placeholder="Query text (only for Free text mode)"
-            style={{ flex: "1 1 320px", padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-          />
-
-          <select
-            value={selectedDocId}
-            onChange={(e) => setSelectedDocId(e.target.value)}
-            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 260 }}
-          >
-            {docOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ color: "#666" }}>Top K:</span>
-            <input
-              type="number"
-              value={k}
-              onChange={(e) => setK(Number(e.target.value))}
-              min={1}
-              max={50}
-              style={{ width: 80, padding: 8, border: "1px solid #ccc", borderRadius: 6 }}
-            />
+      <div style={{ 
+        textAlign: 'center', 
+        color: '#1C1917',
+        zIndex: 1,
+        opacity: mounted ? 1 : 0,
+        transform: mounted ? 'translateY(0)' : 'translateY(20px)',
+        transition: 'all 0.6s ease'
+      }}>
+        <div style={{ 
+          marginBottom: '1.5rem',
+          display: 'flex',
+          justifyContent: 'center'
+        }}>
+          <div style={{
+            background: 'rgba(255,255,255,0.9)',
+            borderRadius: '24px',
+            padding: '1rem',
+            boxShadow: '0 8px 32px -8px rgba(225, 129, 130, 0.4)'
+          }}>
+            <SkillSightLogo size={80} />
           </div>
-
-          <button onClick={runVectorSearch} disabled={searching} style={{ padding: "8px 14px", cursor: "pointer" }}>
-            {searching ? "Searching..." : "Search (Vector)"}
-          </button>
         </div>
-
-        {generatedQuery && (
-          <div style={{ marginBottom: 8, color: "#666", fontSize: 13 }}>
-            query_text: {generatedQuery}
-          </div>
-        )}
-
-        {searchMsg && <div style={{ marginTop: 8, color: "crimson" }}>{searchMsg}</div>}
-
-        {evidence.length > 0 && (
-          <div style={{ marginTop: 14 }}>
-            <h3 style={{ fontSize: 16, marginBottom: 10 }}>Top evidence</h3>
-            <ul style={{ paddingLeft: 16 }}>
-              {evidence.map((ev) => (
-                <li key={ev.chunk_id} style={{ marginBottom: 12 }}>
-                  <div style={{ marginBottom: 4 }}>
-                    <b>score={ev.score.toFixed(3)}</b>{" "}
-                    <span style={{ color: "#666" }}>
-                      (doc {ev.doc_id.slice(0, 8)}…, chunk {ev.idx})
-                    </span>
-                  </div>
-                  {ev.section_path && (
-                    <div style={{ color: "#666", fontSize: 12, marginBottom: 4 }}>
-                      section: {ev.section_path}
-                    </div>
-                  )}
-                  {ev.page_start && (
-                    <div style={{ color: "#666", fontSize: 12, marginBottom: 4 }}>
-                      pages: {ev.page_start}-{ev.page_end}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 13, color: "#333", marginBottom: 4 }}>{ev.snippet}</div>
-                  <div style={{ fontSize: 13 }}>
-                    <Link href={`/documents/${ev.doc_id}`} style={{ textDecoration: "underline" }}>
-                      Open document chunks →
-                    </Link>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </section>
-
-      {/* Upload */}
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 24 }}>
-        <h2 style={{ fontSize: 18, marginBottom: 12 }}>Upload a document</h2>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <select
-            value={docType}
-            onChange={(e) => setDocType(e.target.value)}
-            style={{ padding: 8, border: "1px solid #ccc", borderRadius: 6, minWidth: 160 }}
-          >
-            <option value="demo">demo</option>
-            <option value="synthetic">synthetic</option>
-            <option value="real">real</option>
-          </select>
-
-          <input type="file" accept=".txt,.docx,.pdf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-
-          <button onClick={onUpload} style={{ padding: "6px 12px", cursor: "pointer" }}>
-            Upload
-          </button>
+        <h1 style={{ 
+          fontSize: '2.5rem', 
+          marginBottom: '0.5rem',
+          fontWeight: 700
+        }}>SkillSight</h1>
+        <p style={{ 
+          opacity: 0.7,
+          fontSize: '1rem'
+        }}>HKU Skills-to-Jobs Transparency System</p>
+        <div style={{
+          marginTop: '2rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '0.5rem'
+        }}>
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: '#E18182',
+            animation: 'loadingDot 1.4s infinite ease-in-out both',
+            animationDelay: '0s'
+          }} />
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: '#F9CE9C',
+            animation: 'loadingDot 1.4s infinite ease-in-out both',
+            animationDelay: '0.16s'
+          }} />
+          <div style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            background: '#BBCFC3',
+            animation: 'loadingDot 1.4s infinite ease-in-out both',
+            animationDelay: '0.32s'
+          }} />
         </div>
+      </div>
 
-        <div style={{ marginTop: 12, color: uploadMsg.includes("failed") ? "crimson" : "#111" }}>{uploadMsg}</div>
-        <div style={{ marginTop: 8, color: "#666", fontSize: 13 }}>
-          Note: strict consent flow may require consent/start + token upload depending on backend mode.
-        </div>
-      </section>
+      {/* HKU 115 Anniversary Watermark */}
+      <div style={{
+        position: 'fixed',
+        bottom: '20px',
+        right: '20px',
+        opacity: 0.9,
+        zIndex: 50,
+        transition: 'all 0.3s ease',
+        cursor: 'pointer'
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.opacity = '1';
+        e.currentTarget.style.transform = 'scale(1.05)';
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.opacity = '0.9';
+        e.currentTarget.style.transform = 'scale(1)';
+      }}
+      >
+        <img 
+          src="/hku-115.svg" 
+          alt="HKU 115th Anniversary"
+          style={{
+            maxWidth: '180px',
+            height: 'auto',
+            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))'
+          }}
+        />
+      </div>
 
-      {/* Recent uploads */}
-      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16 }}>
-        <h2 style={{ fontSize: 18, marginBottom: 12 }}>Recent uploads</h2>
-
-        <button onClick={refreshDocs} style={{ padding: "6px 12px", cursor: "pointer" }}>
-          Refresh
-        </button>
-
-        {loadingDocs && <p style={{ color: "#666" }}>Loading...</p>}
-        {!loadingDocs && docs.length === 0 && <p style={{ color: "#666" }}>No documents yet.</p>}
-
-        {!loadingDocs && docs.length > 0 && (
-          <ul style={{ marginTop: 12 }}>
-            {docs.map((d) => (
-              <li key={d.doc_id} style={{ marginBottom: 10 }}>
-                <div>
-                  <b>{d.filename}</b> <span style={{ color: "#666" }}>[{d.doc_type || "demo"}]</span>
-                </div>
-                <div style={{ color: "#666", fontSize: 13 }}>
-                  doc_id:{" "}
-                  <Link href={`/documents/${d.doc_id}`} style={{ textDecoration: "underline" }}>
-                    {d.doc_id}
-                  </Link>
-                </div>
-                <div style={{ color: "#666", fontSize: 13 }}>created_at: {d.created_at}</div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </main>
+      <style jsx>{`
+        @keyframes loadingDot {
+          0%, 80%, 100% {
+            transform: scale(0.6);
+            opacity: 0.5;
+          }
+          40% {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        @keyframes floatBg {
+          0%, 100% { transform: translate(0, 0) rotate(0deg); }
+          33% { transform: translate(2%, 2%) rotate(1deg); }
+          66% { transform: translate(-1%, 1%) rotate(-1deg); }
+        }
+      `}</style>
+    </div>
   );
 }

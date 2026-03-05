@@ -69,6 +69,98 @@ def diff_role_readiness(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str,
         "has_change": summary_changed or len(item_changes) > 0,
     }
 
+
+def diff_skill_assessment(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Change summary for Decision 2 canonical results.
+    Expected fields: decision/label, evidence_chunk_ids (optional).
+    """
+    prev_label = (prev or {}).get("decision") or (prev or {}).get("label")
+    curr_label = (curr or {}).get("decision") or (curr or {}).get("label")
+    prev_e = (prev or {}).get("evidence_chunk_ids") or []
+    curr_e = (curr or {}).get("evidence_chunk_ids") or []
+    return {
+        "from": {"label": prev_label, "evidence_chunk_ids": prev_e},
+        "to": {"label": curr_label, "evidence_chunk_ids": curr_e},
+        "has_change": prev_label != curr_label or prev_e != curr_e,
+    }
+
+
+def diff_skill_proficiency(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Change summary for Decision 3 canonical results.
+    Expected fields: level/label, matched_criteria (optional), evidence_chunk_ids (optional).
+    """
+    prev_level = (prev or {}).get("level")
+    curr_level = (curr or {}).get("level")
+    prev_label = (prev or {}).get("label")
+    curr_label = (curr or {}).get("label")
+    prev_c = (prev or {}).get("matched_criteria") or []
+    curr_c = (curr or {}).get("matched_criteria") or []
+    prev_e = (prev or {}).get("evidence_chunk_ids") or []
+    curr_e = (curr or {}).get("evidence_chunk_ids") or []
+    return {
+        "from": {"level": prev_level, "label": prev_label, "matched_criteria": prev_c, "evidence_chunk_ids": prev_e},
+        "to": {"level": curr_level, "label": curr_label, "matched_criteria": curr_c, "evidence_chunk_ids": curr_e},
+        "has_change": prev_level != curr_level or prev_label != curr_label or prev_c != curr_c or prev_e != curr_e,
+    }
+
+
+def diff_action_recommendations(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+    prev_cards = (prev or {}).get("action_cards") or []
+    curr_cards = (curr or {}).get("action_cards") or []
+    return {
+        "from": {"action_cards_count": len(prev_cards)},
+        "to": {"action_cards_count": len(curr_cards)},
+        "has_change": len(prev_cards) != len(curr_cards),
+    }
+
+
+def diff_skill_assessment(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Change summary for Decision 2 canonical results.
+    Expected fields: decision/label, evidence_chunk_ids (optional).
+    """
+    prev_label = (prev or {}).get("decision") or (prev or {}).get("label")
+    curr_label = (curr or {}).get("decision") or (curr or {}).get("label")
+    prev_e = (prev or {}).get("evidence_chunk_ids") or []
+    curr_e = (curr or {}).get("evidence_chunk_ids") or []
+    return {
+        "from": {"label": prev_label, "evidence_chunk_ids": prev_e},
+        "to": {"label": curr_label, "evidence_chunk_ids": curr_e},
+        "has_change": prev_label != curr_label or prev_e != curr_e,
+    }
+
+
+def diff_skill_proficiency(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Change summary for Decision 3 canonical results.
+    Expected fields: level/label, matched_criteria (optional), evidence_chunk_ids (optional).
+    """
+    prev_level = (prev or {}).get("level")
+    curr_level = (curr or {}).get("level")
+    prev_label = (prev or {}).get("label")
+    curr_label = (curr or {}).get("label")
+    prev_c = (prev or {}).get("matched_criteria") or []
+    curr_c = (curr or {}).get("matched_criteria") or []
+    prev_e = (prev or {}).get("evidence_chunk_ids") or []
+    curr_e = (curr or {}).get("evidence_chunk_ids") or []
+    return {
+        "from": {"level": prev_level, "label": prev_label, "matched_criteria": prev_c, "evidence_chunk_ids": prev_e},
+        "to": {"level": curr_level, "label": curr_label, "matched_criteria": curr_c, "evidence_chunk_ids": curr_e},
+        "has_change": prev_level != curr_level or prev_label != curr_label or prev_c != curr_c or prev_e != curr_e,
+    }
+
+
+def diff_action_recommendations(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+    prev_cards = (prev or {}).get("action_cards") or []
+    curr_cards = (curr or {}).get("action_cards") or []
+    return {
+        "from": {"action_cards_count": len(prev_cards)},
+        "to": {"action_cards_count": len(curr_cards)},
+        "has_change": len(prev_cards) != len(curr_cards),
+    }
+
 def list_changes(engine: Engine, doc_id: Optional[str], limit: int = 20):
     ensure_change_table(engine)
     limit = max(1, min(limit, 200))

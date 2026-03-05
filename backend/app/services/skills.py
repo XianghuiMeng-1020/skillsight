@@ -30,7 +30,7 @@ def upsert_skill(db: Session, payload: dict) -> bool:
 
     db.query(SkillAlias).filter(SkillAlias.skill_id == skill_id).delete()
     for a in (payload.get("aliases") or []):
-        db.add(SkillAlias(skill_id=skill_id, alias=a, source=payload.get("source","manual"), confidence="high"))
+        db.add(SkillAlias(skill_id=skill_id, alias=a, source=payload.get("source","manual"), confidence=0.9))
     return created
 
 def search_skills(db: Session, q: str, limit: int = 50):

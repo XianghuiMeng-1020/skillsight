@@ -3,32 +3,61 @@ backend/.venv/
 **/__pycache__/
 **/*.pyc
 backend/.env
+backend/.env.*
+!backend/.env.example
 
 # Upload artifacts
 backend/uploads/
+
 # Node / Next.js
 web/node_modules/
 web/.next/
+web/out/
 web/.env.local
+
 # OS
 .DS_Store
-# local logs
-logs/
-# backups created by patch scripts
-*.bak.*
-backend/**/*.bak.*
-backend/**/env.py.bak.*
-backend/**/main.py.bak.*
-# python
-__pycache__/
-*.pyc
-# venv
-.venv/
-*.bak
-*.bak_*
+Thumbs.db
 
-# web local / generated (keep repo clean)
+# Logs
+logs/
+*.log
+
+# Auto-generated audit reports
+reports/
+
+# Backups
+*.bak
+*.bak.*
+*.bak_*
+backend/**/*.bak.*
+
+# Venv
+.venv/
+
+# Docs & text artifacts (keep repo lean)
+artifacts/
+SUMMARY.md
+docs/*.md
+!docs/DEPLOYMENT.md
+!docs/FEATURES.md
+*.txt
+!backend/requirements.txt
+!web/tests/**/*.txt
+1%
+
+# web local / generated
 web/backend/
 web/docs/
 web/scripts/
-web/src/app/admin/
+
+# Test results
+web/test-results/
+web/playwright-report/
+web/blob-report/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
