@@ -180,9 +180,9 @@ def list_documents(
             total = db.execute(
                 text("""
                     SELECT COUNT(*) FROM documents d
-                    WHERE d.doc_id IN (
+                    WHERE d.doc_id::text IN (
                         SELECT doc_id FROM consents
-                        WHERE (subject_id = :sub OR user_id = :sub) AND status = 'granted'
+                        WHERE user_id = :sub AND status = 'granted'
                     )
                 """),
                 {"sub": ident.subject_id},
@@ -200,9 +200,9 @@ def list_documents(
         else:
             sql = text(f"""
                 SELECT {', '.join(want)} FROM documents d
-                WHERE d.doc_id IN (
+                WHERE d.doc_id::text IN (
                     SELECT doc_id FROM consents
-                    WHERE (subject_id = :sub OR user_id = :sub) AND status = 'granted'
+                    WHERE user_id = :sub AND status = 'granted'
                 ){order} LIMIT :limit OFFSET :offset
             """)
             rows = db.execute(sql, {"sub": ident.subject_id, "limit": limit, "offset": offset}).mappings().all()
