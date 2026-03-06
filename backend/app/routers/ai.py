@@ -155,7 +155,7 @@ def _get_chunks_for_doc(db: Session, doc_id: str, limit: int = 100) -> List[Dict
     return [dict(r) for r in rows]
 
 
-def _search_relevant_chunks(skill_text: str, doc_id: str, k: int = 5, min_score: float = 0.2) -> List[Dict[str, Any]]:
+def _search_relevant_chunks(skill_text: str, doc_id: str, k: int = 5, min_score: float = 0.1) -> List[Dict[str, Any]]:
     """Use vector search to find relevant chunks for a skill in a document."""
     get_client, search = _get_vector_store()
     embed_texts = _get_embeddings()
@@ -372,11 +372,12 @@ def ai_demonstration(
     # Get relevant evidence chunks via vector search
     chunks = _search_relevant_chunks(skill_text, req.doc_id, k=req.k, min_score=req.min_score)
     
-    # If no chunks from vector search, try DB fallback
+    # If no chunks from vector search, try DB fallback with more chunks
     if not chunks:
-        db_chunks = _get_chunks_for_doc(db, req.doc_id, limit=req.k)
-        chunks = [{"chunk_id": str(c["chunk_id"]), "snippet": c.get("snippet", ""), 
-                   "section_path": c.get("section_path"), "page_start": c.get("page_start")} 
+        db_chunks = _get_chunks_for_doc(db, req.doc_id, limit=max(req.k, 20))
+        chunks = [{"chunk_id": str(c["chunk_id"]),
+                   "snippet": c.get("chunk_text") or c.get("snippet", ""),
+                   "section_path": c.get("section_path"), "page_start": c.get("page_start")}
                   for c in db_chunks]
     
     valid_chunk_ids = [c["chunk_id"] for c in chunks if c.get("chunk_id")]
@@ -467,9 +468,10 @@ def ai_proficiency(
     
     # Fallback to DB if vector search empty
     if not chunks:
-        db_chunks = _get_chunks_for_doc(db, req.doc_id, limit=req.k)
-        chunks = [{"chunk_id": str(c["chunk_id"]), "snippet": c.get("snippet", ""), 
-                   "section_path": c.get("section_path"), "page_start": c.get("page_start")} 
+        db_chunks = _get_chunks_for_doc(db, req.doc_id, limit=max(req.k, 20))
+        chunks = [{"chunk_id": str(c["chunk_id"]),
+                   "snippet": c.get("chunk_text") or c.get("snippet", ""),
+                   "section_path": c.get("section_path"), "page_start": c.get("page_start")}
                   for c in db_chunks]
     
     valid_chunk_ids = [c["chunk_id"] for c in chunks if c.get("chunk_id")]
