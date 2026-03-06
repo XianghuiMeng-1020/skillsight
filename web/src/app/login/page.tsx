@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/lib/contexts';
+import { devLogin, type BffRole } from '@/lib/bffClient';
 
 // SkillSight Logo Component
 const SkillSightLogo = ({ size = 48 }: { size?: number }) => (
@@ -40,36 +41,37 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<'student' | 'admin'>('student');
 
-  const handleHKULogin = () => {
+  const [error, setError] = useState('');
+
+  const doLogin = async (subjectId: string, displayName: string, emailAddr: string) => {
     setLoading(true);
-    // Simulate SSO login - in production this would redirect to HKU SSO
-    setTimeout(() => {
+    setError('');
+    try {
+      const bffRole: BffRole = role === 'admin' ? 'admin' : 'student';
+      await devLogin({ subject_id: subjectId, role: bffRole, ttl_s: 86400 });
       localStorage.setItem('user', JSON.stringify({
-        id: 'hku_demo_user',
-        name: 'Demo Student',
-        email: 'demo@connect.hku.hk',
-        role: role,
-        avatar: 'DS'
+        id: subjectId,
+        name: displayName,
+        email: emailAddr,
+        role: bffRole,
+        avatar: displayName[0].toUpperCase()
       }));
       router.push(role === 'admin' ? '/admin' : '/dashboard');
-    }, 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+      setLoading(false);
+    }
+  };
+
+  const handleHKULogin = () => {
+    doLogin('hku_demo_user', 'Demo Student', 'demo@connect.hku.hk');
   };
 
   const handleEmailLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
-    
-    setLoading(true);
-    setTimeout(() => {
-      localStorage.setItem('user', JSON.stringify({
-        id: 'email_user',
-        name: email.split('@')[0],
-        email: email,
-        role: role,
-        avatar: email[0].toUpperCase()
-      }));
-      router.push(role === 'admin' ? '/admin' : '/dashboard');
-    }, 1000);
+    const name = email.split('@')[0];
+    doLogin(`email_${name}`, name, email);
   };
 
   return (
@@ -157,6 +159,7 @@ export default function LoginPage() {
           </button>
         </form>
 
+        {error && <p style={{ color: '#E18182', fontSize: '0.875rem', marginTop: '0.5rem' }}>{error}</p>}
         <p className="login-help">
           {t('login.needHelp')} <a href="mailto:support@hku.hk" style={{ color: '#E18182' }}>{t('login.contactUs')}</a>
         </p>
