@@ -88,5 +88,5 @@ services:
 
 databases:
   - name: skillsight-db
-    plan: starter
+    plan: free
     postgresMajorVersion: "16"
