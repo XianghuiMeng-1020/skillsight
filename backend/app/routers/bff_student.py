@@ -96,13 +96,10 @@ class DevLoginReq(BaseModel):
 
 
 @router.post("/auth/dev_login")
-async def bff_dev_login(payload: DevLoginReq):
-    """BFF proxy to /auth/dev_login (dev / test only)."""
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.post(f"{_BASE}/auth/dev_login", json=payload.model_dump(), timeout=10)
-    if r.status_code != 200:
-        raise HTTPException(status_code=r.status_code, detail=r.json())
-    return r.json()
+def bff_dev_login(payload: DevLoginReq):
+    """Direct token issuance (no internal HTTP call)."""
+    token = issue_token(payload.subject_id, payload.role, ttl_s=int(payload.ttl_s))
+    return {"token": token, "subject_id": payload.subject_id, "role": payload.role}
 
 
 # ─── Document List (consent-scoped) ────────────────────────────────────────────
@@ -150,18 +147,14 @@ def bff_list_documents(
 # ─── Skills (read-only registry via BFF) ───────────────────────────────────────
 
 @router.get("/skills")
-async def bff_list_skills(
+def bff_list_skills(
     limit: int = 10,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    """Proxy to skill registry (read-only)."""
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.get(f"{_BASE}/skills?limit={min(limit, 100)}", headers={"Authorization": f"Bearer {internal_token}"}, timeout=10)
-    if r.status_code != 200:
-        raise HTTPException(status_code=r.status_code, detail=r.text)
-    data = r.json()
+    """Direct DB query to skill registry (no internal HTTP call)."""
+    from backend.app.routers.skills import list_or_search
+    data = list_or_search(q=None, limit=min(limit, 100), db=db)
     log_audit(
         engine,
         subject_id=ident.subject_id,
@@ -175,18 +168,14 @@ async def bff_list_skills(
 # ─── Roles (read-only role library via BFF) ────────────────────────────────────
 
 @router.get("/roles")
-async def bff_list_roles(
+def bff_list_roles(
     limit: int = 20,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    """Proxy to role library (read-only)."""
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.get(f"{_BASE}/roles?limit={min(limit, 100)}", headers={"Authorization": f"Bearer {internal_token}"}, timeout=10)
-    if r.status_code != 200:
-        raise HTTPException(status_code=r.status_code, detail=r.text)
-    data = r.json()
+    """Direct DB query to role library (no internal HTTP call)."""
+    from backend.app.routers.roles import list_roles
+    data = list_roles(limit=min(limit, 100), db=db)
     log_audit(
         engine,
         subject_id=ident.subject_id,
@@ -632,16 +621,20 @@ async def bff_student_profile(
 
     recent_assessment_events: List[Dict[str, Any]] = []
     try:
-        internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-        async with httpx.AsyncClient(trust_env=False) as client:
-            r = await client.get(
-                f"{_BASE}/interactive/users/{subject}/recent_updates?limit=6",
-                headers={"Authorization": f"Bearer {internal_token}"},
-                timeout=20,
-            )
-        if r.status_code == 200:
-            payload = r.json()
-            recent_assessment_events = payload.get("assessment_events") or payload.get("items") or []
+        rows = db.execute(
+            text("""
+                SELECT session_id, assessment_type, skill_id, status, created_at, completed_at
+                FROM assessment_sessions
+                WHERE user_id = :uid
+                ORDER BY created_at DESC LIMIT 6
+            """),
+            {"uid": subject},
+        ).mappings().all()
+        recent_assessment_events = [dict(r) for r in rows]
+        for evt in recent_assessment_events:
+            for k in ("created_at", "completed_at"):
+                if evt.get(k) and hasattr(evt[k], "isoformat"):
+                    evt[k] = evt[k].isoformat()
     except Exception:
         recent_assessment_events = []
 
@@ -656,37 +649,44 @@ async def bff_student_profile(
 
 
 @router.get("/assessments/recent")
-async def bff_recent_assessment_updates(
+def bff_recent_assessment_updates(
     limit: int = 10,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
     """
-    Student-facing recent interactive assessments with linked skill updates.
+    Student-facing recent interactive assessments (direct DB query).
     Gracefully returns empty list if assessment tables don't exist yet.
     """
     try:
-        internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-        async with httpx.AsyncClient(trust_env=False) as client:
-            r = await client.get(
-                f"{_BASE}/interactive/users/{ident.subject_id}/recent_updates?limit={max(1, min(limit, 50))}",
-                headers={"Authorization": f"Bearer {internal_token}"},
-                timeout=30,
-            )
-        if r.status_code != 200:
-            return {"count": 0, "assessment_events": [], "items": []}
+        safe_limit = max(1, min(limit, 50))
+        rows = db.execute(
+            text("""
+                SELECT session_id, assessment_type, skill_id, status, created_at, completed_at
+                FROM assessment_sessions
+                WHERE user_id = :uid
+                ORDER BY created_at DESC LIMIT :lim
+            """),
+            {"uid": ident.subject_id, "lim": safe_limit},
+        ).mappings().all()
 
-        data = r.json()
+        events = []
+        for r in rows:
+            evt = dict(r)
+            for k in ("created_at", "completed_at"):
+                if evt.get(k) and hasattr(evt[k], "isoformat"):
+                    evt[k] = evt[k].isoformat()
+            events.append(evt)
+
         log_audit(
             engine,
             subject_id=ident.subject_id,
             action="bff.student.assessments.recent",
             object_type="assessment",
             status="ok",
-            detail={"count": int(data.get("count", 0))},
+            detail={"count": len(events)},
         )
-        events = data.get("assessment_events") or data.get("items") or []
-        return {**data, "assessment_events": events, "items": events}
+        return {"count": len(events), "assessment_events": events, "items": events}
     except Exception:
         return {"count": 0, "assessment_events": [], "items": []}
 
