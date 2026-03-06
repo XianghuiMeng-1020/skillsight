@@ -225,22 +225,16 @@ async def bff_upload_document(
             },
         )
 
-    file_bytes = await file.read()
-    # Forward a short-lived bearer token for internal API call that enforces auth.
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.post(
-            f"{_BASE}/documents/upload_multimodal"
-            f"?user_id={ident.subject_id}&consent=true",
-            files={"file": (file.filename, file_bytes, file.content_type or "application/octet-stream")},
-            headers={"Authorization": f"Bearer {internal_token}"},
-            timeout=120,
-        )
-    if r.status_code != 200:
-        err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
-
-    data = r.json()
+    from backend.app.routers.documents import upload_multimodal_document
+    file.file.seek(0)
+    data = await upload_multimodal_document(
+        file=file,
+        doc_type="demo",
+        user_id=ident.subject_id,
+        consent=True,
+        db=db,
+        ident=ident,
+    )
     doc_id = data.get("doc_id")
 
     if doc_id:
