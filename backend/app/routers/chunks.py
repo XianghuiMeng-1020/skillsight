@@ -60,32 +60,37 @@ def _delete_by_doc_id_via_curl(doc_id: str) -> None:
 def _upsert_via_curl(rows: list, vecs: list) -> None:
     """Fallback: upsert to Qdrant via curl when Python client returns 502."""
     url = _qdrant_url("/collections/chunks_v1/points")
-    points = []
-    for r, v in zip(rows, vecs):
-        points.append({
-            "id": r["chunk_id"],
-            "vector": v,
-            "payload": {
-                "chunk_id": r["chunk_id"],
-                "doc_id": r["doc_id"],
-                "idx": int(r["idx"]),
-                "snippet": r["snippet"],
-                "section_path": r["section_path"],
-                "page_start": r["page_start"],
-                "page_end": r["page_end"],
-                "created_at": str(r["created_at"]),
-            },
-        })
-    body = json.dumps({"points": points})
     headers = _qdrant_curl_headers()
-    result = subprocess.run(
-        ["curl", "-sS", "-X", "PUT", url] + headers + ["-H", "Content-Type: application/json", "-d", body],
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    if result.returncode != 0:
-        raise RuntimeError(f"curl upsert failed: {result.stderr or result.stdout}")
+    BATCH = 20
+    for i in range(0, len(rows), BATCH):
+        batch_rows = rows[i:i + BATCH]
+        batch_vecs = vecs[i:i + BATCH]
+        points = []
+        for r, v in zip(batch_rows, batch_vecs):
+            points.append({
+                "id": r["chunk_id"],
+                "vector": v,
+                "payload": {
+                    "chunk_id": r["chunk_id"],
+                    "doc_id": r["doc_id"],
+                    "idx": int(r["idx"]),
+                    "snippet": r["snippet"],
+                    "section_path": r["section_path"],
+                    "page_start": r["page_start"],
+                    "page_end": r["page_end"],
+                    "created_at": str(r["created_at"]),
+                },
+            })
+        body = json.dumps({"points": points})
+        result = subprocess.run(
+            ["curl", "-sS", "-X", "PUT", url] + headers + ["-H", "Content-Type: application/json", "-d", "@-"],
+            input=body,
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"curl upsert failed: {result.stderr or result.stdout}")
 
 
 @router.get("")
@@ -152,7 +157,6 @@ def embed_document_chunks(
         texts = [r["chunk_text"] for r in rows]
         vecs = embed_texts(texts)
         
-        # Try Python Qdrant client first; fallback to curl when 502 or connection refused
         client = get_client()
         use_curl = False
         if client:
@@ -167,12 +171,8 @@ def embed_document_chunks(
                 }) for r, v in zip(rows, vecs)]
                 if points:
                     upsert_points(client, points)
-            except Exception as e:
-                err_str = str(e).lower()
-                if "502" in err_str or "unexpectedresponse" in type(e).__name__.lower() or "connection refused" in err_str or "connectionrefused" in err_str:
-                    use_curl = True
-                else:
-                    raise
+            except Exception:
+                use_curl = True
         else:
             use_curl = True
         
