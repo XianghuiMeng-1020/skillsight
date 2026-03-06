@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLanguage } from '@/lib/contexts';
+import { useLanguage, LANGUAGES, type Language } from '@/lib/contexts';
 import { devLogin, type BffRole } from '@/lib/bffClient';
 
 // SkillSight Logo Component
@@ -36,7 +36,7 @@ const SkillSightLogo = ({ size = 48 }: { size?: number }) => (
 
 export default function LoginPage() {
   const router = useRouter();
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<'student' | 'admin'>('student');
@@ -76,6 +76,30 @@ export default function LoginPage() {
 
   return (
     <div className="login-page">
+      {/* Language switcher */}
+      <div style={{
+        position: 'fixed', top: '20px', right: '20px', zIndex: 100,
+        display: 'flex', gap: '4px', background: 'rgba(255,255,255,0.9)',
+        borderRadius: '8px', padding: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+        backdropFilter: 'blur(8px)',
+      }}>
+        {LANGUAGES.map((lang) => (
+          <button
+            key={lang.value}
+            onClick={() => setLanguage(lang.value as Language)}
+            style={{
+              padding: '6px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer',
+              fontSize: '0.8rem', fontWeight: language === lang.value ? 700 : 400,
+              background: language === lang.value ? 'linear-gradient(135deg, #E18182, #F9CE9C)' : 'transparent',
+              color: language === lang.value ? 'white' : '#666',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            {lang.short}
+          </button>
+        ))}
+      </div>
+
       <div className="login-card fade-in">
         <div className="login-logo">
           <SkillSightLogo size={48} />
