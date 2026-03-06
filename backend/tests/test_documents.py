@@ -8,7 +8,7 @@ import io
 
 
 class TestDocumentUpload:
-    """Tests for document upload functionality."""
+    """Tests for document upload functionality via /documents/upload_multimodal."""
     
     def test_upload_txt_creates_document(self, client, db):
         """Test that uploading a TXT file creates a document record."""
@@ -16,8 +16,9 @@ class TestDocumentUpload:
         files = {"file": ("test.txt", io.BytesIO(content), "text/plain")}
         
         response = client.post(
-            "/documents/upload?doc_type=demo&user_id=test_user&consent=true",
-            files=files
+            "/documents/upload_multimodal?doc_type=demo&user_id=test_user&consent=true",
+            files=files,
+            headers={"X-Subject-Id": "test_user", "X-Role": "student"},
         )
         
         assert response.status_code == 200
@@ -32,8 +33,9 @@ class TestDocumentUpload:
         files = {"file": ("test.txt", io.BytesIO(content), "text/plain")}
         
         response = client.post(
-            "/documents/upload?doc_type=demo&user_id=test_user&consent=false",
-            files=files
+            "/documents/upload_multimodal?doc_type=demo&user_id=test_user&consent=false",
+            files=files,
+            headers={"X-Subject-Id": "test_user", "X-Role": "student"},
         )
         
         assert response.status_code == 400
@@ -44,8 +46,9 @@ class TestDocumentUpload:
         files = {"file": ("empty.txt", io.BytesIO(b""), "text/plain")}
         
         response = client.post(
-            "/documents/upload?doc_type=demo&user_id=test_user&consent=true",
-            files=files
+            "/documents/upload_multimodal?doc_type=demo&user_id=test_user&consent=true",
+            files=files,
+            headers={"X-Subject-Id": "test_user", "X-Role": "student"},
         )
         
         assert response.status_code == 400
@@ -55,8 +58,9 @@ class TestDocumentUpload:
         files = {"file": ("test.xyz", io.BytesIO(b"content"), "application/octet-stream")}
         
         response = client.post(
-            "/documents/upload?doc_type=demo&user_id=test_user&consent=true",
-            files=files
+            "/documents/upload_multimodal?doc_type=demo&user_id=test_user&consent=true",
+            files=files,
+            headers={"X-Subject-Id": "test_user", "X-Role": "student"},
         )
         
         assert response.status_code == 400
@@ -67,7 +71,7 @@ class TestDocumentChunking:
     
     def test_txt_chunking_by_paragraphs(self):
         """Test that TXT files are chunked by paragraphs."""
-        from app.parsers import parse_txt_to_chunks
+        from backend.app.parsers import parse_txt_to_chunks
         
         content = "First paragraph here.\n\nSecond paragraph here.\n\nThird paragraph here."
         chunks = parse_txt_to_chunks(content, min_chunk_len=10)
@@ -78,7 +82,7 @@ class TestDocumentChunking:
     
     def test_chunk_has_required_fields(self):
         """Test that chunks have all required fields."""
-        from app.parsers import parse_txt_to_chunks
+        from backend.app.parsers import parse_txt_to_chunks
         
         content = "This is a sufficiently long paragraph for testing purposes."
         chunks = parse_txt_to_chunks(content, min_chunk_len=10)
@@ -105,7 +109,7 @@ class TestMultimodalParsing:
     
     def test_code_file_parsing(self):
         """Test that code files are parsed with syntax awareness."""
-        from app.parsers_multimodal import parse_multimodal_file
+        from backend.app.parsers_multimodal import parse_multimodal_file
         
         code_content = b'''def hello():
     """Say hello."""
@@ -127,7 +131,7 @@ def goodbye():
     
     def test_image_without_ocr_returns_placeholder(self):
         """Test that images without OCR return a placeholder."""
-        from app.parsers_multimodal import parse_image_to_chunks
+        from backend.app.parsers_multimodal import parse_image_to_chunks
         
         # Create a minimal PNG header (not a real image)
         fake_image = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100

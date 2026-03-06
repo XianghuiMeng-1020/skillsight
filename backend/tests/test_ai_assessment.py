@@ -10,11 +10,11 @@ import json
 class TestDemonstrationAssessment:
     """Tests for skill demonstration classification (Decision 2)."""
     
-    @patch('backend.app.routers.ai._get_ollama')
-    def test_demonstration_returns_valid_label(self, mock_get_ollama, client, db, sample_document):
+    @patch('backend.app.routers.ai._get_llm')
+    def test_demonstration_returns_valid_label(self, mock_get_llm, client, db, sample_document):
         """Test that demonstration assessment returns a valid label."""
-        # Mock LLM: _get_ollama() returns a callable; that callable is invoked with (model, prompt, ...)
-        mock_get_ollama.return_value = lambda *a, **kw: json.dumps({
+        # Mock LLM: _get_llm() returns a callable; that callable is invoked with (model, prompt, ...)
+        mock_get_llm.return_value = lambda *a, **kw: json.dumps({
             "label": "demonstrated",
             "evidence_chunk_ids": ["chunk_1"],
             "rationale": "The document shows clear evidence of privacy practices.",
@@ -37,10 +37,10 @@ class TestDemonstrationAssessment:
             data = response.json()
             assert data["label"] in ["demonstrated", "mentioned", "not_enough_information"]
     
-    @patch('backend.app.routers.ai._get_ollama')
-    def test_demonstration_requires_evidence_for_positive_labels(self, mock_get_ollama, client, db, sample_document):
+    @patch('backend.app.routers.ai._get_llm')
+    def test_demonstration_requires_evidence_for_positive_labels(self, mock_get_llm, client, db, sample_document):
         """Test that positive labels require evidence chunk IDs."""
-        mock_get_ollama.return_value = lambda *a, **kw: json.dumps({
+        mock_get_llm.return_value = lambda *a, **kw: json.dumps({
             "label": "demonstrated",
             "evidence_chunk_ids": [],  # Invalid - no evidence
             "rationale": "Some reason",
@@ -63,10 +63,10 @@ class TestDemonstrationAssessment:
             # The guardrails should catch this
             pass
     
-    @patch('backend.app.routers.ai._get_ollama')
-    def test_demonstration_refusal_has_reason(self, mock_get_ollama, client, db, sample_document):
+    @patch('backend.app.routers.ai._get_llm')
+    def test_demonstration_refusal_has_reason(self, mock_get_llm, client, db, sample_document):
         """Test that refusal includes a reason."""
-        mock_get_ollama.return_value = lambda *a, **kw: json.dumps({
+        mock_get_llm.return_value = lambda *a, **kw: json.dumps({
             "label": "not_enough_information",
             "evidence_chunk_ids": [],
             "rationale": "Insufficient evidence found.",
@@ -91,10 +91,10 @@ class TestDemonstrationAssessment:
 class TestProficiencyAssessment:
     """Tests for proficiency level assessment (Decision 3)."""
     
-    @patch('backend.app.routers.ai._get_ollama')
-    def test_proficiency_returns_valid_level(self, mock_get_ollama, client, db, sample_document):
+    @patch('backend.app.routers.ai._get_llm')
+    def test_proficiency_returns_valid_level(self, mock_get_llm, client, db, sample_document):
         """Test that proficiency returns a valid level (0-3)."""
-        mock_get_ollama.return_value = lambda *a, **kw: json.dumps({
+        mock_get_llm.return_value = lambda *a, **kw: json.dumps({
             "level": 2,
             "label": "intermediate",
             "evidence_chunk_ids": ["chunk_1"],
@@ -116,10 +116,10 @@ class TestProficiencyAssessment:
             assert data["level"] in [0, 1, 2, 3]
             assert "label" in data
     
-    @patch('backend.app.routers.ai._get_ollama')
-    def test_proficiency_references_rubric(self, mock_get_ollama, client, db, sample_document):
+    @patch('backend.app.routers.ai._get_llm')
+    def test_proficiency_references_rubric(self, mock_get_llm, client, db, sample_document):
         """Test that proficiency references rubric criteria."""
-        mock_get_ollama.return_value = lambda *a, **kw: json.dumps({
+        mock_get_llm.return_value = lambda *a, **kw: json.dumps({
             "level": 2,
             "label": "intermediate",
             "evidence_chunk_ids": ["chunk_1"],
