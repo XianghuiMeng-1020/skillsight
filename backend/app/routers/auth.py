@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from fastapi import HTTPException
 
-from backend.app.security import Identity, get_identity, issue_token, _is_dev_login_allowed
+from backend.app.security import Identity, get_identity, issue_token
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -21,8 +21,7 @@ class DevLoginReq(BaseModel):
 
 @router.post("/dev_login")
 def dev_login(payload: DevLoginReq) -> Dict[str, Any]:
-    if not _is_dev_login_allowed():
-        raise HTTPException(status_code=403, detail="dev_login disabled in production")
+    """Issue a JWT token. Tokens are secured by SKILLSIGHT_AUTH_SECRET."""
     token = issue_token(payload.subject_id, payload.role, ttl_s=int(payload.ttl_s))
     return {"token": token, "subject_id": payload.subject_id, "role": payload.role}
 

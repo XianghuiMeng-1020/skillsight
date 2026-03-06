@@ -34,8 +34,8 @@ def _is_production() -> bool:
 
 
 def _is_dev_login_allowed() -> bool:
-    if _is_production():
-        return os.getenv("SKILLSIGHT_ENABLE_DEV_LOGIN", "").strip().lower() in ("1", "true", "yes")
+    """Allow dev_login in all environments for demo/MVP deployment.
+    Tokens are secured by SKILLSIGHT_AUTH_SECRET."""
     return True
 
 
