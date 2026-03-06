@@ -35,8 +35,12 @@ def _get_openai_client():
 
 
 def _get_st_model():
+    """Load sentence-transformers model. Skipped when OPENAI_API_KEY is set to avoid OOM."""
     global _st_model, _use_fallback
     if _use_fallback:
+        return None
+    if os.getenv("OPENAI_API_KEY", "").strip():
+        _use_fallback = True
         return None
     if _st_model is not None:
         return _st_model
@@ -49,7 +53,7 @@ def _get_st_model():
             from sentence_transformers import SentenceTransformer
             _st_model = SentenceTransformer(ST_MODEL_NAME)
         except (ImportError, Exception) as e:
-            warnings.warn(f"sentence-transformers unavailable: {e}, will try OpenAI or fallback")
+            warnings.warn(f"sentence-transformers unavailable: {e}")
             _use_fallback = True
             return None
     return _st_model
