@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, useRef, DragEvent } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { studentBff, getToken } from '@/lib/bffClient';
@@ -10,6 +11,21 @@ interface UploadResult {
   filename: string;
   chunks_created: number;
 }
+
+const ACCEPTED_FILE_TYPES = [
+  '.txt', '.doc', '.docx', '.pdf', '.pptx', '.ppt', '.rtf', '.odt', '.md', '.markdown',
+  '.xlsx', '.xls', '.csv',
+  '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif', '.gif', '.svg', '.ico', '.heic', '.heif',
+  '.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac',
+  '.py', '.pyw', '.pyi', '.ipynb',
+  '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte',
+  '.html', '.htm', '.css', '.scss', '.sass', '.less',
+  '.java', '.cpp', '.cc', '.cxx', '.c', '.h', '.hpp', '.cs', '.go', '.rs', '.rb', '.php', '.swift', '.kt', '.kts', '.scala', '.r', '.R', '.m', '.mm',
+  '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat', '.cmd',
+  '.json', '.yaml', '.yml', '.xml', '.toml', '.ini', '.cfg', '.conf', '.env', '.sql',
+  '.lua', '.pl', '.pm', '.ex', '.exs', '.erl', '.hrl', '.clj', '.cljs', '.hs', '.lhs', '.elm', '.dart', '.groovy', '.gradle', '.tf', '.proto', '.graphql', '.gql',
+  '.log', '.diff', '.patch',
+].join(',');
 
 export default function UploadPage() {
   const { t } = useLanguage();
@@ -22,13 +38,13 @@ export default function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supportedFormats = [
-    { ext: 'PDF', icon: '📕', desc: 'Reports, papers' },
-    { ext: 'DOCX', icon: '📘', desc: 'Documents' },
-    { ext: 'TXT', icon: '📄', desc: 'Plain text' },
-    { ext: 'PPTX', icon: '📊', desc: 'Presentations' },
-    { ext: 'Images', icon: '🖼️', desc: 'JPG, PNG' },
-    { ext: 'Video', icon: '🎬', desc: 'MP4, recordings' },
-    { ext: 'Code', icon: '💻', desc: 'Python, JS, Java' },
+    { ext: 'Docs', icon: '📄', desc: 'PDF, DOCX, PPTX, MD, RTF, ODT' },
+    { ext: 'Spreadsheets', icon: '📊', desc: 'XLSX, XLS, CSV' },
+    { ext: 'Images', icon: '🖼️', desc: 'JPG, PNG, WEBP, SVG, HEIC' },
+    { ext: 'Media', icon: '🎬', desc: 'MP4, WEBM, MP3, WAV, AAC' },
+    { ext: 'Notebook', icon: '📓', desc: 'IPYNB' },
+    { ext: 'Code', icon: '💻', desc: 'Python, JS/TS, Java, C/C++, Go, Rust, PHP...' },
+    { ext: 'Config', icon: '⚙️', desc: 'JSON, YAML, TOML, XML, ENV, SQL' },
   ];
 
   const handleDrag = (e: DragEvent) => {
@@ -124,6 +140,17 @@ export default function UploadPage() {
         </div>
 
         <div className="page-content">
+          <div className="alert" style={{ marginBottom: '1rem', border: '1px solid var(--gray-200)' }}>
+            <span className="alert-icon">🌟</span>
+            <div className="alert-content">
+              <div className="alert-title">{t('upload.demoRouteTitle')}</div>
+              <p>{t('upload.demoRouteDesc')}</p>
+              <p style={{ marginTop: '0.4rem', fontSize: '0.875rem', color: 'var(--gray-500)' }}>
+                1) {t('dashboard.uploadEvidence')} → 2) {t('dashboard.takeAssessment')} → 3) {t('dashboard.skills')} → 4) {t('dashboard.findJobs')}
+              </p>
+            </div>
+          </div>
+
           {/* Success Message */}
           {results.length > 0 && (
             <div className="alert alert-success fade-in">
@@ -136,6 +163,10 @@ export default function UploadPage() {
                     <li key={i}>&quot;{r.filename}&quot; - {r.chunks_created} {t('upload.sectionsExtracted')}</li>
                   ))}
                 </ul>
+                <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <Link href="/dashboard/skills" className="btn btn-sm btn-ghost">{t('upload.nextViewSkills')}</Link>
+                  <Link href="/dashboard/jobs" className="btn btn-sm btn-ghost">{t('upload.nextViewJobs')}</Link>
+                </div>
               </div>
             </div>
           )}
@@ -173,7 +204,7 @@ export default function UploadPage() {
                     multiple
                     onChange={handleFileSelect}
                     style={{ display: 'none' }}
-                    accept=".pdf,.docx,.doc,.txt,.pptx,.ppt,.jpg,.jpeg,.png,.webp,.mp4,.webm,.mp3,.wav,.py,.js,.ts,.java,.cpp,.c,.go,.rs"
+                    accept={ACCEPTED_FILE_TYPES}
                   />
                   
                   <div className="upload-zone-icon">📁</div>
@@ -213,7 +244,7 @@ export default function UploadPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                       {files.map((file, index) => (
                         <div 
-                          key={index}
+                          key={`${file.name}-${file.size}-${index}`}
                           style={{
                             display: 'flex',
                             alignItems: 'center',

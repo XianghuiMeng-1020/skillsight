@@ -1,42 +1,89 @@
 'use client';
 
+import { useMemo, useState } from 'react';
 import { useTutorial, useLanguage } from '@/lib/contexts';
 
-const tutorialSteps = [
-  {
-    icon: '👋',
-    titleKey: 'tutorial.welcome',
-    descKey: 'tutorial.step1',
-    image: '📤',
-  },
-  {
-    icon: '📝',
-    titleKey: 'assess.title',
-    descKey: 'tutorial.step2',
-    image: '🎙️',
-  },
-  {
-    icon: '📊',
-    titleKey: 'dashboard.skills',
-    descKey: 'tutorial.step3',
-    image: '📈',
-  },
-  {
-    icon: '🎯',
-    titleKey: 'learning.path',
-    descKey: 'tutorial.step4',
-    image: '🚀',
-  },
-];
-
 export function TutorialOverlay() {
-  const { showTutorial, currentStep, totalSteps, nextStep, prevStep, skipTutorial, completeTutorial } = useTutorial();
-  const { t } = useLanguage();
+  const {
+    showTutorial,
+    currentStep,
+    totalSteps,
+    tutorialName,
+    setTutorialName,
+    nextStep,
+    prevStep,
+    skipTutorial,
+    completeTutorial,
+  } = useTutorial();
+  const { t, language, setLanguage } = useLanguage();
+  const [localName, setLocalName] = useState(tutorialName);
+
+  const tutorialSteps = useMemo(
+    () => [
+      {
+        icon: '👋',
+        titleKey: 'tutorial.helloTitle',
+        descKey: 'tutorial.helloDesc',
+        image: '✨',
+      },
+      {
+        icon: '📤',
+        titleKey: 'tutorial.uploadTitle',
+        descKey: 'tutorial.uploadDesc',
+        image: '📁',
+      },
+      {
+        icon: '📝',
+        titleKey: 'tutorial.assessTitle',
+        descKey: 'tutorial.assessDesc',
+        image: '🎙️',
+      },
+      {
+        icon: '📊',
+        titleKey: 'tutorial.profileTitle',
+        descKey: 'tutorial.profileDesc',
+        image: '📈',
+      },
+      {
+        icon: '🧭',
+        titleKey: 'tutorial.routeTitle',
+        descKey: 'tutorial.routeDesc',
+        image: '🚀',
+      },
+    ],
+    []
+  );
 
   if (!showTutorial) return null;
 
   const step = tutorialSteps[currentStep];
   const isLastStep = currentStep === totalSteps - 1;
+  const canContinue = currentStep === 0 ? localName.trim().length > 0 : true;
+
+  const applyName = () => {
+    const trimmed = localName.trim();
+    if (!trimmed) return;
+    setTutorialName(trimmed);
+    try {
+      const rawUser = localStorage.getItem('user');
+      if (!rawUser) return;
+      const parsed = JSON.parse(rawUser) as Record<string, string>;
+      parsed.name = trimmed;
+      parsed.avatar = trimmed.charAt(0).toUpperCase();
+      localStorage.setItem('user', JSON.stringify(parsed));
+    } catch {
+      // keep onboarding flow resilient even if local profile cannot be parsed
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep === 0) applyName();
+    if (isLastStep) {
+      completeTutorial();
+      return;
+    }
+    nextStep();
+  };
 
   return (
     <div style={{
@@ -120,6 +167,64 @@ export function TutorialOverlay() {
           {t(step.descKey)}
         </p>
 
+        {currentStep === 0 && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <label style={{ display: 'block', fontSize: '0.813rem', color: 'var(--gray-600)', marginBottom: '0.375rem' }}>
+              {t('tutorial.nameLabel')}
+            </label>
+            <input
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              placeholder={t('tutorial.namePlaceholder')}
+              maxLength={40}
+              style={{
+                width: '100%',
+                border: '1px solid var(--gray-300)',
+                borderRadius: '10px',
+                padding: '0.625rem 0.75rem',
+                fontSize: '0.95rem',
+                marginBottom: '0.75rem',
+              }}
+            />
+            <label style={{ display: 'block', fontSize: '0.813rem', color: 'var(--gray-600)', marginBottom: '0.375rem' }}>
+              {t('tutorial.languageLabel')}
+            </label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {[
+                { code: 'zh', label: '简中' },
+                { code: 'zh-TW', label: '繁中' },
+                { code: 'en', label: 'EN' },
+              ].map((item) => (
+                <button
+                  key={item.code}
+                  onClick={() => setLanguage(item.code as 'zh' | 'zh-TW' | 'en')}
+                  className="btn btn-sm"
+                  style={{
+                    border: '1px solid var(--gray-200)',
+                    background: language === item.code ? 'var(--coral-light)' : 'var(--white)',
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {currentStep === totalSteps - 1 && (
+          <div style={{
+            background: 'var(--gray-50)',
+            borderRadius: '10px',
+            padding: '0.75rem',
+            marginBottom: '1.25rem',
+            fontSize: '0.875rem',
+            color: 'var(--gray-700)',
+            lineHeight: 1.5,
+          }}>
+            {t('tutorial.routeFlow')}
+          </div>
+        )}
+
         {/* Navigation */}
         <div style={{
           display: 'flex',
@@ -151,8 +256,9 @@ export function TutorialOverlay() {
             )}
             
             <button
-              onClick={isLastStep ? completeTutorial : nextStep}
+              onClick={handleNext}
               className="btn btn-primary"
+              disabled={!canContinue}
             >
               {isLastStep ? t('tutorial.finish') : t('tutorial.next')}
             </button>

@@ -123,6 +123,14 @@ export const translations: Translations = {
   'dashboard.recommendations': { zh: '推荐下一步', 'zh-TW': '推薦下一步', en: 'Recommended Next Steps' },
   'dashboard.viewAll': { zh: '查看全部', 'zh-TW': '查看全部', en: 'View all' },
   'dashboard.refresh': { zh: '刷新列表', 'zh-TW': '重新整理列表', en: 'Refresh list' },
+  'dashboard.statDocsTip': { zh: '你已上传并授权用于评估的证据文档数量', 'zh-TW': '你已上傳並授權用於評估的證據文件數量', en: 'Total evidence documents you have uploaded and authorized' },
+  'dashboard.statVerifiedTip': { zh: '当前已达到较高可信度的技能数量', 'zh-TW': '目前已達到較高可信度的技能數量', en: 'Skills currently assessed with higher confidence' },
+  'dashboard.statProgressTip': { zh: '正在处理中或证据仍不足的技能数量', 'zh-TW': '正在處理中或證據仍不足的技能數量', en: 'Skills in progress or still lacking evidence' },
+  'dashboard.statJobsTip': { zh: '系统基于你的技能档案计算出的匹配职位数量', 'zh-TW': '系統基於你的技能檔案計算出的匹配職位數量', en: 'Number of role matches computed from your skill profile' },
+  'dashboard.actionUploadTip': { zh: '先上传项目、报告、代码或作品，系统会自动提取证据', 'zh-TW': '先上傳專案、報告、程式碼或作品，系統會自動提取證據', en: 'Upload projects, reports, code, or portfolios to extract evidence' },
+  'dashboard.actionAssessTip': { zh: '通过互动评估补充沟通、编程、写作能力证据', 'zh-TW': '透過互動評估補充溝通、程式設計、寫作能力證據', en: 'Use interactive assessments to add communication/coding/writing evidence' },
+  'dashboard.actionJobsTip': { zh: '查看你与目标岗位的差距，并获得改进建议', 'zh-TW': '查看你與目標職位的差距，並獲得改進建議', en: 'See readiness gaps against target roles and get next-step suggestions' },
+  'dashboard.firstTimeHint': { zh: '新手路线：先上传证据，再做评估，最后查看技能档案与职位匹配。', 'zh-TW': '新手路線：先上傳證據，再做評估，最後查看技能檔案與職位匹配。', en: 'Starter route: upload evidence, complete an assessment, then check skills and job matches.' },
 
   // 评估页面
   'assess.title': { zh: '交互式能力评估', 'zh-TW': '互動式能力評估', en: 'Interactive Assessment' },
@@ -342,6 +350,20 @@ export const translations: Translations = {
   'tutorial.step2': { zh: '完成交互式评估来验证你的能力', 'zh-TW': '完成互動式評估來驗證你的能力', en: 'Complete interactive assessments to verify your abilities' },
   'tutorial.step3': { zh: '查看你的技能档案和职位匹配', 'zh-TW': '查看你的技能檔案和職位匹配', en: 'View your skill profile and job matches' },
   'tutorial.step4': { zh: '获取个性化的学习建议', 'zh-TW': '獲取個性化的學習建議', en: 'Get personalized learning recommendations' },
+  'tutorial.helloTitle': { zh: 'Hi，我是 SkillSight！', 'zh-TW': 'Hi，我是 SkillSight！', en: 'Hi, I am SkillSight!' },
+  'tutorial.helloDesc': { zh: '我会帮你把作品和经历转成可验证的技能档案。先设置你的名字和语言，马上开始。', 'zh-TW': '我會幫你把作品和經歷轉成可驗證的技能檔案。先設定你的名字和語言，馬上開始。', en: 'I help convert your work into verifiable skill evidence. Set your name and language to get started.' },
+  'tutorial.uploadTitle': { zh: '先上传技能证据', 'zh-TW': '先上傳技能證據', en: 'Start by Uploading Evidence' },
+  'tutorial.uploadDesc': { zh: '支持文档、代码、图片、音视频、表格和 Notebook。上传后系统会自动解析与分段。', 'zh-TW': '支援文件、程式碼、圖片、音影片、表格與 Notebook。上傳後系統會自動解析與分段。', en: 'Upload docs, code, images, media, spreadsheets, and notebooks. We parse and chunk them automatically.' },
+  'tutorial.assessTitle': { zh: '再做互动评估', 'zh-TW': '再做互動評估', en: 'Then Complete Assessments' },
+  'tutorial.assessDesc': { zh: '通过沟通、编程、写作评估补充证据，让技能结论更稳定。', 'zh-TW': '透過溝通、程式設計、寫作評估補充證據，讓技能結論更穩定。', en: 'Add stronger proof through communication, coding, and writing assessments.' },
+  'tutorial.profileTitle': { zh: '查看技能档案与匹配', 'zh-TW': '查看技能檔案與匹配', en: 'Review Profile and Matches' },
+  'tutorial.profileDesc': { zh: '在技能档案页看每项技能证据，在职位匹配页看就绪度和差距。', 'zh-TW': '在技能檔案頁看每項技能證據，在職位匹配頁看就緒度和差距。', en: 'Inspect skill evidence in profile view and readiness gaps in job matching.' },
+  'tutorial.routeTitle': { zh: '推荐操作路线', 'zh-TW': '推薦操作路線', en: 'Suggested First Route' },
+  'tutorial.routeDesc': { zh: '按这条路线走一遍，你就能快速上手 SkillSight。', 'zh-TW': '按這條路線走一遍，你就能快速上手 SkillSight。', en: 'Follow this short route once and you will get comfortable quickly.' },
+  'tutorial.routeFlow': { zh: '上传证据 -> 参加评估 -> 查看技能档案 -> 查看职位匹配 -> 学习建议', 'zh-TW': '上傳證據 -> 參加評估 -> 查看技能檔案 -> 查看職位匹配 -> 學習建議', en: 'Upload evidence -> Assessments -> Skills profile -> Job matching -> Learning path' },
+  'tutorial.nameLabel': { zh: '你的昵称', 'zh-TW': '你的暱稱', en: 'Your display name' },
+  'tutorial.namePlaceholder': { zh: '例如：Alex / 小明', 'zh-TW': '例如：Alex / 小明', en: 'Example: Alex' },
+  'tutorial.languageLabel': { zh: '选择语言', 'zh-TW': '選擇語言', en: 'Choose language' },
   'tutorial.next': { zh: '下一步', 'zh-TW': '下一步', en: 'Next' },
   'tutorial.prev': { zh: '上一步', 'zh-TW': '上一步', en: 'Previous' },
   'tutorial.skip': { zh: '跳过教程', 'zh-TW': '略過教學', en: 'Skip Tutorial' },
@@ -589,6 +611,10 @@ export const translations: Translations = {
   'upload.dropOrBrowse': { zh: '将文件拖放到此处或点击选择', 'zh-TW': '將文件拖放到此處或點擊選擇', en: 'Drop files here or click to browse' },
   'upload.maxFileSize': { zh: '单个文件最大 20MB', 'zh-TW': '單個文件最大 20MB', en: 'Maximum 20MB per file' },
   'upload.supportedFormats': { zh: '支持格式：', 'zh-TW': '支援格式：', en: 'Supported formats:' },
+  'upload.demoRouteTitle': { zh: '👋 新手示范路线', 'zh-TW': '👋 新手示範路線', en: '👋 Quick Start Route' },
+  'upload.demoRouteDesc': { zh: '不确定从哪里开始？按下面 4 步走一遍，10 分钟内就能看到完整结果。', 'zh-TW': '不確定從哪裡開始？按下面 4 步走一遍，10 分鐘內就能看到完整結果。', en: 'Not sure where to start? Follow this 4-step route and get full results quickly.' },
+  'upload.nextViewSkills': { zh: '下一步：查看技能档案', 'zh-TW': '下一步：查看技能檔案', en: 'Next: View Skills Profile' },
+  'upload.nextViewJobs': { zh: '下一步：查看职位匹配', 'zh-TW': '下一步：查看職位匹配', en: 'Next: View Job Matching' },
   'upload.selectedFiles': { zh: '已选文件', 'zh-TW': '已選文件', en: 'Selected files' },
   'upload.consentCheckbox': { zh: '我同意将这些文件用于技能评估', 'zh-TW': '我同意將這些文件用於技能評估', en: 'I consent to processing these files for skill assessment' },
   'upload.consentWithdraw': { zh: '你可随时在 设置 → 隐私与数据 中撤回同意并删除数据。', 'zh-TW': '你可隨時在 設定 → 隱私與資料 中撤回同意並刪除資料。', en: 'You can withdraw consent and delete your data at any time from Settings → Privacy.' },
@@ -658,6 +684,14 @@ export const translations: Translations = {
   'changelog.loadMore': { zh: '加载更多', 'zh-TW': '載入更多', en: 'Load more' },
   'changelog.navLabel': { zh: '变更日志', 'zh-TW': '變更日誌', en: 'Change Log' },
   'admin.changeLog': { zh: '变更日志', 'zh-TW': '變更日誌', en: 'Change Log' },
+  'nav.hint.dashboard': { zh: '总览你的文档、技能与匹配结果', 'zh-TW': '總覽你的文件、技能與匹配結果', en: 'Overview of your documents, skills, and matches' },
+  'nav.hint.upload': { zh: '上传任意技能证据文件，系统自动解析', 'zh-TW': '上傳任意技能證據文件，系統自動解析', en: 'Upload skill evidence files for automatic parsing' },
+  'nav.hint.skills': { zh: '查看每项技能的证据与等级状态', 'zh-TW': '查看每項技能的證據與等級狀態', en: 'Review evidence and level status for each skill' },
+  'nav.hint.jobs': { zh: '查看岗位匹配与能力差距建议', 'zh-TW': '查看職位匹配與能力差距建議', en: 'See role matches and capability gap guidance' },
+  'nav.hint.assessments': { zh: '完成互动评估增强技能可信度', 'zh-TW': '完成互動評估增強技能可信度', en: 'Complete interactive assessments to strengthen evidence' },
+  'nav.hint.changeLog': { zh: '追踪技能和匹配结果的变化原因', 'zh-TW': '追蹤技能和匹配結果的變化原因', en: 'Track why your skill and readiness results changed' },
+  'nav.hint.settings': { zh: '管理主题、语言和个人偏好', 'zh-TW': '管理主題、語言和個人偏好', en: 'Manage theme, language, and personal preferences' },
+  'nav.hint.privacy': { zh: '查看授权记录并撤回数据使用权限', 'zh-TW': '查看授權記錄並撤回資料使用權限', en: 'Review consents and revoke data permissions' },
 
   // 导出页面
   'export.back': { zh: '← 返回 Skills Profile', 'zh-TW': '← 返回 Skills Profile', en: '← Back to Skills Profile' },
@@ -777,7 +811,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const t = useCallback((key: string): string => {
     const translation = translations[key];
     if (!translation) {
-      console.warn(`Translation missing for key: ${key}`);
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn(`Translation missing for key: ${key}`);
+      }
       return key;
     }
     return translation[language] ?? translation['zh'];
@@ -817,6 +853,8 @@ interface TutorialContextType {
   showTutorial: boolean;
   currentStep: number;
   totalSteps: number;
+  tutorialName: string;
+  setTutorialName: (name: string) => void;
   startTutorial: () => void;
   nextStep: () => void;
   prevStep: () => void;
@@ -829,13 +867,25 @@ const TutorialContext = createContext<TutorialContextType | undefined>(undefined
 export function TutorialProvider({ children }: { children: ReactNode }) {
   const [showTutorial, setShowTutorial] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const totalSteps = 4;
+  const [tutorialName, setTutorialNameState] = useState('');
+  const totalSteps = 5;
 
   useEffect(() => {
     const hasSeenTutorial = localStorage.getItem('skillsight-tutorial-completed');
     const user = localStorage.getItem('user');
+    const savedName = localStorage.getItem('skillsight-onboarding-name');
+    if (savedName) setTutorialNameState(savedName);
     if (!hasSeenTutorial && user) {
       setTimeout(() => setShowTutorial(true), 1000);
+    }
+  }, []);
+
+  const setTutorialName = useCallback((name: string) => {
+    const clean = name.trim();
+    setTutorialNameState(clean);
+    if (typeof localStorage !== 'undefined') {
+      if (clean) localStorage.setItem('skillsight-onboarding-name', clean);
+      else localStorage.removeItem('skillsight-onboarding-name');
     }
   }, []);
 
@@ -872,6 +922,8 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
         showTutorial,
         currentStep,
         totalSteps,
+        tutorialName,
+        setTutorialName,
         startTutorial,
         nextStep,
         prevStep,
@@ -887,7 +939,9 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 const defaultTutorialContext: TutorialContextType = {
   showTutorial: false,
   currentStep: 0,
-  totalSteps: 4,
+  totalSteps: 5,
+  tutorialName: '',
+  setTutorialName: () => {},
   startTutorial: () => {},
   nextStep: () => {},
   prevStep: () => {},

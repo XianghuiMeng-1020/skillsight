@@ -53,17 +53,18 @@ interface User {
 interface NavItem {
   icon: string;
   labelKey: string;
+  hintKey?: string;
   href: string;
   roles?: ('student' | 'admin')[];
 }
 
 const studentNav: NavItem[] = [
-  { icon: '🏠', labelKey: 'nav.dashboard', href: '/dashboard' },
-  { icon: '📤', labelKey: 'dashboard.uploadEvidence', href: '/dashboard/upload' },
-  { icon: '📊', labelKey: 'dashboard.skills', href: '/dashboard/skills' },
-  { icon: '🎯', labelKey: 'dashboard.jobs', href: '/dashboard/jobs' },
-  { icon: '📝', labelKey: 'dashboard.assessments', href: '/dashboard/assessments' },
-  { icon: '📜', labelKey: 'changelog.navLabel', href: '/dashboard/change-log' },
+  { icon: '🏠', labelKey: 'nav.dashboard', hintKey: 'nav.hint.dashboard', href: '/dashboard' },
+  { icon: '📤', labelKey: 'dashboard.uploadEvidence', hintKey: 'nav.hint.upload', href: '/dashboard/upload' },
+  { icon: '📊', labelKey: 'dashboard.skills', hintKey: 'nav.hint.skills', href: '/dashboard/skills' },
+  { icon: '🎯', labelKey: 'dashboard.jobs', hintKey: 'nav.hint.jobs', href: '/dashboard/jobs' },
+  { icon: '📝', labelKey: 'dashboard.assessments', hintKey: 'nav.hint.assessments', href: '/dashboard/assessments' },
+  { icon: '📜', labelKey: 'changelog.navLabel', hintKey: 'nav.hint.changeLog', href: '/dashboard/change-log' },
 ];
 
 const adminNav: NavItem[] = [
@@ -78,8 +79,8 @@ const adminNav: NavItem[] = [
 ];
 
 const settingsNav: NavItem[] = [
-  { icon: '⚙️', labelKey: 'nav.settings', href: '/settings' },
-  { icon: '🔒', labelKey: 'nav.privacy', href: '/settings/privacy' },
+  { icon: '⚙️', labelKey: 'nav.settings', hintKey: 'nav.hint.settings', href: '/settings' },
+  { icon: '🔒', labelKey: 'nav.privacy', hintKey: 'nav.hint.privacy', href: '/settings/privacy' },
 ];
 
 export default function Sidebar() {
@@ -161,6 +162,7 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={`nav-item ${pathname === item.href ? 'active' : ''}`}
+              title={item.hintKey ? t(item.hintKey) : ''}
               onClick={isMobile ? closeMobile : undefined}
             >
               <span className="nav-item-icon">{item.icon}</span>
@@ -176,6 +178,7 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={`nav-item ${pathname === item.href ? 'active' : ''}`}
+              title={item.hintKey ? t(item.hintKey) : ''}
               onClick={isMobile ? closeMobile : undefined}
             >
               <span className="nav-item-icon">{item.icon}</span>

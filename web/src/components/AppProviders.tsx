@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react';
 import { ThemeProvider, LanguageProvider, TutorialProvider } from '@/lib/contexts';
+import { TutorialOverlay } from '@/components/Tutorial';
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
@@ -9,6 +10,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <LanguageProvider>
         <TutorialProvider>
           {children}
+          <TutorialOverlay />
         </TutorialProvider>
       </LanguageProvider>
     </ThemeProvider>

@@ -33,6 +33,7 @@ export default function StudentDashboard() {
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('Student');
+  const [showFirstTimeHint, setShowFirstTimeHint] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
   const [jobsMatchedCount, setJobsMatchedCount] = useState(0);
 
@@ -82,6 +83,12 @@ export default function StudentDashboard() {
     if (userData) {
       const user = JSON.parse(userData);
       setUserName(user.name);
+    }
+
+    const hasSeenHint = localStorage.getItem('skillsight-first-route-seen');
+    if (!hasSeenHint) {
+      setShowFirstTimeHint(true);
+      localStorage.setItem('skillsight-first-route-seen', 'true');
     }
 
     fetchData();
@@ -163,24 +170,37 @@ export default function StudentDashboard() {
         </div>
 
         <div className="page-content">
+          {showFirstTimeHint && (
+            <div className="alert" style={{ marginBottom: '1rem', border: '1px solid var(--gray-200)' }}>
+              <span className="alert-icon">🧭</span>
+              <div className="alert-content">
+                <div className="alert-title">{t('tutorial.routeTitle')}</div>
+                <p>{t('dashboard.firstTimeHint')}</p>
+              </div>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowFirstTimeHint(false)}>
+                {t('common.close')}
+              </button>
+            </div>
+          )}
+
           {/* Stats */}
           <div className="stats-grid">
-            <div className="stat-card">
+            <div className="stat-card" title={t('dashboard.statDocsTip')}>
               <div className="stat-icon green">📄</div>
               <div className="stat-value">{documents.length}</div>
               <div className="stat-label">{t('dashboard.docsUploaded')}</div>
             </div>
-            <div className="stat-card">
+            <div className="stat-card" title={t('dashboard.statVerifiedTip')}>
               <div className="stat-icon blue">✓</div>
               <div className="stat-value">{skills.filter(s => s.status === 'verified').length}</div>
               <div className="stat-label">{t('dashboard.skillsVerified')}</div>
             </div>
-            <div className="stat-card">
+            <div className="stat-card" title={t('dashboard.statProgressTip')}>
               <div className="stat-icon yellow">○</div>
               <div className="stat-value">{skills.filter(s => s.status === 'pending').length}</div>
               <div className="stat-label">{t('dashboard.inProgress')}</div>
             </div>
-            <div className="stat-card">
+            <div className="stat-card" title={t('dashboard.statJobsTip')}>
               <div className="stat-icon purple">🎯</div>
               <div className="stat-value">{jobsMatchedCount}</div>
               <div className="stat-label">{t('dashboard.jobsMatched')}</div>
@@ -190,17 +210,17 @@ export default function StudentDashboard() {
           {/* Quick Actions */}
           <h2 style={{ marginBottom: '1rem' }}>{t('dashboard.quickActions')}</h2>
           <div className="action-grid" style={{ marginBottom: '2rem' }}>
-            <Link href="/dashboard/upload" className="action-card">
+            <Link href="/dashboard/upload" className="action-card" title={t('dashboard.actionUploadTip')}>
               <div className="action-icon green">📤</div>
               <div className="action-title">{t('dashboard.uploadEvidence')}</div>
               <div className="action-desc">{t('dashboard.addDocumentsCode')}</div>
             </Link>
-            <Link href="/dashboard/assessments" className="action-card">
+            <Link href="/dashboard/assessments" className="action-card" title={t('dashboard.actionAssessTip')}>
               <div className="action-icon blue">📝</div>
               <div className="action-title">{t('dashboard.takeAssessment')}</div>
               <div className="action-desc">{t('dashboard.assessDesc')}</div>
             </Link>
-            <Link href="/dashboard/jobs" className="action-card">
+            <Link href="/dashboard/jobs" className="action-card" title={t('dashboard.actionJobsTip')}>
               <div className="action-icon purple">🎯</div>
               <div className="action-title">{t('dashboard.findJobs')}</div>
               <div className="action-desc">{t('dashboard.seeReadiness')}</div>
@@ -222,7 +242,7 @@ export default function StudentDashboard() {
                   >
                     {loading ? '⏳' : '🔄'}
                   </button>
-                  <Link href="/upload" className="btn btn-ghost btn-sm">{t('dashboard.viewAll')}</Link>
+                  <Link href="/dashboard/upload" className="btn btn-ghost btn-sm">{t('dashboard.viewAll')}</Link>
                 </div>
               </div>
               <div className="card-content" style={{ padding: 0 }}>
