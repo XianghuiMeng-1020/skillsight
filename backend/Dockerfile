@@ -11,6 +11,7 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 
 COPY backend/ backend/
 COPY schemas/ schemas/
+COPY packages/ packages/
 
 ENV PYTHONPATH=/opt/src
 ENV PYTHONUNBUFFERED=1
