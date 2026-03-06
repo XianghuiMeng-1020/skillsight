@@ -62,6 +62,21 @@ def _run_schema_health_check() -> dict:
 @app.on_event("startup")
 def _startup_check():
     require_production_secret()
+
+    # Ensure interactive assessment tables exist
+    try:
+        from backend.app.routers.interactive_assess import ensure_assessment_tables
+        from backend.app.db.session import SessionLocal
+        db = SessionLocal()
+        try:
+            ensure_assessment_tables(db)
+            db.commit()
+        finally:
+            db.close()
+        logger.info("Assessment tables ensured.")
+    except Exception as exc:
+        logger.warning("Could not ensure assessment tables: %s", exc)
+
     global _SCHEMA_HEALTH
     _SCHEMA_HEALTH = _run_schema_health_check()
     if not _SCHEMA_HEALTH.get("ok", False):

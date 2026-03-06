@@ -663,29 +663,32 @@ async def bff_recent_assessment_updates(
 ):
     """
     Student-facing recent interactive assessments with linked skill updates.
+    Gracefully returns empty list if assessment tables don't exist yet.
     """
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.get(
-            f"{_BASE}/interactive/users/{ident.subject_id}/recent_updates?limit={max(1, min(limit, 50))}",
-            headers={"Authorization": f"Bearer {internal_token}"},
-            timeout=30,
-        )
-    if r.status_code != 200:
-        err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
+    try:
+        internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
+        async with httpx.AsyncClient(trust_env=False) as client:
+            r = await client.get(
+                f"{_BASE}/interactive/users/{ident.subject_id}/recent_updates?limit={max(1, min(limit, 50))}",
+                headers={"Authorization": f"Bearer {internal_token}"},
+                timeout=30,
+            )
+        if r.status_code != 200:
+            return {"count": 0, "assessment_events": [], "items": []}
 
-    data = r.json()
-    log_audit(
-        engine,
-        subject_id=ident.subject_id,
-        action="bff.student.assessments.recent",
-        object_type="assessment",
-        status="ok",
-        detail={"count": int(data.get("count", 0))},
-    )
-    events = data.get("assessment_events") or data.get("items") or []
-    return {**data, "assessment_events": events, "items": events}
+        data = r.json()
+        log_audit(
+            engine,
+            subject_id=ident.subject_id,
+            action="bff.student.assessments.recent",
+            object_type="assessment",
+            status="ok",
+            detail={"count": int(data.get("count", 0))},
+        )
+        events = data.get("assessment_events") or data.get("items") or []
+        return {**data, "assessment_events": events, "items": events}
+    except Exception:
+        return {"count": 0, "assessment_events": [], "items": []}
 
 
 # ─── Role Alignment ───────────────────────────────────────────────────────────
@@ -830,7 +833,7 @@ def bff_list_consents(
     rows = db.execute(
         text("""
             SELECT
-                c.consent_id, c.doc_id, c.scope, c.status,
+                c.consent_id, c.doc_id, c.status,
                 c.created_at, c.revoked_at, c.revoke_reason,
                 d.filename, d.doc_type
             FROM consents c
@@ -844,15 +847,13 @@ def bff_list_consents(
 
     items = []
     for row in rows:
-        raw_scope = row.get("scope") or ""
-        parts = raw_scope.split(":", 1)
         items.append({
             "consent_id": str(row["consent_id"]),
             "doc_id": row["doc_id"],
             "filename": row.get("filename") or row["doc_id"],
             "doc_type": row.get("doc_type"),
-            "purpose": parts[0] if parts else "unknown",
-            "scope": parts[1] if len(parts) >= 2 else parts[0] if parts else "unknown",
+            "purpose": "skill_assessment",
+            "scope": "full",
             "status": row["status"],
             "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
             "revoked_at": row["revoked_at"].isoformat() if row.get("revoked_at") else None,

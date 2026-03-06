@@ -168,7 +168,7 @@ export default function UploadPage() {
       // Step 3: Run AI skill assessment for all skills
       setStage('assessing');
       try {
-        const skillsResp = await fetch(`${API_BASE_URL}/skills?limit=50`, {
+        const skillsResp = await fetch(`${API_BASE_URL}/bff/student/skills?limit=50`, {
           headers: authHeaders,
         });
         if (skillsResp.ok) {

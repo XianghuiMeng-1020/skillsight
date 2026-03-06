@@ -66,15 +66,32 @@ PERSONAL_DATA_DENYLIST = {
 # Actions that require admin role
 ADMIN_ONLY_ACTIONS = {
     "bff.admin.audit.search",
+    "bff.admin.audit.recent",
     "bff.admin.change_log",
+    "bff.admin.change_log.search",
     "bff.admin.metrics",
+    "bff.admin.metrics.usage",
+    "bff.admin.metrics.reliability",
     "bff.admin.onboarding",
     "bff.admin.users.assign_role",
     "bff.admin.users.assign_context",
+    "bff.admin.users.teaching_relation",
+    "bff.admin.skills",
     "bff.admin.skills.import",
+    "bff.admin.roles",
     "bff.admin.roles.import",
     "bff.admin.resources.import",
     "bff.admin.health",
+    "bff.admin.system.health",
+    "bff.admin.jobs",
+    "bff.admin.jobs.retry",
+    "bff.admin.course_skill_map",
+    "bff.admin.course_skill_map.approve",
+    "bff.admin.course_skill_map.reject",
+    "bff.admin.skill_aliases",
+    "bff.admin.skill_aliases.resolve",
+    "bff.admin.skill_aliases.report",
+    "bff.admin.consents.overview",
 }
 
 # Actions that require staff or above

@@ -181,7 +181,7 @@ def list_consents(
             rows = db.execute(
                 text("""
                     SELECT * FROM consents
-                    WHERE subject_id = :sub OR user_id = :sub
+                    WHERE user_id = :sub
                     ORDER BY created_at DESC LIMIT :limit
                 """),
                 {"sub": ident.subject_id, "limit": limit},
@@ -245,21 +245,18 @@ def consent_grant(
     effective_user = _resolve_user_id(payload.user_id, ident)
     try:
         consent_id = str(uuid.uuid4())
-        upload_token = str(uuid.uuid4())
         now = _now_utc()
         
         db.execute(
             text("""
-                INSERT INTO consents (consent_id, subject_id, doc_id, scope, status, upload_token, created_at)
-                VALUES (:consent_id, :subject_id, :doc_id, :scope, :status, :upload_token, :created_at)
+                INSERT INTO consents (consent_id, user_id, doc_id, status, created_at)
+                VALUES (:consent_id, :user_id, :doc_id, :status, :created_at)
             """),
             {
                 "consent_id": consent_id,
-                "subject_id": effective_user,
+                "user_id": effective_user,
                 "doc_id": payload.doc_id,
-                "scope": "full",
                 "status": "granted",
-                "upload_token": upload_token,
                 "created_at": now,
             },
         )
