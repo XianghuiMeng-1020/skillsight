@@ -18,4 +18,4 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8001
 
-CMD ["sh", "-c", "uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8001} --workers ${WEB_CONCURRENCY:-4} --timeout-keep-alive 30"]
+CMD ["sh", "-c", "cd /opt/src && alembic -c backend/alembic.ini upgrade head 2>&1 || echo 'Migration warning (non-fatal)' && uvicorn backend.app.main:app --host 0.0.0.0 --port ${PORT:-8001} --workers ${WEB_CONCURRENCY:-4} --timeout-keep-alive 30"]

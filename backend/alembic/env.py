@@ -18,10 +18,11 @@ from backend.app.db.base import Base
 target_metadata = Base.metadata
 
 def get_url() -> str:
-
-    # Prefer DATABASE_URL exported in shell
     env_url = os.getenv("DATABASE_URL")
     if env_url:
+        # Render uses postgres:// which SQLAlchemy 2.x does not accept
+        if env_url.startswith("postgres://"):
+            env_url = env_url.replace("postgres://", "postgresql://", 1)
         return env_url
     return config.get_main_option("sqlalchemy.url")
 
