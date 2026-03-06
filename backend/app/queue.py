@@ -51,7 +51,7 @@ def enqueue_process_doc(doc_id: str, job_id: str) -> Optional[str]:
     try:
         q = _get_queue()
         job = q.enqueue(
-            "worker.run_job",
+            "backend.worker.run_job",
             doc_id,
             job_id,
             job_timeout=600,
@@ -78,14 +78,14 @@ def enqueue_assessment_repair(
         if delay_seconds > 0:
             job = q.enqueue_in(
                 timedelta(seconds=max(1, int(delay_seconds))),
-                "worker.run_assessment_repair",
+                "backend.worker.run_assessment_repair",
                 session_id,
                 repair_job_id,
                 **enqueue_kwargs,
             )
         else:
             job = q.enqueue(
-                "worker.run_assessment_repair",
+                "backend.worker.run_assessment_repair",
                 session_id,
                 repair_job_id,
                 **enqueue_kwargs,

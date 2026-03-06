@@ -243,9 +243,12 @@ async def bff_upload_document(
             text("""
                 INSERT INTO consents
                   (consent_id, user_id, doc_id, status, created_at)
-                VALUES
-                  (:cid, :sub, :doc_id, 'granted', :now)
-                ON CONFLICT DO NOTHING
+                SELECT
+                  :cid, :sub, :doc_id, 'granted', :now
+                WHERE NOT EXISTS (
+                  SELECT 1 FROM consents
+                  WHERE user_id = :sub AND doc_id = :doc_id AND status = 'granted'
+                )
             """),
             {
                 "cid": consent_id,

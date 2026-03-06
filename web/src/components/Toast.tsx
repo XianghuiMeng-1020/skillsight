@@ -111,6 +111,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
       <span style={{ flex: 1, fontSize: '0.875rem', fontWeight: 500 }}>{toast.message}</span>
       <button
         onClick={() => { setIsLeaving(true); setTimeout(onClose, 200); }}
+        aria-label="Close notification"
         style={{
           background: 'transparent',
           border: 'none',

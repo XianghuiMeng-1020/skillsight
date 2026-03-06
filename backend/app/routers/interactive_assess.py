@@ -21,11 +21,13 @@ from sqlalchemy.orm import Session
 try:
     from backend.app.db.deps import get_db
     from backend.app.queue import enqueue_assessment_repair
+    from backend.app.security import require_auth
 except ImportError:
     from app.db.deps import get_db
     from app.queue import enqueue_assessment_repair
+    from app.security import require_auth
 
-router = APIRouter(prefix="/interactive", tags=["interactive-assessment"])
+router = APIRouter(prefix="/interactive", tags=["interactive-assessment"], dependencies=[Depends(require_auth)])
 
 DEFAULT_MODEL_VERSION = os.getenv("ASSESSMENT_MODEL_VERSION", "heuristic-v1")
 DEFAULT_RUBRIC_VERSION = os.getenv("ASSESSMENT_RUBRIC_VERSION", "rubric-v1")

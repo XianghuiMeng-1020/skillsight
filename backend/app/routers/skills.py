@@ -8,8 +8,9 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
+from backend.app.security import require_auth
 
-router = APIRouter(prefix="/skills", tags=["skills"])
+router = APIRouter(prefix="/skills", tags=["skills"], dependencies=[Depends(require_auth)])
 
 
 def _now_utc():

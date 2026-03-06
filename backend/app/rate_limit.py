@@ -17,6 +17,10 @@ RATE_LIMIT_SCOPES = {
     "documents_import": "/documents/import",
     "ai": "/ai/",
     "search": "/search/",
+    "assess": "/assess/",
+    "interactive": "/interactive/",
+    "roles_import": "/roles/import",
+    "skills_import": "/skills/import",
 }
 
 # In-memory fallback: scope -> (client_key -> (count, window_start))
@@ -54,6 +58,14 @@ def _scope_for_path(path: str) -> Optional[str]:
         return "ai"
     if path.startswith("/search/"):
         return "search"
+    if path.startswith("/assess/"):
+        return "assess"
+    if path.startswith("/interactive/"):
+        return "interactive"
+    if path.startswith("/roles/import"):
+        return "roles_import"
+    if path.startswith("/skills/import"):
+        return "skills_import"
     return None
 
 
@@ -64,6 +76,10 @@ def _limit_for_scope(scope: str) -> int:
         "documents_import": "RATE_LIMIT_PER_MINUTE_UPLOAD",  # same as upload
         "ai": "RATE_LIMIT_PER_MINUTE_AI",
         "search": "RATE_LIMIT_PER_MINUTE_SEARCH",
+        "assess": "RATE_LIMIT_PER_MINUTE_ASSESS",
+        "interactive": "RATE_LIMIT_PER_MINUTE_INTERACTIVE",
+        "roles_import": "RATE_LIMIT_PER_MINUTE_IMPORT",
+        "skills_import": "RATE_LIMIT_PER_MINUTE_IMPORT",
     }
     key = env_map.get(scope, "RATE_LIMIT_PER_MINUTE")
     default = 60

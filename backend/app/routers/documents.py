@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -121,6 +122,18 @@ def _sha256_bytes(b: bytes) -> str:
     h = hashlib.sha256()
     h.update(b or b"")
     return h.hexdigest()
+
+
+def _sanitize_filename(filename: str) -> str:
+    """
+    Keep only a safe basename and strip traversal patterns.
+    """
+    raw = (filename or "").strip().replace("\\", "/")
+    base = os.path.basename(raw)
+    safe = re.sub(r"[^A-Za-z0-9._ -]", "_", base).strip().strip(".")
+    if not safe:
+        return "uploaded"
+    return safe[:255]
 
 
 def _insert_one(db: Session, table: str, data: Dict[str, Any]) -> None:
@@ -348,7 +361,7 @@ async def import_document_txt(
     chunks (NOT NULL): chunk_id, doc_id, idx, char_start, char_end, snippet, quote_hash, created_at, chunk_text
     """
     try:
-        filename = (file.filename or "uploaded.txt").strip()
+        filename = _sanitize_filename(file.filename or "uploaded.txt")
         ext = os.path.splitext(filename)[1].lower()
         if ext != ".txt":
             raise HTTPException(status_code=400, detail="only .txt is supported in MVP import")
@@ -576,7 +589,7 @@ async def upload_multimodal_document(
     if not consent:
         raise HTTPException(status_code=400, detail="Consent is required")
     
-    filename = (file.filename or "uploaded").strip()
+    filename = _sanitize_filename(file.filename or "uploaded")
     ext = os.path.splitext(filename)[1].lower()
     
     if ext not in SUPPORTED_EXTENSIONS:

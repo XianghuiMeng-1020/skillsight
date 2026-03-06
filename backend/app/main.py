@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy import text
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from fastapi.responses import JSONResponse
@@ -207,6 +207,7 @@ _CORS_PATTERNS = [
     _re.compile(r"^https://[a-z0-9-]+\.skillsight-\d+\.pages\.dev$"),
     _re.compile(r"^https://skillsight-\d+\.pages\.dev$"),
 ]
+_IS_PRODUCTION = _os.getenv("SKILLSIGHT_ENV", "").strip().lower() == "production"
 
 
 def _origin_allowed(origin: str) -> bool:
@@ -258,6 +259,8 @@ def root():
 
 @app.get("/__routes")
 def __routes():
+    if _IS_PRODUCTION:
+        raise HTTPException(status_code=404, detail="Not found")
     return JSONResponse([
         {"path": r.path, "name": r.name, "methods": sorted(list(getattr(r, "methods", []) or []))}
         for r in app.router.routes
@@ -317,6 +320,8 @@ def readyz():
 @app.get("/debug/routes_count")
 def debug_routes_count():
     """Debug endpoint to count routes."""
+    if _IS_PRODUCTION:
+        raise HTTPException(status_code=404, detail="Not found")
     return {
         "total_routes": len(app.routes),
         "routes_preview": [r.path for r in app.routes if hasattr(r, 'path')][:20],

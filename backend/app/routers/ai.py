@@ -67,7 +67,7 @@ def _get_qm():
     except ImportError:
         return None
 
-router = APIRouter(prefix="/ai", tags=["ai"])
+router = APIRouter(prefix="/ai", tags=["ai"], dependencies=[Depends(require_auth)])
 
 # Load prompt templates
 PROMPTS_DIR = Path(__file__).parent.parent.parent.parent / "packages" / "prompts"
@@ -84,6 +84,7 @@ PROFICIENCY_PROMPT = _load_prompt("proficiency_v1.txt")
 # Default LLM model (OpenAI or Ollama depending on LLM_PROVIDER)
 _provider = (os.getenv("LLM_PROVIDER") or "openai").strip().lower()
 DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini") if _provider == "openai" else os.getenv("OLLAMA_MODEL", "deepseek-r1:14b")
+MAX_AUDIO_UPLOAD_BYTES = int(os.getenv("MAX_AUDIO_UPLOAD_BYTES", str(50 * 1024 * 1024)))
 
 
 def _now_utc():
@@ -539,7 +540,12 @@ async def transcribe_audio(audio: UploadFile = File(...)) -> Dict[str, Any]:
     # Save uploaded file to temp
     suffix = Path(audio.filename or "audio.webm").suffix or ".webm"
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        content = await audio.read()
+        content = await audio.read(MAX_AUDIO_UPLOAD_BYTES + 1)
+        if len(content) > MAX_AUDIO_UPLOAD_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"Audio file too large (max {MAX_AUDIO_UPLOAD_BYTES // (1024 * 1024)} MB)",
+            )
         tmp.write(content)
         tmp_path = tmp.name
     

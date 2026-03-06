@@ -49,6 +49,7 @@ function bffPrefix(role?: BffRole | null): string {
   const r = role || getRole();
   switch (r) {
     case 'staff':      return '/bff/staff';
+    case 'career_coach': return '/bff/staff';
     case 'programme_leader': return '/bff/programme';
     case 'admin':      return '/bff/admin';
     default:           return '/bff/student';
@@ -100,6 +101,7 @@ function defaultPurpose(role?: BffRole | null): string {
   const r = role || getRole();
   switch (r) {
     case 'staff':            return 'teaching_support';
+    case 'career_coach':     return 'teaching_support';
     case 'programme_leader': return 'aggregate_programme_analysis';
     case 'admin':            return 'system_audit';
     default:                 return 'skill_assessment';

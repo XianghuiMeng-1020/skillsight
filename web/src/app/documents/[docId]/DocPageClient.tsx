@@ -191,6 +191,7 @@ export default function DocPage() {
   const [skillId, setSkillId] = useState<string>("");
   const [roles, setRoles] = useState<any[]>([]);
   const [roleId, setRoleId] = useState<string>("");
+  const [metaLoadErr, setMetaLoadErr] = useState<string>("");
 
   // 评估状态
   const [assessRes, setAssessRes] = useState<AssessResult | null>(null);
@@ -256,6 +257,7 @@ export default function DocPage() {
 
   // 获取 Skills 和 Roles
   useEffect(() => {
+    setMetaLoadErr("");
     fetch(`${apiBase}/skills`, { headers: authHeaders })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
       .then((d) => {
@@ -263,7 +265,11 @@ export default function DocPage() {
         setSkills(items);
         if (!skillId && items[0]) setSkillId(items[0].skill_id);
       })
-      .catch(() => {});
+      .catch((e) => {
+        console.error("Failed to load skills", e);
+        setSkills([]);
+        setMetaLoadErr("Failed to load skills/roles metadata");
+      });
 
     fetch(`${apiBase}/roles`, { headers: authHeaders })
       .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
@@ -272,7 +278,11 @@ export default function DocPage() {
         setRoles(items);
         if (!roleId && items[0]) setRoleId(items[0].role_id);
       })
-      .catch(() => {});
+      .catch((e) => {
+        console.error("Failed to load roles", e);
+        setRoles([]);
+        setMetaLoadErr("Failed to load skills/roles metadata");
+      });
   }, [apiBase, authHeaders]);
 
   // 获取 Chunks
@@ -514,6 +524,12 @@ export default function DocPage() {
               </div>
             }
           >
+            {metaLoadErr && (
+              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+                <span>⚠</span>
+                <div style={{ fontSize: "0.875rem" }}>{metaLoadErr}</div>
+              </div>
+            )}
             <div style={{ marginBottom: "1.25rem" }}>
               <label style={{ 
                 display: "block", 

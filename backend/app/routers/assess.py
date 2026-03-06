@@ -35,7 +35,7 @@ from backend.app.change_log_events import (
     write_change_event,
 )
 
-router = APIRouter(prefix="/assess", tags=["assess"])
+router = APIRouter(prefix="/assess", tags=["assess"], dependencies=[Depends(require_auth)])
 
 
 def _now_utc():

@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 from backend.app.db.session import engine
+from backend.app.security import require_auth
 
-router = APIRouter(tags=["roles"])
+router = APIRouter(tags=["roles"], dependencies=[Depends(require_auth)])
 
 from backend.app.db.deps import get_db
 

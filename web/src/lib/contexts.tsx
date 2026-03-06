@@ -871,13 +871,17 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const totalSteps = 5;
 
   useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const hasSeenTutorial = localStorage.getItem('skillsight-tutorial-completed');
     const user = localStorage.getItem('user');
     const savedName = localStorage.getItem('skillsight-onboarding-name');
     if (savedName) setTutorialNameState(savedName);
     if (!hasSeenTutorial && user) {
-      setTimeout(() => setShowTutorial(true), 1000);
+      timer = setTimeout(() => setShowTutorial(true), 1000);
     }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   const setTutorialName = useCallback((name: string) => {
