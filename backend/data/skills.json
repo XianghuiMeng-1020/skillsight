@@ -2,140 +2,201 @@
   {
     "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
     "canonical_name": "Academic integrity",
-    "aliases": [
-      "cheating",
-      "plagiarism",
-      "misconduct"
-    ],
+    "aliases": ["cheating", "plagiarism", "misconduct"],
     "definition": "Demonstrates understanding of academic integrity rules, identifies violations (e.g., cheating, plagiarism), and explains appropriate responses that protect fairness and trust.",
-    "rubric_v1": {
-      "levels": {
-        "0": {
-          "label": "novice",
-          "criteria": [
-            {
-              "id": "AI0-1",
-              "text": "No evidence of academic integrity concepts or practices in the artifact."
-            },
-            {
-              "id": "AI0-2",
-              "text": "Mentions are too vague to locate or verify in the text."
-            }
-          ]
-        },
-        "1": {
-          "label": "developing",
-          "criteria": [
-            {
-              "id": "AI1-1",
-              "text": "Mentions academic integrity or misconduct terms, but does not show application or decision-making."
-            },
-            {
-              "id": "AI1-2",
-              "text": "Describes integrity at a general level without concrete actions or examples."
-            }
-          ]
-        },
-        "2": {
-          "label": "proficient",
-          "criteria": [
-            {
-              "id": "AI2-1",
-              "text": "Describes a concrete integrity practice (e.g., paraphrasing, citing sources, avoiding copy-paste)."
-            },
-            {
-              "id": "AI2-2",
-              "text": "Identifies misconduct and states an appropriate response or prevention step."
-            }
-          ]
-        },
-        "3": {
-          "label": "advanced",
-          "criteria": [
-            {
-              "id": "AI3-1",
-              "text": "Provides multiple concrete practices and connects them to fairness/trust or policy reasoning."
-            },
-            {
-              "id": "AI3-2",
-              "text": "Describes a realistic risk case and a corrective workflow (detect → remove/redo → document)."
-            },
-            {
-              "id": "AI3-3",
-              "text": "Evidence spans multiple chunks/sections, not a single mention."
-            }
-          ]
-        }
-      }
-    }
+    "evidence_rules": "Counts as evidence when the artifact discusses integrity practices, plagiarism avoidance, or ethical conduct in academic contexts.",
+    "level_rubric": {"0":"No evidence","1":"Mentions integrity terms","2":"Describes concrete integrity practices","3":"Multiple practices with fairness reasoning"},
+    "version": "v1",
+    "source": "HKU"
   },
   {
     "skill_id": "HKU.SKILL.PRIVACY.v1",
     "canonical_name": "Privacy awareness",
-    "aliases": [
-      "confidentiality",
-      "student privacy"
-    ],
+    "aliases": ["confidentiality", "student privacy", "data privacy"],
     "definition": "Recognizes privacy-sensitive information in educational contexts and proposes actions that reduce exposure, protect individuals, and comply with expected privacy norms.",
-    "rubric_v1": {
-      "levels": {
-        "0": {
-          "label": "novice",
-          "criteria": [
-            {
-              "id": "PR0-1",
-              "text": "No evidence of privacy-sensitive thinking or protective actions."
-            },
-            {
-              "id": "PR0-2",
-              "text": "Cannot locate any privacy-related handling in the artifact."
-            }
-          ]
-        },
-        "1": {
-          "label": "developing",
-          "criteria": [
-            {
-              "id": "PR1-1",
-              "text": "Mentions privacy/confidentiality, but lacks concrete handling steps."
-            },
-            {
-              "id": "PR1-2",
-              "text": "Identifies a sensitive concept without specifying what data/fields are sensitive."
-            }
-          ]
-        },
-        "2": {
-          "label": "proficient",
-          "criteria": [
-            {
-              "id": "PR2-1",
-              "text": "Names specific sensitive fields (e.g., email/name) and describes an anonymization/removal step."
-            },
-            {
-              "id": "PR2-2",
-              "text": "Describes a minimum-data or access control practice tied to the artifact workflow."
-            }
-          ]
-        },
-        "3": {
-          "label": "advanced",
-          "criteria": [
-            {
-              "id": "PR3-1",
-              "text": "Defines a clear deletion/revocation workflow (revoke → delete artifacts) and how it is enforced."
-            },
-            {
-              "id": "PR3-2",
-              "text": "Evidence spans multiple chunks (policy + implementation detail)."
-            },
-            {
-              "id": "PR3-3",
-              "text": "Explains tradeoffs (what is stored vs optional) with concrete rules."
-            }
-          ]
-        }
-      }
-    }
+    "evidence_rules": "Counts as evidence when the artifact mentions handling personal data, anonymization, or privacy-preserving techniques.",
+    "level_rubric": {"0":"No evidence","1":"Mentions privacy concepts","2":"Identifies privacy risks and proposes mitigations","3":"Comprehensive privacy framework with concrete actions"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.PYTHON.v1",
+    "canonical_name": "Python Programming",
+    "aliases": ["Python", "Python coding", "Python scripting"],
+    "definition": "Ability to write, debug, and maintain Python programs for data processing, automation, and scientific computing.",
+    "evidence_rules": "Counts as evidence when the artifact includes runnable Python code and demonstrates correct logic for the stated task.",
+    "level_rubric": {"0":"No usable code","1":"Small scripts with guidance","2":"Multi-step tasks independently","3":"Robust modules, tests, clear APIs"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.MACHINE_LEARNING.v1",
+    "canonical_name": "Machine Learning",
+    "aliases": ["ML", "machine learning", "predictive modeling", "statistical learning"],
+    "definition": "Understands and applies machine learning algorithms, model training, evaluation, and deployment for predictive or analytical tasks.",
+    "evidence_rules": "Counts as evidence when the artifact discusses ML algorithms, model training, hyperparameter tuning, or evaluation metrics.",
+    "level_rubric": {"0":"No evidence","1":"Mentions ML concepts at a surface level","2":"Applies ML algorithms with proper evaluation","3":"Designs end-to-end ML pipelines with optimization"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.DEEP_LEARNING.v1",
+    "canonical_name": "Deep Learning",
+    "aliases": ["DL", "neural networks", "deep neural networks", "deep learning models"],
+    "definition": "Designs, trains, and evaluates deep neural network architectures for complex learning tasks including classification, generation, and representation learning.",
+    "evidence_rules": "Counts as evidence when the artifact discusses neural network architectures, training procedures, loss functions, or deep learning frameworks.",
+    "level_rubric": {"0":"No evidence","1":"Mentions neural networks or DL concepts","2":"Implements and trains DL models with proper methodology","3":"Designs novel architectures or advanced training strategies"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "canonical_name": "Data Analysis",
+    "aliases": ["data analytics", "data exploration", "exploratory data analysis", "EDA"],
+    "definition": "Collects, cleans, explores, and interprets data to extract meaningful insights and support decision-making.",
+    "evidence_rules": "Counts as evidence when the artifact shows data wrangling, statistical analysis, visualization, or interpretation of findings.",
+    "level_rubric": {"0":"No evidence","1":"Basic data reading/printing","2":"Statistical analysis with visualization","3":"Advanced analysis pipeline with actionable insights"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.NLP.v1",
+    "canonical_name": "Natural Language Processing",
+    "aliases": ["NLP", "text mining", "language models", "text processing"],
+    "definition": "Applies computational techniques to analyze, understand, and generate human language, including tokenization, embeddings, and language models.",
+    "evidence_rules": "Counts as evidence when the artifact discusses text preprocessing, embeddings, transformers, or language model applications.",
+    "level_rubric": {"0":"No evidence","1":"Mentions NLP concepts","2":"Implements NLP pipelines or uses pre-trained models","3":"Fine-tunes or designs NLP systems for specific tasks"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.AI_ETHICS.v1",
+    "canonical_name": "AI Ethics & Fairness",
+    "aliases": ["AI fairness", "algorithmic bias", "responsible AI", "ethical AI", "bias mitigation", "debiasing"],
+    "definition": "Understands ethical implications of AI systems, identifies sources of bias, and applies techniques to ensure fairness, transparency, and accountability.",
+    "evidence_rules": "Counts as evidence when the artifact discusses fairness metrics, bias detection, debiasing techniques, or ethical frameworks for AI.",
+    "level_rubric": {"0":"No evidence","1":"Mentions bias or fairness at surface level","2":"Identifies bias sources and applies mitigation techniques","3":"Comprehensive fairness framework with measurable outcomes"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.RESEARCH_METHODS.v1",
+    "canonical_name": "Research Methodology",
+    "aliases": ["research methods", "experimental design", "scientific method", "research design"],
+    "definition": "Plans and executes research following systematic methodologies, including hypothesis formulation, experimental design, data collection, and analysis.",
+    "evidence_rules": "Counts as evidence when the artifact describes research questions, methodology, experimental setup, or systematic analysis.",
+    "level_rubric": {"0":"No evidence","1":"Mentions research concepts","2":"Describes clear methodology with rationale","3":"Rigorous experimental design with controls and validation"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",
+    "canonical_name": "Technical Writing",
+    "aliases": ["academic writing", "scientific writing", "report writing", "documentation"],
+    "definition": "Produces clear, structured, and well-organized technical documents that effectively communicate complex ideas to the intended audience.",
+    "evidence_rules": "Counts as evidence when the artifact demonstrates structured writing with clear sections, logical flow, and proper citations.",
+    "level_rubric": {"0":"No evidence","1":"Basic writing with poor structure","2":"Well-structured document with clear sections","3":"Publication-quality writing with rigorous citations"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.PROJECT_PLANNING.v1",
+    "canonical_name": "Project Planning",
+    "aliases": ["project management", "planning", "milestone tracking", "task management", "execution plan"],
+    "definition": "Creates and manages project plans with clear goals, timelines, milestones, and resource allocation to ensure successful project delivery.",
+    "evidence_rules": "Counts as evidence when the artifact includes project plans, timelines, milestones, task breakdowns, or resource allocation.",
+    "level_rubric": {"0":"No evidence","1":"Basic task listing","2":"Structured plan with milestones and timelines","3":"Comprehensive plan with risk management and contingencies"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+    "canonical_name": "Critical Thinking",
+    "aliases": ["analytical thinking", "logical reasoning", "problem solving"],
+    "definition": "Analyzes information objectively, evaluates evidence, and forms well-reasoned conclusions through logical reasoning.",
+    "evidence_rules": "Counts as evidence when the artifact shows analysis of alternatives, evaluation of trade-offs, or evidence-based reasoning.",
+    "level_rubric": {"0":"No evidence","1":"Surface-level opinions","2":"Structured analysis with evidence","3":"Deep analysis with multi-perspective evaluation"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "canonical_name": "Statistical Analysis",
+    "aliases": ["statistics", "statistical methods", "hypothesis testing", "regression analysis"],
+    "definition": "Applies statistical methods to analyze data, test hypotheses, and draw valid conclusions with appropriate confidence measures.",
+    "evidence_rules": "Counts as evidence when the artifact uses statistical tests, regression, probability distributions, or confidence intervals.",
+    "level_rubric": {"0":"No evidence","1":"Mentions statistical concepts","2":"Applies appropriate statistical tests","3":"Advanced statistical modeling with proper validation"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.MACHINE_UNLEARNING.v1",
+    "canonical_name": "Machine Unlearning",
+    "aliases": ["model unlearning", "data deletion from models", "forget learning", "selective forgetting"],
+    "definition": "Understands and applies techniques for removing the influence of specific training data from machine learning models while preserving model utility.",
+    "evidence_rules": "Counts as evidence when the artifact discusses unlearning algorithms, data influence removal, or model retraining strategies for data deletion.",
+    "level_rubric": {"0":"No evidence","1":"Mentions unlearning concepts","2":"Describes unlearning methods with evaluation","3":"Implements unlearning pipeline with utility-privacy trade-off analysis"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.COLLABORATION.v1",
+    "canonical_name": "Team Collaboration",
+    "aliases": ["teamwork", "group work", "collaboration", "cooperative learning"],
+    "definition": "Works effectively with others to achieve shared goals, communicating clearly, resolving conflicts, and contributing to team success.",
+    "evidence_rules": "Counts as evidence when the artifact describes team interactions, role allocation, collaborative decision-making, or group outcomes.",
+    "level_rubric": {"0":"No evidence","1":"Mentions working with others","2":"Describes specific collaborative contributions","3":"Leads collaborative efforts with clear role coordination"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.PRESENTATION.v1",
+    "canonical_name": "Presentation Skills",
+    "aliases": ["public speaking", "oral presentation", "demo", "presentation"],
+    "definition": "Effectively presents ideas, findings, or proposals to an audience using clear structure, engaging delivery, and appropriate visual aids.",
+    "evidence_rules": "Counts as evidence when the artifact involves presentation materials, slide decks, or describes oral delivery.",
+    "level_rubric": {"0":"No evidence","1":"Basic presentation mentioned","2":"Structured presentation with visual aids","3":"Compelling delivery with audience engagement"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.SOFTWARE_ENGINEERING.v1",
+    "canonical_name": "Software Engineering",
+    "aliases": ["software development", "coding", "programming", "software design"],
+    "definition": "Applies software engineering principles to design, implement, test, and maintain software systems following best practices.",
+    "evidence_rules": "Counts as evidence when the artifact shows code architecture, testing practices, version control, or software design patterns.",
+    "level_rubric": {"0":"No evidence","1":"Basic code snippets","2":"Structured codebase with testing","3":"Engineered system with CI/CD and documentation"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_VISUALIZATION.v1",
+    "canonical_name": "Data Visualization",
+    "aliases": ["data viz", "charting", "plotting", "visual analytics"],
+    "definition": "Creates effective visual representations of data that communicate patterns, trends, and insights clearly to diverse audiences.",
+    "evidence_rules": "Counts as evidence when the artifact includes charts, plots, dashboards, or visual data representations.",
+    "level_rubric": {"0":"No evidence","1":"Basic default plots","2":"Customized visualizations with proper labeling","3":"Interactive or publication-quality visualizations"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.CLOUD_COMPUTING.v1",
+    "canonical_name": "Cloud Computing",
+    "aliases": ["cloud", "AWS", "Azure", "GCP", "cloud deployment"],
+    "definition": "Uses cloud platforms and services for deploying, scaling, and managing applications and data processing workloads.",
+    "evidence_rules": "Counts as evidence when the artifact discusses cloud services, deployment strategies, or distributed computing.",
+    "level_rubric": {"0":"No evidence","1":"Mentions cloud concepts","2":"Deploys services on cloud platforms","3":"Architects scalable cloud solutions"},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.DATABASE.v1",
+    "canonical_name": "Database Management",
+    "aliases": ["SQL", "NoSQL", "database design", "data modeling"],
+    "definition": "Designs, queries, and manages databases to store and retrieve data efficiently and reliably.",
+    "evidence_rules": "Counts as evidence when the artifact includes SQL queries, schema design, or database optimization discussions.",
+    "level_rubric": {"0":"No evidence","1":"Basic SQL queries","2":"Schema design with proper normalization","3":"Performance-optimized database architecture"},
+    "version": "v1",
+    "source": "HKU"
   }
 ]

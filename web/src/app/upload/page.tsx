@@ -14,6 +14,8 @@ interface UploadResult {
   consent_id?: string;
 }
 
+type ProcessingStage = 'idle' | 'uploading' | 'embedding' | 'assessing' | 'done';
+
 const PURPOSE_KEYS = [
   { value: 'skill_assessment', labelKey: 'upload.purposeSkillAssess', descKey: 'upload.purposeSkillAssessDesc' },
   { value: 'role_alignment', labelKey: 'upload.purposeRoleAlign', descKey: 'upload.purposeRoleAlignDesc' },
@@ -27,12 +29,14 @@ const SCOPE_KEYS = [
 ] as const;
 
 export default function UploadPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { addToast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [purpose, setPurpose] = useState('');
   const [scope, setScope] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [stage, setStage] = useState<ProcessingStage>('idle');
+  const [assessProgress, setAssessProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<{ code: string; message: string; next_step: string } | null>(null);
@@ -107,12 +111,17 @@ export default function UploadPage() {
     if (!file || !consentComplete) return;
 
     setUploading(true);
+    setStage('uploading');
     setError(null);
     setResult(null);
     setRefusal(null);
+    setAssessProgress({ done: 0, total: 0 });
 
     try {
       const token = typeof window !== 'undefined' ? getToken() : null;
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+      // Step 1: Upload
       const formData = new FormData();
       formData.append('file', file);
       formData.append('purpose', purpose);
@@ -120,7 +129,7 @@ export default function UploadPage() {
 
       const response = await fetch(`${API_BASE_URL}/bff/student/documents/upload`, {
         method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        headers: authHeaders,
         body: formData,
       });
 
@@ -143,7 +152,51 @@ export default function UploadPage() {
 
       const data = await response.json();
       setResult(data);
-      addToast('success', t('upload.success') || 'Document uploaded successfully.');
+      const docId = data.doc_id;
+
+      // Step 2: Embed chunks (generate vector embeddings)
+      setStage('embedding');
+      try {
+        await fetch(`${API_BASE_URL}/bff/student/chunks/embed/${docId}`, {
+          method: 'POST',
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        });
+      } catch {
+        // non-fatal: embedding may fail if sentence-transformers not available
+      }
+
+      // Step 3: Run AI skill assessment for all skills
+      setStage('assessing');
+      try {
+        const skillsResp = await fetch(`${API_BASE_URL}/skills?limit=50`, {
+          headers: authHeaders,
+        });
+        if (skillsResp.ok) {
+          const skillsData = await skillsResp.json();
+          const skillsList = skillsData.items || [];
+          setAssessProgress({ done: 0, total: skillsList.length });
+
+          const BATCH = 3;
+          for (let i = 0; i < skillsList.length; i += BATCH) {
+            const batch = skillsList.slice(i, i + BATCH);
+            await Promise.allSettled(
+              batch.map((skill: { skill_id: string }) =>
+                fetch(`${API_BASE_URL}/bff/student/ai/demonstration`, {
+                  method: 'POST',
+                  headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ skill_id: skill.skill_id, doc_id: docId, k: 5 }),
+                })
+              )
+            );
+            setAssessProgress(prev => ({ ...prev, done: Math.min(i + BATCH, skillsList.length) }));
+          }
+        }
+      } catch {
+        // non-fatal: assessment errors don't block upload success
+      }
+
+      setStage('done');
+      addToast('success', t('upload.success') || 'Document uploaded and assessed successfully.');
       setFile(null);
       setPurpose('');
       setScope('');
@@ -502,7 +555,10 @@ export default function UploadPage() {
                 {uploading ? (
                   <>
                     <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }}></div>
-                    {t('upload.processing')}
+                    {stage === 'uploading' && (t('upload.processing'))}
+                    {stage === 'embedding' && (language === 'en' ? 'Generating embeddings...' : language === 'zh-TW' ? '正在生成向量...' : '正在生成向量...')}
+                    {stage === 'assessing' && (language === 'en' ? `AI assessing skills (${assessProgress.done}/${assessProgress.total})...` : language === 'zh-TW' ? `AI 評估技能中 (${assessProgress.done}/${assessProgress.total})...` : `AI 评估技能中 (${assessProgress.done}/${assessProgress.total})...`)}
+                    {stage === 'done' && (language === 'en' ? 'Complete!' : '完成！')}
                   </>
                 ) : (
                   <>📤 {t('upload.button')}</>

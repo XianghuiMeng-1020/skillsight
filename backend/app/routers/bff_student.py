@@ -293,19 +293,14 @@ async def bff_embed(
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    """Embed chunks for a document. Requires active consent."""
+    """Embed chunks for a document directly (no internal HTTP call)."""
     _check_consent(db, doc_id, ident.subject_id)
 
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.post(
-            f"{_BASE}/chunks/embed/{doc_id}",
-            headers={"Authorization": f"Bearer {internal_token}"},
-            timeout=120,
-        )
-    if r.status_code != 200:
-        err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
+    try:
+        from backend.app.routers.chunks import embed_document_chunks
+        result = embed_document_chunks(doc_id, db, ident)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
     log_audit(
         engine,
@@ -315,7 +310,7 @@ async def bff_embed(
         object_id=doc_id,
         status="ok",
     )
-    return r.json()
+    return result
 
 
 # ─── Evidence Search ──────────────────────────────────────────────────────────
@@ -417,19 +412,25 @@ async def bff_ai_demonstration(
     """
     _check_consent(db, payload.doc_id, ident.subject_id)
 
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.post(
-            f"{_BASE}/ai/demonstration",
-            json={"skill_id": payload.skill_id, "doc_id": payload.doc_id, "k": payload.k},
-            headers={"Authorization": f"Bearer {internal_token}"},
-            timeout=120,
+    try:
+        from backend.app.routers.ai import ai_demonstration, DemonstrationRequest
+        result = ai_demonstration(
+            req=DemonstrationRequest(skill_id=payload.skill_id, doc_id=payload.doc_id, k=payload.k),
+            db=db, ident=ident,
         )
-    if r.status_code != 200:
-        err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
-
-    result = r.json()
+    except ImportError:
+        internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
+        async with httpx.AsyncClient(trust_env=False) as client:
+            r = await client.post(
+                f"{_BASE}/ai/demonstration",
+                json={"skill_id": payload.skill_id, "doc_id": payload.doc_id, "k": payload.k},
+                headers={"Authorization": f"Bearer {internal_token}"},
+                timeout=120,
+            )
+        if r.status_code != 200:
+            err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+            raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
+        result = r.json()
     label = result.get("label", "not_enough_information")
     rationale = result.get("rationale", "")
     evidence_ids = result.get("evidence_chunk_ids") or []
