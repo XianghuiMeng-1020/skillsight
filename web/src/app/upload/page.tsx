@@ -39,7 +39,7 @@ const ALLOWED_EXTENSIONS = new Set([
 
 function isAllowedFile(name: string): boolean {
   const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
-  return ext && ALLOWED_EXTENSIONS.has(ext);
+  return Boolean(ext) && ALLOWED_EXTENSIONS.has(ext);
 }
 
 export default function UploadPage() {
