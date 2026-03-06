@@ -68,8 +68,8 @@ const studentNav: NavItem[] = [
 
 const adminNav: NavItem[] = [
   { icon: '🏠', labelKey: 'admin.overview', href: '/admin' },
-  { icon: '👥', labelKey: 'admin.students', href: '/admin/students' },
-  { icon: '📋', labelKey: 'admin.reviewQueue', href: '/admin/review' },
+  { icon: '👥', labelKey: 'admin.audit', href: '/admin/audit' },
+  { icon: '📋', labelKey: 'admin.jobs', href: '/admin/jobs' },
   { icon: '📜', labelKey: 'admin.changeLog', href: '/admin/change-log' },
   { icon: '🎯', labelKey: 'admin.skillsRegistry', href: '/admin/skills' },
   { icon: '💼', labelKey: 'admin.rolesLibrary', href: '/admin/roles' },

@@ -186,14 +186,14 @@ def bff_programme_coverage_matrix(
         course_id = c["course_id"]
         mapped_skills = db.execute(
             text("""
-                SELECT skill_id, required_level
+                SELECT skill_id, intended_level
                 FROM course_skill_map WHERE course_id = :cid
             """),
             {"cid": course_id},
         ).mappings().all()
         matrix[course_id] = {
             "course_name": c["course_name"],
-            "skills": {r["skill_id"]: r.get("required_level") for r in mapped_skills},
+            "skills": {r["skill_id"]: r.get("intended_level") for r in mapped_skills},
         }
 
     # Gap/overlap analysis

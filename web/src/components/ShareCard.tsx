@@ -19,7 +19,7 @@ export function ShareButton({ userName, skills, overallScore }: ShareButtonProps
   };
 
   const handleCopyLink = async () => {
-    const shareUrl = window.location.origin + '/profile/' + encodeURIComponent(userName);
+    const shareUrl = window.location.origin + '/dashboard';
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
@@ -35,7 +35,7 @@ export function ShareButton({ userName, skills, overallScore }: ShareButtonProps
         await navigator.share({
           title: `${userName}${t('share.profileOf')}`,
           text: t('share.nativeShareText').replace('{{name}}', userName).replace('{{score}}', String(overallScore)),
-          url: window.location.origin + '/profile/' + encodeURIComponent(userName),
+          url: window.location.origin + '/dashboard',
         });
       } catch (err) {
         console.error('Share failed:', err);

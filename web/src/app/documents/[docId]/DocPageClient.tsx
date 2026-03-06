@@ -444,7 +444,7 @@ export default function DocPage() {
               {t("doc.dashboard")}
             </Link>
             <span>/</span>
-            <Link href="/dashboard/documents" style={{ color: "var(--primary)", textDecoration: "none" }}>
+            <Link href="/upload" style={{ color: "var(--primary)", textDecoration: "none" }}>
               {t("doc.document")}
             </Link>
             <span>/</span>

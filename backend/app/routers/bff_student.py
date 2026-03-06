@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -307,32 +307,29 @@ class EvidenceSearchReq(BaseModel):
 
 
 @router.post("/search/evidence_vector")
-async def bff_search_evidence(
+def bff_search_evidence(
     payload: EvidenceSearchReq,
+    request: Request,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
     """
-    Vector search via retrieval_pipeline. Consent check when doc_id provided.
+    Direct call to search_evidence_vector (no internal HTTP). Consent check when doc_id provided.
     Decision 1: refusal from pipeline (threshold) -> items=[], refusal={code, message, next_step}.
     Audit: bff.student.search.evidence_vector (refusal or ok).
     """
     if payload.doc_id:
         _check_consent(db, payload.doc_id, ident.subject_id)
 
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.post(
-            f"{_BASE}/search/evidence_vector",
-            json=payload.model_dump(),
-            headers={"Authorization": f"Bearer {internal_token}"},
-            timeout=30,
-        )
-    if r.status_code != 200:
-        err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
-
-    result = r.json()
+    from backend.app.routers.search import search_evidence_vector, EvidenceSearchRequest
+    req = EvidenceSearchRequest(
+        query_text=payload.query_text,
+        skill_id=payload.skill_id,
+        doc_id=payload.doc_id,
+        k=payload.k,
+        min_score=payload.min_score,
+    )
+    result = search_evidence_vector(req=req, request=request, db=db, ident=ident)
     items = result.get("items", [])
     refusal = result.get("refusal")
 
@@ -382,7 +379,7 @@ class DemonstrationReq(BaseModel):
 
 
 @router.post("/ai/demonstration")
-async def bff_ai_demonstration(
+def bff_ai_demonstration(
     payload: DemonstrationReq,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
@@ -395,25 +392,11 @@ async def bff_ai_demonstration(
     """
     _check_consent(db, payload.doc_id, ident.subject_id)
 
-    try:
-        from backend.app.routers.ai import ai_demonstration, DemonstrationRequest
-        result = ai_demonstration(
-            req=DemonstrationRequest(skill_id=payload.skill_id, doc_id=payload.doc_id, k=payload.k),
-            db=db, ident=ident,
-        )
-    except ImportError:
-        internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-        async with httpx.AsyncClient(trust_env=False) as client:
-            r = await client.post(
-                f"{_BASE}/ai/demonstration",
-                json={"skill_id": payload.skill_id, "doc_id": payload.doc_id, "k": payload.k},
-                headers={"Authorization": f"Bearer {internal_token}"},
-                timeout=120,
-            )
-        if r.status_code != 200:
-            err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-            raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
-        result = r.json()
+    from backend.app.routers.ai import ai_demonstration, DemonstrationRequest
+    result = ai_demonstration(
+        req=DemonstrationRequest(skill_id=payload.skill_id, doc_id=payload.doc_id, k=payload.k),
+        db=db, ident=ident,
+    )
     label = result.get("label", "not_enough_information")
     rationale = result.get("rationale", "")
     evidence_ids = result.get("evidence_chunk_ids") or []
@@ -723,19 +706,14 @@ async def bff_role_alignment(
         )
     _check_consent(db, doc_id, ident.subject_id)
 
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.post(
-            f"{_BASE}/assess/role_readiness",
-            json={"role_id": payload.role_id, "doc_id": doc_id, "subject_id": ident.subject_id, "store": True},
-            headers={"Authorization": f"Bearer {internal_token}"},
-            timeout=60,
-        )
-    if r.status_code != 200:
-        err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
-
-    result = r.json()
+    from backend.app.routers.assess import role_readiness, RoleReadinessRequest
+    req = RoleReadinessRequest(
+        role_id=payload.role_id,
+        doc_id=doc_id,
+        subject_id=ident.subject_id,
+        store=True,
+    )
+    result = role_readiness(req=req, db=db, ident=ident)
     score = float(result.get("score", result.get("readiness_score", 0)))
     if "score" not in result and "readiness_score" in result:
         result["score"] = score
@@ -793,27 +771,23 @@ class ActionsReq(BaseModel):
 
 
 @router.post("/actions/recommend")
-async def bff_actions_recommend(
+def bff_actions_recommend(
     payload: ActionsReq,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    """Action recommendations. Requires consent if doc_id is provided."""
-    if payload.doc_id:
-        _check_consent(db, payload.doc_id, ident.subject_id)
+    """Direct call to recommend_actions (no internal HTTP). Requires consent if doc_id is provided."""
+    if not payload.doc_id:
+        raise HTTPException(status_code=400, detail="doc_id is required for action recommendations")
+    _check_consent(db, payload.doc_id, ident.subject_id)
 
-    body: Dict[str, Any] = {"skill_id": payload.skill_id, "user_id": ident.subject_id}
-    if payload.role_id:
-        body["role_id"] = payload.role_id
-
-    internal_token = issue_token(ident.subject_id, ident.role, ttl_s=300)
-    async with httpx.AsyncClient(trust_env=False) as client:
-        r = await client.post(f"{_BASE}/actions/recommend", json=body, headers={"Authorization": f"Bearer {internal_token}"}, timeout=30)
-    if r.status_code != 200:
-        err = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
-        raise HTTPException(status_code=r.status_code, detail=err.get("detail", r.text))
-
-    return r.json()
+    from backend.app.routers.actions import recommend_actions, ActionRecommendRequest
+    req = ActionRecommendRequest(
+        doc_id=payload.doc_id,
+        role_id=payload.role_id,
+        skill_ids=[payload.skill_id] if payload.skill_id else None,
+    )
+    return recommend_actions(req=req, db=db, ident=ident)
 
 
 # ─── Consent Management ───────────────────────────────────────────────────────

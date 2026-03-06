@@ -188,8 +188,8 @@ def bff_staff_course_skills_summary(
     # Mapped skills for this course
     skill_rows = db.execute(
         text("""
-            SELECT csm.skill_id, s.canonical_name, csm.required_level,
-                   csm.decision
+            SELECT csm.skill_id, s.canonical_name, csm.intended_level,
+                   COALESCE(csm.decision, csm.status) AS review_status
             FROM course_skill_map csm
             LEFT JOIN skills s ON s.skill_id = csm.skill_id
             WHERE csm.course_id = :cid
@@ -213,7 +213,7 @@ def bff_staff_course_skills_summary(
         assessed_count = db.execute(
             text("""
                 SELECT COUNT(*) FROM skill_assessments
-                WHERE skill_id = :sid AND label IN ('demonstrated', 'mentioned')
+                WHERE skill_id = :sid AND decision IN ('demonstrated', 'mentioned')
             """),
             {"sid": sid},
         ).scalar() or 0
@@ -221,8 +221,8 @@ def bff_staff_course_skills_summary(
         skills_summary.append({
             "skill_id": sid,
             "canonical_name": sr.get("canonical_name"),
-            "required_level": sr.get("required_level"),
-            "review_status": sr.get("decision") or "pending",
+            "intended_level": sr.get("intended_level"),
+            "review_status": sr.get("review_status") or "pending",
             "evidence_count": int(evidence_count),
             "demonstrated_count": int(assessed_count),
         })

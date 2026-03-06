@@ -468,202 +468,29 @@ async def import_document_txt(
 
 
 # -----------------------------
-# POST /documents/upload (TXT/DOCX/PDF with consent)
+# POST /documents/upload (DEPRECATED – use /documents/upload_multimodal)
 # -----------------------------
 @router.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
-    doc_type: str = Query(default="demo", description="Document type: demo, synthetic, real"),
-    user_id: str = Query(default="anonymous", description="User ID for consent tracking"),
-    consent: bool = Query(default=True, description="User consent for processing"),
+    doc_type: str = Query(default="demo", description="Document type"),
+    user_id: str = Query(default="anonymous", description="User ID"),
+    consent: bool = Query(default=True, description="User consent"),
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ) -> Dict[str, Any]:
     """
-    Upload a document (TXT, DOCX, or PDF) with consent tracking.
-    
-    This endpoint:
-    1. Validates file type
-    2. Creates document record
-    3. Creates consent record
-    4. Parses file into chunks
-    5. Stores chunks with evidence pointers
-    6. Optionally triggers async embedding job
-    
-    Supported formats: .txt, .docx, .pdf
+    DEPRECATED. Use POST /documents/upload_multimodal for all file types
+    (.txt, .docx, .pdf, .ipynb, .py, images, etc.).
     """
-    try:
-        from backend.app.parsers import parse_file_to_chunks
-    except ImportError:
-        from app.parsers import parse_file_to_chunks
-    
-    try:
-        # Validate consent
-        if not consent:
-            raise HTTPException(status_code=400, detail="Consent is required for document processing")
-        
-        # Validate file
-        filename = (file.filename or "uploaded").strip()
-        ext = os.path.splitext(filename)[1].lower()
-        
-        if ext not in [".txt", ".docx", ".pdf"]:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Unsupported file type: {ext}. Supported: .txt, .docx, .pdf"
-            )
-        
-        raw_bytes = await file.read()
-        if len(raw_bytes) == 0:
-            raise HTTPException(status_code=400, detail="Empty file")
-        if len(raw_bytes) > MAX_UPLOAD_BYTES:
-            raise HTTPException(status_code=413, detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024*1024)} MB)")
-        _validate_magic(raw_bytes, ext)
-        
-        doc_id = str(uuid.uuid4())
-        consent_id = str(uuid.uuid4())
-        now = _now_utc()
-        stored_path = f"memory://{doc_id}/{filename}"
-        
-        # Parse file into chunks (in-memory, no disk write)
-        try:
-            chunks = parse_file_to_chunks(
-                file_bytes=raw_bytes,
-                filename=filename,
-                min_chunk_len=50,
-            )
-        except ImportError as e:
-            raise HTTPException(status_code=500, detail=f"Parser not available: {e}")
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to parse file: {e}")
-        
-        if not chunks:
-            raise HTTPException(status_code=400, detail="File produced no valid chunks")
-        
-        # Create document record
-        doc_cols = set(_table_cols("documents"))
-        doc_data: Dict[str, Any] = {}
-        
-        if "doc_id" in doc_cols:
-            doc_data["doc_id"] = doc_id
-        if "filename" in doc_cols:
-            doc_data["filename"] = filename
-        if "stored_path" in doc_cols:
-            doc_data["stored_path"] = stored_path
-        if "created_at" in doc_cols:
-            doc_data["created_at"] = now
-        if "doc_type" in doc_cols:
-            doc_data["doc_type"] = ext.lstrip(".")
-        if "storage_uri" in doc_cols:
-            doc_data["storage_uri"] = stored_path
-        if "title" in doc_cols:
-            doc_data["title"] = filename
-        if "source_type" in doc_cols:
-            doc_data["source_type"] = doc_type
-        if "updated_at" in doc_cols:
-            doc_data["updated_at"] = now
-        if "metadata_json" in doc_cols:
-            meta = {
-                "filename": filename,
-                "content_type": file.content_type,
-                "bytes": len(raw_bytes),
-                "user_id": user_id,
-            }
-            doc_data["metadata_json"] = json.dumps(meta)
-        
-        _insert_one(db, "documents", doc_data)
-        
-        # Create consent record (use savepoint to isolate failures)
-        insp = inspect(engine)
-        tables = set(insp.get_table_names(schema="public"))
-        if "consents" in tables:
-            try:
-                nested = db.begin_nested()
-                consent_sql = text("""
-                    INSERT INTO consents (consent_id, user_id, doc_id, status, created_at)
-                    VALUES (:consent_id, :user_id, :doc_id, 'granted', :created_at)
-                """)
-                db.execute(consent_sql, {
-                    "consent_id": consent_id,
-                    "user_id": ident.subject_id,
-                    "doc_id": doc_id,
-                    "created_at": now,
-                })
-                nested.commit()
-            except Exception:
-                pass
-        
-        # Insert chunks
-        chunk_cols = set(_table_cols("chunks"))
-        chunks_created = 0
-        
-        for ch in chunks:
-            row: Dict[str, Any] = {}
-            
-            if "chunk_id" in chunk_cols:
-                row["chunk_id"] = str(uuid.uuid4())
-            if "doc_id" in chunk_cols:
-                row["doc_id"] = doc_id
-            if "idx" in chunk_cols:
-                row["idx"] = int(ch.get("idx", chunks_created))
-            if "char_start" in chunk_cols:
-                row["char_start"] = int(ch.get("char_start", 0))
-            if "char_end" in chunk_cols:
-                row["char_end"] = int(ch.get("char_end", 0))
-            if "snippet" in chunk_cols:
-                row["snippet"] = ch.get("snippet", "")[:300]
-            if "quote_hash" in chunk_cols:
-                row["quote_hash"] = ch.get("quote_hash", "")
-            if "created_at" in chunk_cols:
-                row["created_at"] = now
-            if "chunk_text" in chunk_cols:
-                row["chunk_text"] = ch.get("chunk_text", "")
-            if "section_path" in chunk_cols:
-                row["section_path"] = ch.get("section_path")
-            if "page_start" in chunk_cols:
-                row["page_start"] = ch.get("page_start")
-            if "page_end" in chunk_cols:
-                row["page_end"] = ch.get("page_end")
-            if "stored_path" in chunk_cols:
-                row["stored_path"] = stored_path
-            if "storage_uri" in chunk_cols:
-                row["storage_uri"] = stored_path
-            
-            _insert_one(db, "chunks", row)
-            chunks_created += 1
-        
-        # Create job for async embedding (use savepoint to isolate failures)
-        job_id = None
-        if "jobs" in tables:
-            try:
-                nested = db.begin_nested()
-                job_id = str(uuid.uuid4())
-                job_cols = set(_table_cols("jobs"))
-                job_data = {"job_id": job_id, "doc_id": doc_id, "status": "pending", "attempts": 0, "created_at": now}
-                if "job_type" in job_cols:
-                    job_data["job_type"] = "embed"
-                _insert_one(db, "jobs", job_data)
-                nested.commit()
-            except Exception:
-                job_id = None
-        
-        db.commit()
-        
-        return {
-            "doc_id": doc_id,
-            "filename": filename,
-            "doc_type": ext.lstrip("."),
-            "chunks_created": chunks_created,
-            "consent_id": consent_id,
-            "job_id": job_id,
-            "stored_path": stored_path,
-            "message": "Document uploaded and parsed successfully.",
-        }
-    
-    except HTTPException:
-        raise
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"/documents/upload failed: {type(e).__name__}: {e}")
+    raise HTTPException(
+        status_code=410,
+        detail={
+            "code": "endpoint_deprecated",
+            "message": "POST /documents/upload is deprecated. Use POST /documents/upload_multimodal for all supported file types.",
+            "replacement": "/documents/upload_multimodal",
+        },
+    )
 
 
 # -----------------------------

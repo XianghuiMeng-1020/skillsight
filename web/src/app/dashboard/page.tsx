@@ -34,6 +34,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('Student');
   const [showAchievements, setShowAchievements] = useState(false);
+  const [jobsMatchedCount, setJobsMatchedCount] = useState(0);
 
   const { achievements, totalPoints, recentUnlock, dismissRecentUnlock } = useAchievements();
 
@@ -51,6 +52,11 @@ export default function StudentDashboard() {
         studentBff.getSkills(10).catch(() => ({ items: [] })),
       ]);
       setDocuments((docsData.items || []) as Document[]);
+      // Optional: fetch job match count when API is available
+      studentBff.getJobMatches?.().then((res: { count?: number; items?: unknown[] }) => {
+        const n = typeof res?.count === 'number' ? res.count : (Array.isArray(res?.items) ? res.items.length : 0);
+        setJobsMatchedCount(n);
+      }).catch(() => setJobsMatchedCount(0));
       // Transform skills data with deterministic status based on skill_id hash
       const skillsWithStatus: Skill[] = ((skillsData.items || []) as Array<Record<string, unknown>>).slice(0, 6).map((s) => {
         // Use a simple hash of skill_id to generate consistent level (0-3)
@@ -178,7 +184,7 @@ export default function StudentDashboard() {
             </div>
             <div className="stat-card">
               <div className="stat-icon purple">🎯</div>
-              <div className="stat-value">3</div>
+              <div className="stat-value">{jobsMatchedCount}</div>
               <div className="stat-label">{t('dashboard.jobsMatched')}</div>
             </div>
           </div>
@@ -218,7 +224,7 @@ export default function StudentDashboard() {
                   >
                     {loading ? '⏳' : '🔄'}
                   </button>
-                  <Link href="/dashboard/documents" className="btn btn-ghost btn-sm">{t('dashboard.viewAll')}</Link>
+                  <Link href="/upload" className="btn btn-ghost btn-sm">{t('dashboard.viewAll')}</Link>
                 </div>
               </div>
               <div className="card-content" style={{ padding: 0 }}>

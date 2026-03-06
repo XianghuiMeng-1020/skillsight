@@ -28,6 +28,20 @@ const SCOPE_KEYS = [
   { value: 'summary', labelKey: 'upload.scopeSummary', descKey: 'upload.scopeSummaryDesc' },
 ] as const;
 
+const ALLOWED_EXTENSIONS = new Set([
+  '.txt', '.doc', '.docx', '.pdf', '.pptx', '.ppt', '.rtf', '.odt', '.md', '.markdown',
+  '.xlsx', '.xls', '.csv',
+  '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif', '.gif', '.svg', '.ico', '.heic', '.heif',
+  '.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac',
+  '.py', '.pyw', '.pyi', '.ipynb', '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte',
+  '.html', '.htm', '.css', '.scss', '.sass', '.less', '.java', '.cpp', '.cc', '.cxx', '.c', '.go', '.rs', '.rb', '.json',
+]);
+
+function isAllowedFile(name: string): boolean {
+  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+  return ext && ALLOWED_EXTENSIONS.has(ext);
+}
+
 export default function UploadPage() {
   const { t, language } = useLanguage();
   const { addToast } = useToast();
@@ -91,9 +105,17 @@ export default function UploadPage() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
+      const f = e.dataTransfer.files[0];
+      if (!isAllowedFile(f.name)) {
+        const msg = t('upload.unsupportedType') || 'Unsupported file type. Please choose a supported format.';
+        setError(msg);
+        setFile(null);
+        addToast('error', msg);
+        return;
+      }
+      setFile(f);
       setError(null);
       setResult(null);
     }
@@ -101,7 +123,16 @@ export default function UploadPage() {
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
+      const f = e.target.files[0];
+      if (!isAllowedFile(f.name)) {
+        const msg = t('upload.unsupportedType') || 'Unsupported file type. Please choose a supported format.';
+        setError(msg);
+        setFile(null);
+        addToast('error', msg);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      setFile(f);
       setError(null);
       setResult(null);
     }
@@ -304,7 +335,7 @@ export default function UploadPage() {
             <Link href="/" className="nav-link">{t('nav.home')}</Link>
             <Link href="/upload" className="nav-link active">{t('nav.upload')}</Link>
             <Link href="/assess" className="nav-link">{t('nav.assess')}</Link>
-            <Link href="/profile" className="nav-link">{t('nav.dashboard')}</Link>
+            <Link href="/dashboard" className="nav-link">{t('nav.dashboard')}</Link>
           </nav>
         </div>
       </header>

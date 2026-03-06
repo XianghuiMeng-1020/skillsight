@@ -90,8 +90,8 @@ export default function LoginPage() {
             style={{
               padding: '6px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer',
               fontSize: '0.8rem', fontWeight: language === lang.value ? 700 : 400,
-              background: language === lang.value ? 'linear-gradient(135deg, #E18182, #F9CE9C)' : 'transparent',
-              color: language === lang.value ? 'white' : '#666',
+              background: language === lang.value ? 'linear-gradient(135deg, var(--primary), var(--accent))' : 'transparent',
+              color: language === lang.value ? 'white' : 'var(--gray-500)',
               transition: 'all 0.2s ease',
             }}
           >
@@ -113,8 +113,8 @@ export default function LoginPage() {
             className={`tab ${role === 'student' ? 'active' : ''}`}
             onClick={() => setRole('student')}
             style={{
-              background: role === 'student' ? 'linear-gradient(135deg, #FCF0F0, white)' : 'transparent',
-              border: role === 'student' ? '2px solid #E18182' : '2px solid transparent'
+              background: role === 'student' ? 'linear-gradient(135deg, var(--primary-50), white)' : 'transparent',
+              border: role === 'student' ? '2px solid var(--primary)' : '2px solid transparent'
             }}
           >
             {t('login.student')}
@@ -123,8 +123,8 @@ export default function LoginPage() {
             className={`tab ${role === 'admin' ? 'active' : ''}`}
             onClick={() => setRole('admin')}
             style={{
-              background: role === 'admin' ? 'linear-gradient(135deg, #FCF0F0, white)' : 'transparent',
-              border: role === 'admin' ? '2px solid #E18182' : '2px solid transparent'
+              background: role === 'admin' ? 'linear-gradient(135deg, var(--primary-50), white)' : 'transparent',
+              border: role === 'admin' ? '2px solid var(--primary)' : '2px solid transparent'
             }}
           >
             {t('login.adminStaff')}
@@ -160,15 +160,15 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               style={{
-                borderColor: '#E7E5E4',
+                borderColor: 'var(--gray-200)',
                 transition: 'all 0.2s ease'
               }}
               onFocus={(e) => {
-                e.currentTarget.style.borderColor = '#E18182';
-                e.currentTarget.style.boxShadow = '0 0 0 3px rgba(225, 129, 130, 0.1)';
+                e.currentTarget.style.borderColor = 'var(--primary)';
+                e.currentTarget.style.boxShadow = '0 0 0 3px var(--primary-50)';
               }}
               onBlur={(e) => {
-                e.currentTarget.style.borderColor = '#E7E5E4';
+                e.currentTarget.style.borderColor = 'var(--gray-200)';
                 e.currentTarget.style.boxShadow = 'none';
               }}
             />
@@ -183,7 +183,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {error && <p style={{ color: '#E18182', fontSize: '0.875rem', marginTop: '0.5rem' }}>{error}</p>}
+        {error && <p style={{ color: 'var(--error)', fontSize: '0.875rem', marginTop: '0.5rem' }}>{error}</p>}
         <p className="login-help">
           {t('login.needHelp')} <a href="mailto:support@hku.hk" style={{ color: '#E18182' }}>{t('login.contactUs')}</a>
         </p>

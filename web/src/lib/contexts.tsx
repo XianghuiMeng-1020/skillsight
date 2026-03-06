@@ -601,6 +601,15 @@ export const translations: Translations = {
   'upload.privacyCardDesc': { zh: '你的文件会被安全处理，仅用于技能评估。你始终拥有数据的完全控制权。', 'zh-TW': '你的文件會被安全處理，僅用於技能評估。你始終擁有資料的完全控制權。', en: 'Your files are processed securely and only used for skill assessment. You maintain full control over your data.' },
   'upload.managePrivacy': { zh: '🔒 管理隐私设置', 'zh-TW': '🔒 管理隱私設定', en: '🔒 Manage Privacy Settings' },
   'upload.loginRequired': { zh: '请先登录后再上传文档。', 'zh-TW': '請先登入後再上傳文件。', en: 'Please log in to upload documents.' },
+  'upload.embedding': { zh: '正在生成向量...', 'zh-TW': '正在生成向量...', en: 'Generating embeddings...' },
+  'upload.assessing': { zh: 'AI 评估技能中', 'zh-TW': 'AI 評估技能中', en: 'AI assessing skills' },
+  'upload.done': { zh: '完成！', 'zh-TW': '完成！', en: 'Complete!' },
+  'upload.unsupportedType': { zh: '不支持该文件格式，请选择支持的格式。', 'zh-TW': '不支援該檔案格式，請選擇支援的格式。', en: 'Unsupported file type. Please choose a supported format.' },
+  'admin.audit': { zh: '审计日志', 'zh-TW': '審計日誌', en: 'Audit Log' },
+  'admin.jobs': { zh: '后台任务', 'zh-TW': '後台任務', en: 'Background Jobs' },
+  'error.somethingWrong': { zh: '出错了', 'zh-TW': '出錯了', en: 'Something went wrong' },
+  'error.tryAgain': { zh: '重试', 'zh-TW': '重試', en: 'Try again' },
+  'error.backToDashboard': { zh: '返回仪表盘', 'zh-TW': '返回儀表板', en: 'Back to Dashboard' },
 
   // 隐私设置页
   'privacy.dataOverview': { zh: '📊 数据概览', 'zh-TW': '📊 資料概覽', en: '📊 Data Overview' },

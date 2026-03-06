@@ -301,8 +301,8 @@ def consent_revoke(
     effective_user = _resolve_user_id(payload.user_id, ident)
     try:
         row = db.execute(
-            text("SELECT * FROM consents WHERE subject_id = :subject_id AND doc_id = :doc_id"),
-            {"subject_id": effective_user, "doc_id": payload.doc_id},
+            text("SELECT * FROM consents WHERE user_id = :user_id AND doc_id = :doc_id"),
+            {"user_id": effective_user, "doc_id": payload.doc_id},
         ).mappings().first()
         
         if not row:
@@ -314,12 +314,12 @@ def consent_revoke(
             text("""
                 UPDATE consents 
                 SET status = 'revoked', revoked_at = :revoked_at, revoke_reason = :reason
-                WHERE subject_id = :subject_id AND doc_id = :doc_id
+                WHERE user_id = :user_id AND doc_id = :doc_id
             """),
             {
                 "revoked_at": _now_utc(),
                 "reason": payload.reason or "User requested revocation",
-                "subject_id": effective_user,
+                "user_id": effective_user,
                 "doc_id": payload.doc_id,
             },
         )
@@ -366,8 +366,8 @@ def consent_revoke_dry_run(
     effective_user = _resolve_user_id(payload.user_id, ident)
     try:
         row = db.execute(
-            text("SELECT * FROM consents WHERE subject_id = :subject_id AND doc_id = :doc_id"),
-            {"subject_id": effective_user, "doc_id": payload.doc_id},
+            text("SELECT * FROM consents WHERE user_id = :user_id AND doc_id = :doc_id"),
+            {"user_id": effective_user, "doc_id": payload.doc_id},
         ).mappings().first()
         
         if not row:
