@@ -80,11 +80,13 @@ services:
         sync: false
     dockerCommand: python -m backend.worker
 
+  - type: redis
+    name: skillsight-redis
+    plan: starter
+    maxmemoryPolicy: noeviction
+    ipAllowList: []
+
 databases:
   - name: skillsight-db
     plan: starter
     postgresMajorVersion: "16"
-
-  - name: skillsight-redis
-    plan: starter
-    type: redis
