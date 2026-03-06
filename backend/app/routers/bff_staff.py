@@ -24,7 +24,7 @@ from backend.app.audit import log_audit
 from backend.app.change_log_events import write_change_event
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
-from backend.app.security import Identity, issue_token, require_auth
+from backend.app.security import Identity, issue_token, require_auth, _is_dev_login_allowed
 from backend.app.security.access_control import (
     AccessContext,
     PERSONAL_DATA_DENYLIST,
@@ -69,6 +69,8 @@ class StaffDevLoginReq(BaseModel):
 @router.post("/auth/dev_login")
 def bff_staff_dev_login(payload: StaffDevLoginReq):
     """Issue a staff token with ABAC context claims (dev only)."""
+    if not _is_dev_login_allowed():
+        raise HTTPException(status_code=403, detail="dev_login disabled in production")
     if payload.role not in ("staff", "admin"):
         raise HTTPException(status_code=422, detail="role must be 'staff' or 'admin'")
     token = issue_token(
@@ -297,6 +299,56 @@ def bff_staff_review_queue(
         "course_id": course_id,
         "count": len(tickets),
         "tickets": tickets,
+    }
+
+
+# ─── Single Review Ticket (for detail page) ─────────────────────────────────────
+
+@router.get("/review/{ticket_id}")
+def bff_staff_review_ticket(
+    ticket_id: str,
+    x_purpose: Optional[str] = Header(default=_STAFF_PURPOSE, alias="X-Purpose"),
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Get a single review ticket by id. Staff must have access to the ticket's course."""
+    _assert_staff(ident)
+    row = db.execute(
+        text("""
+            SELECT ticket_id, created_at, status, scope_course_id, scope_term_id,
+                   skill_id, role_id, uncertainty_reason, routed_to_role,
+                   evidence_pointers, resolved_at, resolved_by, resolution,
+                   (draft_json->>'draft_label') AS draft_label,
+                   (draft_json->>'draft_rationale') AS draft_rationale
+            FROM review_tickets
+            WHERE ticket_id = :tid
+            LIMIT 1
+        """),
+        {"tid": ticket_id},
+    ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Review ticket not found")
+    ctx = AccessContext(
+        purpose=x_purpose or _STAFF_PURPOSE,
+        course_id=row.get("scope_course_id"),
+    )
+    require_access(ident, "bff.staff.review.get", ctx, db)
+    return {
+        "ticket_id": str(row["ticket_id"]),
+        "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+        "status": row["status"],
+        "course_id": row.get("scope_course_id"),
+        "term_id": row.get("scope_term_id"),
+        "skill_id": row.get("skill_id"),
+        "role_id": row.get("role_id"),
+        "uncertainty_reason": row.get("uncertainty_reason"),
+        "routed_to_role": row.get("routed_to_role"),
+        "draft_label": row.get("draft_label"),
+        "draft_rationale": row.get("draft_rationale"),
+        "evidence_pointers": row.get("evidence_pointers") or [],
+        "resolved_at": row["resolved_at"].isoformat() if row.get("resolved_at") else None,
+        "resolved_by": row.get("resolved_by"),
+        "resolution": row.get("resolution"),
     }
 
 

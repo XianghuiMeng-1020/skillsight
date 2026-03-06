@@ -1,17 +1,23 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getToken } from "@/lib/bffClient";
 
 export default function SkillAliasesAdmin() {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
   const [alias, setAlias] = useState("cheating");
   const [resolveRes, setResolveRes] = useState<any>(null);
   const [conflicts, setConflicts] = useState<any[]>([]);
   const [msg, setMsg] = useState("");
 
+  function authHeaders(): Record<string, string> {
+    const token = getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
+
   async function refreshConflicts() {
     setMsg("");
-    const r = await fetch(`${apiBase}/skills/aliases/conflicts?limit=200`);
+    const r = await fetch(`${apiBase}/bff/admin/skill-aliases/conflicts?limit=200`, { headers: authHeaders() });
     const data = await r.json().catch(()=>({}));
     if (!r.ok) { setMsg(data?.detail || `HTTP ${r.status}`); setConflicts([]); return; }
     setConflicts(data.items || []);
@@ -20,7 +26,7 @@ export default function SkillAliasesAdmin() {
   async function doResolve() {
     setMsg("");
     setResolveRes(null);
-    const r = await fetch(`${apiBase}/skills/resolve?alias=${encodeURIComponent(alias)}`);
+    const r = await fetch(`${apiBase}/bff/admin/skill-aliases/resolve?alias=${encodeURIComponent(alias)}`, { headers: authHeaders() });
     const data = await r.json().catch(()=>({}));
     if (!r.ok) { setMsg(data?.detail || `HTTP ${r.status}`); return; }
     setResolveRes(data);
@@ -40,7 +46,7 @@ export default function SkillAliasesAdmin() {
           <input value={alias} onChange={(e)=>setAlias(e.target.value)} style={{ padding:8, border:"1px solid #ccc", borderRadius:6, minWidth: 260 }} />
           <button onClick={doResolve} style={{ padding:"8px 14px", cursor:"pointer" }}>Resolve</button>
           <button onClick={refreshConflicts} style={{ padding:"8px 14px", cursor:"pointer" }}>Refresh conflicts</button>
-          <a href={`${apiBase}/skills/aliases/conflicts/report?format=csv`} style={{ textDecoration:"underline" }}>Download CSV report</a>
+          <a href={`${apiBase}/bff/admin/skill-aliases/conflicts/report?format=csv`} style={{ textDecoration:"underline" }}>Download CSV report</a>
         </div>
         {msg && <div style={{ marginTop: 10, color: "crimson" }}>{msg}</div>}
       </section>

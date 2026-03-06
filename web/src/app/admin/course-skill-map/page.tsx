@@ -1,30 +1,24 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { getToken } from "@/lib/bffClient";
 
 export default function CourseSkillMapAdmin() {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
-  const [subjectId, setSubjectId] = useState("staff_demo");
-  const [role, setRole] = useState("staff");
-
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
   const [status, setStatus] = useState("pending");
   const [items, setItems] = useState<any[]>([]);
   const [msg, setMsg] = useState("");
   const [noteById, setNoteById] = useState<Record<string,string>>({});
 
-  useEffect(() => {
-    try {
-      const sid = localStorage.getItem("skillsight_subject_id");
-      const r = localStorage.getItem("skillsight_role");
-      if (sid) setSubjectId(sid);
-      if (r) setRole(r);
-    } catch {}
-  }, []);
+  function authHeaders(): Record<string, string> {
+    const token = getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
 
   async function refresh() {
     setMsg("");
     const qs = new URLSearchParams({ status, limit: "200" });
-    const r = await fetch(`${apiBase}/db/course_skill_map?${qs.toString()}`, { headers: { "X-Subject-Id": subjectId, "X-Role": role } });
+    const r = await fetch(`${apiBase}/bff/admin/course-skill-map?${qs.toString()}`, { headers: authHeaders() });
     const data = await r.json().catch(()=>({}));
     if (!r.ok) { setMsg(data?.detail || `HTTP ${r.status}`); setItems([]); return; }
     setItems(data.items || []);
@@ -33,9 +27,9 @@ export default function CourseSkillMapAdmin() {
   async function act(mapId: string, action: "approve"|"reject") {
     setMsg("");
     const note = noteById[mapId] || "";
-    const r = await fetch(`${apiBase}/db/course_skill_map/${mapId}/${action}`, {
+    const r = await fetch(`${apiBase}/bff/admin/course-skill-map/${mapId}/${action}`, {
       method: "POST",
-      headers: { "Content-Type":"application/json", "X-Subject-Id": subjectId, "X-Role": role },
+      headers: { "Content-Type":"application/json", ...authHeaders() },
       body: JSON.stringify({ note })
     });
     const data = await r.json().catch(()=>({}));
@@ -44,7 +38,7 @@ export default function CourseSkillMapAdmin() {
     await refresh();
   }
 
-  useEffect(() => { refresh(); }, [subjectId, role]);
+  useEffect(() => { refresh(); }, [status]);
 
   return (
     <main style={{ padding: 24, fontFamily: "system-ui", maxWidth: 1100 }}>

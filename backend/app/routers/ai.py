@@ -26,12 +26,25 @@ from backend.app.deps import check_doc_access
 from backend.app.security import Identity, require_auth
 
 # Lazy imports for optional dependencies
-def _get_ollama():
+def _get_llm():
+    """Return generate(model, prompt, temperature, timeout_s) -> str. Prefer OpenAI when LLM_PROVIDER=openai."""
+    provider = (os.getenv("LLM_PROVIDER") or "openai").strip().lower()
+    if provider == "ollama":
+        try:
+            from backend.app.ollama_client import ollama_generate
+            return ollama_generate
+        except ImportError:
+            return None
+    # default: openai
     try:
-        from backend.app.ollama_client import ollama_generate
-        return ollama_generate
+        from backend.app.openai_client import openai_generate
+        return openai_generate
     except ImportError:
-        return None
+        try:
+            from backend.app.ollama_client import ollama_generate
+            return ollama_generate
+        except ImportError:
+            return None
 
 def _get_embeddings():
     try:
@@ -68,9 +81,9 @@ def _load_prompt(name: str) -> str:
 DEMONSTRATION_PROMPT = _load_prompt("demonstration_v1.txt")
 PROFICIENCY_PROMPT = _load_prompt("proficiency_v1.txt")
 
-# Default LLM model (use available model from Ollama)
-import os
-DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:14b")
+# Default LLM model (OpenAI or Ollama depending on LLM_PROVIDER)
+_provider = (os.getenv("LLM_PROVIDER") or "openai").strip().lower()
+DEFAULT_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini") if _provider == "openai" else os.getenv("OLLAMA_MODEL", "deepseek-r1:14b")
 
 
 def _now_utc():
@@ -375,12 +388,12 @@ def ai_demonstration(
     prompt = DEMONSTRATION_PROMPT.replace("{skill_text}", skill_text).replace("{evidence_list}", evidence_text)
     
     # Call LLM
-    ollama_generate = _get_ollama()
-    if ollama_generate is None:
-        raise HTTPException(status_code=503, detail="LLM service (Ollama) not available")
+    llm_generate = _get_llm()
+    if llm_generate is None:
+        raise HTTPException(status_code=503, detail="LLM service not available")
     
     try:
-        raw_response = ollama_generate(req.model, prompt, temperature=0.0, timeout_s=120)
+        raw_response = llm_generate(req.model, prompt, temperature=0.0, timeout_s=120)
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"LLM call failed: {type(e).__name__}: {e}")
     
@@ -473,12 +486,12 @@ def ai_proficiency(
               .replace("{evidence_list}", evidence_text))
     
     # Call LLM
-    ollama_generate = _get_ollama()
-    if ollama_generate is None:
-        raise HTTPException(status_code=503, detail="LLM service (Ollama) not available")
+    llm_generate = _get_llm()
+    if llm_generate is None:
+        raise HTTPException(status_code=503, detail="LLM service not available")
     
     try:
-        raw_response = ollama_generate(req.model, prompt, temperature=0.0, timeout_s=120)
+        raw_response = llm_generate(req.model, prompt, temperature=0.0, timeout_s=120)
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"LLM call failed: {type(e).__name__}: {e}")
     
@@ -698,8 +711,8 @@ def analyze_writing(req: WritingAnalysisRequest) -> Dict[str, Any]:
     overall = int((grammar_score + content_score + structure_score + style_score) / 4)
     
     # Try LLM-based analysis if available
-    ollama_generate = _get_ollama()
-    if ollama_generate and len(text) >= 50:
+    llm_generate = _get_llm()
+    if llm_generate and len(text) >= 50:
         try:
             analysis_prompt = f"""分析以下文本的写作质量，返回JSON格式：
 {{
@@ -712,7 +725,7 @@ def analyze_writing(req: WritingAnalysisRequest) -> Dict[str, Any]:
 文本：
 {text[:1500]}
 """
-            raw_response = ollama_generate(DEFAULT_MODEL, analysis_prompt, temperature=0.3, timeout_s=30)
+            raw_response = llm_generate(DEFAULT_MODEL, analysis_prompt, temperature=0.3, timeout_s=30)
             parsed = _extract_json(raw_response)
             
             if parsed:

@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 from backend.app.audit import log_audit
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
-from backend.app.security import Identity, issue_token, require_auth
+from backend.app.security import Identity, issue_token, require_auth, _is_dev_login_allowed
 from backend.app.security.access_control import (
     AccessContext,
     get_programme_ids,
@@ -64,6 +64,8 @@ class ProgrammeDevLoginReq(BaseModel):
 @router.post("/auth/dev_login")
 def bff_programme_dev_login(payload: ProgrammeDevLoginReq):
     """Issue a programme_leader token with context (dev only)."""
+    if not _is_dev_login_allowed():
+        raise HTTPException(status_code=403, detail="dev_login disabled in production")
     if payload.role not in ("programme_leader", "admin"):
         raise HTTPException(status_code=422, detail="role must be 'programme_leader' or 'admin'")
     token = issue_token(

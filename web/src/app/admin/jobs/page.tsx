@@ -1,31 +1,70 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo } from "react";
+import { getToken } from "@/lib/bffClient";
+import { useToast } from "@/components/Toast";
+
+const JobRow = memo(function JobRow({ it, onRetry }: { it: { job_id: string; status: string; job_type?: string; doc_id?: string; attempts?: number; last_error?: string }; onRetry: (id: string) => void }) {
+  return (
+    <div key={it.job_id} style={{ border:"1px solid #eee", borderRadius: 8, padding: 12 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap: 12 }}>
+        <div>
+          <div><b>{it.status}</b> — {it.job_type ?? "embed"}</div>
+          <div style={{ color:"#666", fontSize: 13 }}>job_id: {it.job_id}</div>
+          <div style={{ color:"#666", fontSize: 13 }}>doc_id: {it.doc_id}</div>
+          <div style={{ color:"#666", fontSize: 13 }}>attempts: {it.attempts ?? 0}</div>
+        </div>
+        <div>
+          <button onClick={()=>onRetry(it.job_id)} style={{ padding:"6px 12px", cursor:"pointer" }}>Retry</button>
+        </div>
+      </div>
+      {it.last_error && <div style={{ marginTop: 8, color:"crimson", fontSize: 13 }}><b>last_error:</b> {it.last_error}</div>}
+    </div>
+  );
+});
 
 export default function JobsAdmin() {
-  const apiBase = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000";
+  const { addToast } = useToast();
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
   const [status, setStatus] = useState("");
   const [docId, setDocId] = useState("");
   const [items, setItems] = useState<any[]>([]);
   const [msg, setMsg] = useState("");
+
+  function authHeaders(): Record<string, string> {
+    const token = getToken();
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }
 
   async function refresh() {
     setMsg("");
     const qs = new URLSearchParams({ limit: "100" });
     if (status.trim()) qs.set("status", status.trim());
     if (docId.trim()) qs.set("doc_id", docId.trim());
-    const r = await fetch(`${apiBase}/db/jobs?${qs.toString()}`, { headers: { "X-Subject-Id":"staff_demo", "X-Role":"staff" } });
+    const r = await fetch(`${apiBase}/bff/admin/jobs?${qs.toString()}`, { headers: authHeaders() });
     const data = await r.json().catch(()=>({}));
-    if (!r.ok) { setMsg(data?.detail || `HTTP ${r.status}`); setItems([]); return; }
+    if (!r.ok) {
+      const err = data?.detail || `HTTP ${r.status}`;
+      setMsg(err);
+      addToast('error', typeof err === 'string' ? err : JSON.stringify(err));
+      setItems([]);
+      return;
+    }
     setItems(data.items || []);
   }
 
   async function retry(jobId: string) {
     setMsg("");
-    const r = await fetch(`${apiBase}/db/jobs/${jobId}/retry`, { method:"POST", headers: { "X-Subject-Id":"staff_demo", "X-Role":"staff" } });
+    const r = await fetch(`${apiBase}/bff/admin/jobs/${jobId}/retry`, { method:"POST", headers: authHeaders() });
     const data = await r.json().catch(()=>({}));
-    if (!r.ok) { setMsg(data?.detail || `HTTP ${r.status}`); return; }
+    if (!r.ok) {
+      const err = data?.detail || `HTTP ${r.status}`;
+      setMsg(err);
+      addToast('error', typeof err === 'string' ? err : JSON.stringify(err));
+      return;
+    }
     setMsg(`Retry queued: ${jobId}`);
+    addToast('success', `Retry queued: ${jobId}`);
     await refresh();
   }
 
@@ -55,20 +94,7 @@ export default function JobsAdmin() {
 
       <div style={{ display:"grid", gap: 10 }}>
         {items.map((it) => (
-          <div key={it.job_id} style={{ border:"1px solid #eee", borderRadius: 8, padding: 12 }}>
-            <div style={{ display:"flex", justifyContent:"space-between", flexWrap:"wrap", gap: 12 }}>
-              <div>
-                <div><b>{it.status}</b> — {it.job_type}</div>
-                <div style={{ color:"#666", fontSize: 13 }}>job_id: {it.job_id}</div>
-                <div style={{ color:"#666", fontSize: 13 }}>doc_id: {it.doc_id}</div>
-                <div style={{ color:"#666", fontSize: 13 }}>attempts: {it.attempts}</div>
-              </div>
-              <div>
-                <button onClick={()=>retry(it.job_id)} style={{ padding:"6px 12px", cursor:"pointer" }}>Retry</button>
-              </div>
-            </div>
-            {it.last_error && <div style={{ marginTop: 8, color:"crimson", fontSize: 13 }}><b>last_error:</b> {it.last_error}</div>}
-          </div>
+          <JobRow key={it.job_id} it={it} onRetry={retry} />
         ))}
         {items.length===0 && <div style={{ color:"#666" }}>No jobs.</div>}
       </div>

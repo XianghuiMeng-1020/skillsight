@@ -13,30 +13,37 @@ try:
     from backend.app.deps import check_doc_access
     from backend.app.embeddings import embed_texts, emb_dim
     from backend.app.security import Identity, require_auth
-    from backend.app.vector_store import get_client, ensure_collection, upsert_points, delete_by_doc_id
+    from backend.app.vector_store import get_client, ensure_collection, upsert_points, delete_by_doc_id, _qdrant_base_url
 except ImportError:
     from app.db.deps import get_db
     from app.deps import check_doc_access
     from app.embeddings import embed_texts, emb_dim
     from app.security import Identity, require_auth
-    from app.vector_store import get_client, ensure_collection, upsert_points, delete_by_doc_id
+    from app.vector_store import get_client, ensure_collection, upsert_points, delete_by_doc_id, _qdrant_base_url
 
 router = APIRouter(prefix="/chunks", tags=["chunks"])
 
 
 def _qdrant_url(path: str) -> str:
-    host = os.getenv("QDRANT_HOST", "localhost")
-    port = int(os.getenv("QDRANT_PORT", "6333"))
-    return f"http://{host}:{port}{path}"
+    return _qdrant_base_url() + path
+
+
+def _qdrant_curl_headers() -> list:
+    """Return curl -H args for Qdrant Cloud API key when set."""
+    api_key = os.getenv("QDRANT_API_KEY", "").strip()
+    if api_key:
+        return ["-H", f"api-key: {api_key}"]
+    return []
 
 
 def _ensure_collection_via_curl(dim: int) -> None:
     url = _qdrant_url("/collections/chunks_v1")
-    r = subprocess.run(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}", url], capture_output=True, text=True, timeout=10)
+    headers = _qdrant_curl_headers()
+    r = subprocess.run(["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}"] + headers + [url], capture_output=True, text=True, timeout=10)
     if r.returncode == 0 and r.stdout.strip() == "200":
         return
     body = json.dumps({"vectors": {"size": dim, "distance": "Cosine"}})
-    r2 = subprocess.run(["curl", "-sS", "-X", "PUT", url, "-H", "Content-Type: application/json", "-d", body],
+    r2 = subprocess.run(["curl", "-sS", "-X", "PUT", url] + headers + ["-H", "Content-Type: application/json", "-d", body],
                         capture_output=True, timeout=10)
     if r2.returncode != 0:
         raise RuntimeError(f"Failed to create Qdrant collection: {r2.stderr or r2.stdout}")
@@ -45,7 +52,8 @@ def _ensure_collection_via_curl(dim: int) -> None:
 def _delete_by_doc_id_via_curl(doc_id: str) -> None:
     url = _qdrant_url("/collections/chunks_v1/points/delete")
     body = json.dumps({"filter": {"must": [{"key": "doc_id", "match": {"value": doc_id}}]}})
-    subprocess.run(["curl", "-sS", "-X", "POST", url, "-H", "Content-Type: application/json", "-d", body],
+    headers = _qdrant_curl_headers()
+    subprocess.run(["curl", "-sS", "-X", "POST", url] + headers + ["-H", "Content-Type: application/json", "-d", body],
                   capture_output=True, timeout=10)
 
 
@@ -69,8 +77,9 @@ def _upsert_via_curl(rows: list, vecs: list) -> None:
             },
         })
     body = json.dumps({"points": points})
+    headers = _qdrant_curl_headers()
     result = subprocess.run(
-        ["curl", "-sS", "-X", "PUT", url, "-H", "Content-Type: application/json", "-d", body],
+        ["curl", "-sS", "-X", "PUT", url] + headers + ["-H", "Content-Type: application/json", "-d", body],
         capture_output=True,
         text=True,
         timeout=60,

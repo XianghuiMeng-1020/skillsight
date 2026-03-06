@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import ApiStatus from './ApiStatus';
 import { useLanguage } from '@/lib/contexts';
 import { clearToken } from '@/lib/bffClient';
@@ -86,6 +86,8 @@ export default function Sidebar() {
   const { t } = useLanguage();
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -93,6 +95,20 @@ export default function Sidebar() {
       setUser(JSON.parse(userData));
     }
   }, []);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    setIsMobile(mq.matches);
+    const handler = () => setIsMobile(mq.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  useEffect(() => {
+    if (isMobile) setMobileOpen(false);
+  }, [pathname, isMobile]);
 
   const isAdmin = user?.role === 'admin';
   const navItems = isAdmin ? adminNav : studentNav;
@@ -104,9 +120,30 @@ export default function Sidebar() {
   };
 
   return (
-    <aside className="sidebar">
+    <>
+      {isMobile && (
+        <button
+          type="button"
+          className="sidebar-hamburger"
+          onClick={() => setMobileOpen(true)}
+          aria-label={t('nav.openMenu')}
+        >
+          <span className="sidebar-hamburger-bar" />
+          <span className="sidebar-hamburger-bar" />
+          <span className="sidebar-hamburger-bar" />
+        </button>
+      )}
+      {isMobile && mobileOpen && (
+        <div className="sidebar-backdrop" onClick={closeMobile} aria-hidden />
+      )}
+      <aside className={`sidebar ${mobileOpen && isMobile ? 'open' : ''}`}>
       <div className="sidebar-header">
-        <Link href={isAdmin ? '/admin' : '/dashboard'} className="sidebar-logo">
+        {isMobile && (
+          <button type="button" className="sidebar-close" onClick={closeMobile} aria-label={t('nav.closeMenu')}>
+            ✕
+          </button>
+        )}
+        <Link href={isAdmin ? '/admin' : '/dashboard'} className="sidebar-logo" onClick={isMobile ? closeMobile : undefined}>
           <div className="sidebar-logo-icon">
             <SkillSightLogo />
           </div>
@@ -124,6 +161,7 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={`nav-item ${pathname === item.href ? 'active' : ''}`}
+              onClick={isMobile ? closeMobile : undefined}
             >
               <span className="nav-item-icon">{item.icon}</span>
               <span>{t(item.labelKey)}</span>
@@ -138,6 +176,7 @@ export default function Sidebar() {
               key={item.href}
               href={item.href}
               className={`nav-item ${pathname === item.href ? 'active' : ''}`}
+              onClick={isMobile ? closeMobile : undefined}
             >
               <span className="nav-item-icon">{item.icon}</span>
               <span>{t(item.labelKey)}</span>
@@ -166,5 +205,6 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+    </>
   );
 }

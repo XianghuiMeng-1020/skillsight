@@ -10,6 +10,7 @@ All student requests must:
   5. Return structured refusal hints when evidence is insufficient
 """
 import json
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -22,7 +23,6 @@ from sqlalchemy.orm import Session
 
 from backend.app.audit import log_audit
 from backend.app.refusal import make_refusal, normalize_legacy_refusal, refusal_dict
-from backend.app.refusal import make_refusal, refusal_dict, normalize_legacy_refusal
 from backend.app.change_log_events import (
     get_prev_role_readiness_snapshot,
     get_prev_skill_snapshot,
@@ -41,7 +41,7 @@ router = APIRouter(prefix="/bff/student", tags=["bff-student"])
 ALLOWED_PURPOSES = ["skill_assessment", "role_alignment", "portfolio"]
 ALLOWED_SCOPES = ["full", "excerpt", "summary"]
 
-_BASE = "http://127.0.0.1:8001"
+_BASE = os.getenv("BFF_BACKEND_URL") or f"http://127.0.0.1:{os.getenv('PORT', '8001')}"
 
 
 def _now_utc() -> datetime:

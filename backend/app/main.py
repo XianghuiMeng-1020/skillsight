@@ -139,15 +139,43 @@ def health_schema():
     return _SCHEMA_HEALTH
 
 
+def _pg_health() -> dict:
+    """Check PostgreSQL connectivity."""
+    try:
+        with SessionLocal() as db:
+            db.execute(text("SELECT 1"))
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _redis_health() -> dict:
+    """Check Redis connectivity."""
+    try:
+        import os as _os
+        import redis
+        host = _os.getenv("REDIS_HOST", "localhost")
+        port = int(_os.getenv("REDIS_PORT", "6379"))
+        r = redis.Redis(host=host, port=port, db=0, socket_connect_timeout=2)
+        r.ping()
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
 @app.get("/readyz")
 def readyz():
-    """Readiness: health + Qdrant connectivity."""
+    """Readiness: health + PostgreSQL, Redis, Qdrant connectivity."""
     from backend.app.vector_store import qdrant_health
     qdrant = qdrant_health()
-    ok = qdrant.get("ok", False)
+    pg = _pg_health()
+    redis_status = _redis_health()
+    ok = qdrant.get("ok", False) and pg.get("ok", False) and redis_status.get("ok", False)
     return {
         "status": "ok" if ok else "degraded",
         "ok": ok,
+        "postgres": pg,
+        "redis": redis_status,
         "qdrant": qdrant,
     }
 

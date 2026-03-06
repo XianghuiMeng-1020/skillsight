@@ -68,7 +68,37 @@ cd backend
 python worker.py
 ```
 
-### Option B: Cloud Deployment (AWS/GCP)
+### Option B: Render (Backend) + Cloudflare Pages (Frontend)
+
+**Permanent production URLs (after deploy):**
+
+| Service | URL |
+|--------|-----|
+| **Backend API** | `https://skillsight-api.onrender.com` (or your Render service URL) |
+| **Frontend** | `https://skillsight.pages.dev` (or your Cloudflare Pages URL) |
+
+**Backend (Render):**
+1. Connect the repo to Render; use the root `render.yaml` (Blueprint).
+2. Render creates: `skillsight-api` (web), `skillsight-worker` (worker), `skillsight-db` (PostgreSQL), `skillsight-redis`.
+3. In Render Dashboard → skillsight-api → Environment, add:
+   - `OPENAI_API_KEY` (secret): your OpenAI API key
+   - `QDRANT_URL`: your Qdrant Cloud cluster URL (e.g. `https://xxx.eu-central.aws.cloud.qdrant.io`)
+   - `QDRANT_API_KEY`: your Qdrant Cloud API key
+4. Run migrations: Render Shell or one-off job: `alembic upgrade head` (with `PYTHONPATH` set to repo root if needed).
+
+**Frontend (Cloudflare Pages):**
+1. Connect the repo; build command: `cd web && npm ci && npm run build`
+2. Output directory: `web/out`
+3. Environment variable: `NEXT_PUBLIC_API_URL` = your Render API URL (e.g. `https://skillsight-api.onrender.com`)
+
+**Final links to use:**
+- **App (student/staff/admin):** `https://skillsight.pages.dev` (or your custom domain)
+- **API health:** `https://skillsight-api.onrender.com/health`
+- **API readiness (PG + Redis + Qdrant):** `https://skillsight-api.onrender.com/readyz`
+
+---
+
+### Option C: Cloud Deployment (AWS/GCP)
 
 #### AWS Architecture
 ```

@@ -92,7 +92,7 @@ def _redis_incr(scope: str, client_key: str, limit: int) -> Optional[tuple[bool,
     try:
         import redis
         host = os.getenv("REDIS_HOST", "localhost")
-        port = int(os.getenv("REDIS_PORT", "56379"))
+        port = int(os.getenv("REDIS_PORT", "6379"))
         r = redis.Redis(host=host, port=port, db=0, socket_connect_timeout=1)
         now = time.time()
         window_start = int(now // _WINDOW_SECONDS) * _WINDOW_SECONDS

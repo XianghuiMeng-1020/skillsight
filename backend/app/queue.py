@@ -11,7 +11,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "56379"))
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 QUEUE_NAME = "skillsight"
 
 _redis_conn = None

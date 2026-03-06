@@ -26,12 +26,12 @@ docx2txt>=0.8
 pillow>=10.0
 pytesseract>=0.3.10
 
-# Audio/Video transcription
-openai-whisper>=20230918
-
 # Task queue
 redis>=5.0
 rq>=1.15
+
+# LLM (OpenAI API)
+openai>=1.0
 
 # Utilities
 python-dotenv>=1.0

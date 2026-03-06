@@ -12,16 +12,23 @@ from rq import Worker
 from redis import Redis
 from sqlalchemy import text
 
-# Import from app modules
-from app.db.session import engine
-from app.parsers import parse_file_to_chunks
-from app.vector_store import get_client, ensure_collection, upsert_points, delete_by_doc_id
-from app.embeddings import embed_texts, emb_dim
-from app.queue import enqueue_assessment_repair
+# Import from backend.app for consistent PYTHONPATH (e.g. Docker /opt/src)
+try:
+    from backend.app.db.session import engine
+    from backend.app.parsers import parse_file_to_chunks
+    from backend.app.vector_store import get_client, ensure_collection, upsert_points, delete_by_doc_id
+    from backend.app.embeddings import embed_texts, emb_dim
+    from backend.app.queue import enqueue_assessment_repair
+except ImportError:
+    from app.db.session import engine
+    from app.parsers import parse_file_to_chunks
+    from app.vector_store import get_client, ensure_collection, upsert_points, delete_by_doc_id
+    from app.embeddings import embed_texts, emb_dim
+    from app.queue import enqueue_assessment_repair
 from qdrant_client.http import models as qm
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = int(os.getenv("REDIS_PORT", "56379"))
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 QUEUE_NAME = "skillsight"
 REPAIR_BACKOFF_BASE_SECONDS = max(1, int(os.getenv("ASSESSMENT_REPAIR_BACKOFF_BASE_SECONDS", "5")))
 REPAIR_BACKOFF_MAX_SECONDS = max(1, int(os.getenv("ASSESSMENT_REPAIR_BACKOFF_MAX_SECONDS", "300")))
@@ -102,10 +109,8 @@ def process_doc(doc_id: str, job_id: str):
     stored_path = row["stored_path"]
     filename = row["filename"]
     
-    # Handle virtual paths (upload://)
-    if stored_path.startswith("upload://"):
-        # For virtual paths, we can't reparse - chunks should already exist
-        # Just regenerate embeddings
+    # Handle virtual paths (upload://, memory://) – chunks already in DB, only regenerate embeddings
+    if stored_path.startswith("upload://") or stored_path.startswith("memory://"):
         pass
     elif not os.path.exists(stored_path):
         raise RuntimeError(f"File not found: {stored_path}")
@@ -242,7 +247,10 @@ def run_assessment_repair(session_id: str, repair_job_id: str):
     """
     Run async repair for interactive assessment skill sync.
     """
-    from app.routers.interactive_assess import _persist_skill_outcome  # Lazy import
+    try:
+        from backend.app.routers.interactive_assess import _persist_skill_outcome
+    except ImportError:
+        from app.routers.interactive_assess import _persist_skill_outcome
 
     attempts = 0
     max_attempts = 1
@@ -312,7 +320,10 @@ def run_assessment_repair(session_id: str, repair_job_id: str):
             response_text = str(row.get("response_text") or "")
 
         # Use a short-lived ORM session to reuse router persistence code.
-        from app.db.session import SessionLocal
+        try:
+            from backend.app.db.session import SessionLocal
+        except ImportError:
+            from app.db.session import SessionLocal
         db = SessionLocal()
         try:
             _persist_skill_outcome(

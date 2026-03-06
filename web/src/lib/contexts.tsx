@@ -93,6 +93,8 @@ export const translations: Translations = {
   'nav.settings': { zh: '设置', 'zh-TW': '設定', en: 'Settings' },
   'nav.privacy': { zh: '隐私与数据', 'zh-TW': '隱私與資料', en: 'Privacy & Data' },
   'nav.mainMenu': { zh: '主导航', 'zh-TW': '主選單', en: 'Main Menu' },
+  'nav.openMenu': { zh: '打开菜单', 'zh-TW': '開啟選單', en: 'Open menu' },
+  'nav.closeMenu': { zh: '关闭菜单', 'zh-TW': '關閉選單', en: 'Close menu' },
   'admin.administration': { zh: '管理', 'zh-TW': '管理', en: 'Administration' },
   'admin.overview': { zh: '概览', 'zh-TW': '概覽', en: 'Overview' },
   'admin.students': { zh: '学生', 'zh-TW': '學生', en: 'Students' },

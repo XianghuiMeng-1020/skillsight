@@ -19,6 +19,9 @@ if not DB_URL:
         "Set it in your shell or put it in backend/.env. "
         "Example: postgresql+psycopg2://skillsight:skillsight@localhost:55432/skillsight"
     )
+# Render uses postgres:// which SQLAlchemy 2.x does not accept
+if DB_URL.startswith("postgres://"):
+    DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
 
 _POOL_SIZE = int(os.getenv("DB_POOL_SIZE", "20"))
 _MAX_OVERFLOW = int(os.getenv("DB_MAX_OVERFLOW", "30"))

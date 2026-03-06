@@ -26,7 +26,7 @@ from backend.app.audit import log_audit
 from backend.app.change_log_events import list_change_log_admin
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
-from backend.app.security import Identity, issue_token, require_auth
+from backend.app.security import Identity, issue_token, require_auth, _is_dev_login_allowed
 from backend.app.security.access_control import AccessContext, require_access
 
 router = APIRouter(prefix="/bff/admin", tags=["bff-admin"])
@@ -62,6 +62,8 @@ class AdminDevLoginReq(BaseModel):
 @router.post("/auth/dev_login")
 def bff_admin_dev_login(payload: AdminDevLoginReq):
     """Issue admin token with faculty context (dev only)."""
+    if not _is_dev_login_allowed():
+        raise HTTPException(status_code=403, detail="dev_login disabled in production")
     if payload.role != "admin":
         raise HTTPException(status_code=422, detail="role must be 'admin'")
     token = issue_token(
@@ -80,6 +82,247 @@ def bff_admin_dev_login(payload: AdminDevLoginReq):
         "role": payload.role,
         "context": {"faculty_id": payload.faculty_id},
     }
+
+
+# ─── Jobs (admin) ─────────────────────────────────────────────────────────────
+
+@router.get("/jobs")
+def bff_admin_jobs(
+    status: Optional[str] = None,
+    doc_id: Optional[str] = None,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """List background jobs with optional filters. Admin only."""
+    _assert_admin(ident)
+    require_access(ident, "bff.admin.jobs", AccessContext(purpose=_ADMIN_PURPOSE), db)
+    sql = "SELECT job_id, doc_id, job_type, status, attempts, last_error, created_at, updated_at FROM jobs WHERE 1=1"
+    params: Dict[str, Any] = {"limit": min(limit, 500)}
+    if status and status.strip():
+        sql += " AND status = :status"
+        params["status"] = status.strip()
+    if doc_id and doc_id.strip():
+        sql += " AND doc_id::text = :doc_id"
+        params["doc_id"] = doc_id.strip()
+    sql += " ORDER BY created_at DESC LIMIT :limit"
+    rows = db.execute(text(sql), params).mappings().all()
+    items = []
+    for r in rows:
+        items.append({
+            "job_id": str(r["job_id"]),
+            "doc_id": str(r["doc_id"]) if r.get("doc_id") else None,
+            "job_type": r.get("job_type") or "embed",
+            "status": r["status"],
+            "attempts": int(r.get("attempts") or 0),
+            "last_error": r.get("last_error"),
+            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+            "updated_at": r["updated_at"].isoformat() if r.get("updated_at") else None,
+        })
+    return {"items": items, "count": len(items)}
+
+
+@router.post("/jobs/{job_id}/retry")
+def bff_admin_jobs_retry(
+    job_id: str,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Reset job to pending and enqueue for retry. Admin only."""
+    _assert_admin(ident)
+    require_access(ident, "bff.admin.jobs.retry", AccessContext(purpose=_ADMIN_PURPOSE), db)
+    from backend.app.queue import enqueue_process_doc
+    row = db.execute(
+        text("SELECT job_id, doc_id FROM jobs WHERE job_id::text = :jid"),
+        {"jid": job_id},
+    ).mappings().first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Job not found")
+    doc_id = str(row["doc_id"])
+    db.execute(
+        text("UPDATE jobs SET status = 'pending', last_error = NULL, updated_at = :now WHERE job_id::text = :jid"),
+        {"now": _now_utc(), "jid": job_id},
+    )
+    db.commit()
+    rq_job_id = enqueue_process_doc(doc_id, job_id)
+    return {
+        "ok": True,
+        "job_id": job_id,
+        "doc_id": doc_id,
+        "status": "pending",
+        "rq_job_id": rq_job_id,
+        "message": "Job reset and enqueued for retry" if rq_job_id else "Job reset but queue unavailable",
+    }
+
+
+# ─── Course–Skill Map (admin) ─────────────────────────────────────────────────
+
+@router.get("/course-skill-map")
+def bff_admin_course_skill_map(
+    status: Optional[str] = None,
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """List course_skill_map rows with optional status filter. Admin only."""
+    _assert_admin(ident)
+    require_access(ident, "bff.admin.course_skill_map", AccessContext(purpose=_ADMIN_PURPOSE), db)
+    sql = "SELECT map_id, course_id, skill_id, intended_level, evidence_type, status, note, created_at FROM course_skill_map WHERE 1=1"
+    params: Dict[str, Any] = {"limit": min(limit, 500)}
+    if status and status.strip():
+        sql += " AND status = :status"
+        params["status"] = status.strip()
+    sql += " ORDER BY created_at DESC LIMIT :limit"
+    rows = db.execute(text(sql), params).mappings().all()
+    items = []
+    for r in rows:
+        items.append({
+            "map_id": str(r["map_id"]),
+            "course_id": r.get("course_id"),
+            "skill_id": r.get("skill_id"),
+            "intended_level": r.get("intended_level"),
+            "evidence_type": r.get("evidence_type"),
+            "status": r.get("status") or "pending",
+            "note": r.get("note"),
+            "created_at": r["created_at"].isoformat() if r.get("created_at") else None,
+        })
+    return {"items": items, "count": len(items)}
+
+
+class CourseSkillMapActionReq(BaseModel):
+    note: Optional[str] = None
+
+
+@router.post("/course-skill-map/{map_id}/approve")
+def bff_admin_course_skill_map_approve(
+    map_id: str,
+    payload: CourseSkillMapActionReq,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Approve a course-skill mapping. Admin only."""
+    _assert_admin(ident)
+    require_access(ident, "bff.admin.course_skill_map.approve", AccessContext(purpose=_ADMIN_PURPOSE), db)
+    n = db.execute(
+        text("UPDATE course_skill_map SET status = 'approved', note = COALESCE(:note, note), updated_at = :now WHERE map_id::text = :mid"),
+        {"note": payload.note, "now": _now_utc(), "mid": map_id},
+    ).rowcount
+    db.commit()
+    if n == 0:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    return {"ok": True, "map_id": map_id, "status": "approved"}
+
+
+@router.post("/course-skill-map/{map_id}/reject")
+def bff_admin_course_skill_map_reject(
+    map_id: str,
+    payload: CourseSkillMapActionReq,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Reject a course-skill mapping. Admin only."""
+    _assert_admin(ident)
+    require_access(ident, "bff.admin.course_skill_map.reject", AccessContext(purpose=_ADMIN_PURPOSE), db)
+    n = db.execute(
+        text("UPDATE course_skill_map SET status = 'rejected', note = COALESCE(:note, note), updated_at = :now WHERE map_id::text = :mid"),
+        {"note": payload.note, "now": _now_utc(), "mid": map_id},
+    ).rowcount
+    db.commit()
+    if n == 0:
+        raise HTTPException(status_code=404, detail="Mapping not found")
+    return {"ok": True, "map_id": map_id, "status": "rejected"}
+
+
+# ─── Skill aliases / conflicts (admin) ───────────────────────────────────────
+
+@router.get("/skill-aliases/conflicts")
+def bff_admin_skill_aliases_conflicts(
+    limit: int = 200,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """List alias conflicts: aliases that map to more than one skill. Admin only."""
+    _assert_admin(ident)
+    require_access(ident, "bff.admin.skill_aliases", AccessContext(purpose=_ADMIN_PURPOSE), db)
+    rows = db.execute(
+        text("""
+            SELECT alias, COUNT(DISTINCT skill_id) AS n_skills,
+                   array_agg(DISTINCT skill_id) AS skill_ids
+            FROM skill_aliases
+            WHERE status = 'active'
+            GROUP BY alias
+            HAVING COUNT(DISTINCT skill_id) > 1
+            ORDER BY n_skills DESC
+            LIMIT :lim
+        """),
+        {"lim": min(limit, 500)},
+    ).mappings().all()
+    items = []
+    for r in rows:
+        skill_ids = r.get("skill_ids") or []
+        if hasattr(skill_ids, "tolist"):
+            skill_ids = skill_ids.tolist()
+        items.append({
+            "alias": r["alias"],
+            "n_skills": int(r.get("n_skills") or 0),
+            "skill_ids": list(skill_ids),
+        })
+    return {"items": items, "count": len(items)}
+
+
+@router.get("/skill-aliases/resolve")
+def bff_admin_skill_aliases_resolve(
+    alias: str,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Resolve an alias to canonical skill(s). Admin only."""
+    _assert_admin(ident)
+    require_access(ident, "bff.admin.skill_aliases", AccessContext(purpose=_ADMIN_PURPOSE), db)
+    rows = db.execute(
+        text("""
+            SELECT skill_id, alias, status FROM skill_aliases
+            WHERE alias = :alias AND status = 'active'
+            ORDER BY skill_id
+        """),
+        {"alias": alias.strip()},
+    ).mappings().all()
+    if not rows:
+        return {"alias": alias, "found": False, "skills": []}
+    skills = [{"skill_id": r["skill_id"], "alias": r["alias"], "status": r["status"]} for r in rows]
+    return {"alias": alias, "found": True, "skills": skills, "canonical_skill_id": skills[0]["skill_id"] if len(skills) == 1 else None}
+
+
+@router.get("/skill-aliases/conflicts/report")
+def bff_admin_skill_aliases_conflicts_report(
+    format: Optional[str] = None,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Download conflicts as CSV. Admin only."""
+    _assert_admin(ident)
+    require_access(ident, "bff.admin.skill_aliases", AccessContext(purpose=_ADMIN_PURPOSE), db)
+    rows = db.execute(
+        text("""
+            SELECT alias, COUNT(DISTINCT skill_id) AS n_skills,
+                   array_agg(DISTINCT skill_id) AS skill_ids
+            FROM skill_aliases WHERE status = 'active'
+            GROUP BY alias HAVING COUNT(DISTINCT skill_id) > 1
+            ORDER BY n_skills DESC
+        """)
+    ).mappings().all()
+    if (format or "").strip().lower() == "csv":
+        import io
+        buf = io.StringIO()
+        buf.write("alias,n_skills,skill_ids\n")
+        for r in rows:
+            skill_ids = r.get("skill_ids") or []
+            if hasattr(skill_ids, "tolist"):
+                skill_ids = skill_ids.tolist()
+            buf.write(f"{r['alias']!r},{r.get('n_skills') or 0},{','.join(map(str, skill_ids))}\n")
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(content=buf.getvalue(), media_type="text/csv")
+    return {"items": [{"alias": r["alias"], "n_skills": int(r.get("n_skills") or 0), "skill_ids": list(r.get("skill_ids") or [])} for r in rows], "count": len(rows)}
 
 
 # ─── Onboarding ───────────────────────────────────────────────────────────────

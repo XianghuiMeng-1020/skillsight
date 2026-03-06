@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, memo } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
-import { AchievementsPanel, AchievementNotification } from '@/components/Achievements';
+import { AchievementNotification } from '@/components/Achievements';
 import { LearningPathCard } from '@/components/LearningPath';
 import { ShareButton } from '@/components/ShareCard';
+
+const AchievementsPanel = dynamic(() => import('@/components/Achievements').then(m => ({ default: m.AchievementsPanel })), { ssr: false });
 import { useAchievements } from '@/lib/hooks';
 import { studentBff, getToken } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/bffClient';
+import { useToast } from '@/components/Toast';
 
 interface UploadResult {
   doc_id: string;
@@ -27,6 +28,7 @@ const SCOPE_KEYS = [
 
 export default function UploadPage() {
   const { t } = useLanguage();
+  const { addToast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [purpose, setPurpose] = useState('');
   const [scope, setScope] = useState('');
@@ -54,7 +56,9 @@ export default function UploadPage() {
           }
         })
         .catch(() => {
-          setError('Auto-login failed. Please log in manually.');
+          const msg = 'Auto-login failed. Please log in manually.';
+          setError(msg);
+          addToast('error', msg);
         });
     }
   }, []);
@@ -139,11 +143,14 @@ export default function UploadPage() {
 
       const data = await response.json();
       setResult(data);
+      addToast('success', t('upload.success') || 'Document uploaded successfully.');
       setFile(null);
       setPurpose('');
       setScope('');
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('upload.failed'));
+      const msg = err instanceof Error ? err.message : t('upload.failed');
+      setError(msg);
+      addToast('error', msg);
     } finally {
       setUploading(false);
     }

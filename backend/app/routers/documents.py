@@ -522,17 +522,9 @@ async def upload_document(
         doc_id = str(uuid.uuid4())
         consent_id = str(uuid.uuid4())
         now = _now_utc()
+        stored_path = f"memory://{doc_id}/{filename}"
         
-        upload_dir = Path(__file__).parent.parent.parent / "uploads"
-        upload_dir.mkdir(exist_ok=True)
-        stored_filename = f"{doc_id}_{filename}"
-        stored_path = str(upload_dir / stored_filename)
-        
-        # Save file to disk
-        with open(stored_path, "wb") as f:
-            f.write(raw_bytes)
-        
-        # Parse file into chunks
+        # Parse file into chunks (in-memory, no disk write)
         try:
             chunks = parse_file_to_chunks(
                 file_bytes=raw_bytes,
@@ -540,18 +532,11 @@ async def upload_document(
                 min_chunk_len=50,
             )
         except ImportError as e:
-            # Clean up saved file
-            if os.path.exists(stored_path):
-                os.remove(stored_path)
             raise HTTPException(status_code=500, detail=f"Parser not available: {e}")
         except Exception as e:
-            if os.path.exists(stored_path):
-                os.remove(stored_path)
             raise HTTPException(status_code=400, detail=f"Failed to parse file: {e}")
         
         if not chunks:
-            if os.path.exists(stored_path):
-                os.remove(stored_path)
             raise HTTPException(status_code=400, detail="File produced no valid chunks")
         
         # Create document record
@@ -821,17 +806,9 @@ async def upload_multimodal_document(
     doc_id = str(uuid.uuid4())
     consent_id = str(uuid.uuid4())
     now = _now_utc()
+    stored_path = f"memory://{doc_id}/{filename}"
     
-    # Save file
-    upload_dir = Path(__file__).parent.parent.parent / "uploads"
-    upload_dir.mkdir(exist_ok=True)
-    stored_filename = f"{doc_id}_{filename}"
-    stored_path = str(upload_dir / stored_filename)
-    
-    with open(stored_path, "wb") as f:
-        f.write(raw_bytes)
-    
-    # Parse with multimodal parser
+    # Parse with multimodal parser (in-memory, no disk write)
     try:
         result = parse_multimodal_file(
             file_bytes=raw_bytes,
@@ -839,8 +816,6 @@ async def upload_multimodal_document(
             min_chunk_len=30,
         )
     except Exception as e:
-        if os.path.exists(stored_path):
-            os.remove(stored_path)
         raise HTTPException(status_code=400, detail=f"Failed to parse: {e}")
     
     chunks = result.get("chunks", [])

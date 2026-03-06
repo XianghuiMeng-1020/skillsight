@@ -55,16 +55,27 @@ def get_client():
         try:
             from qdrant_client import QdrantClient
 
-            host = os.getenv("QDRANT_HOST", "localhost")
-            port = int(os.getenv("QDRANT_PORT", "6333"))
+            qdrant_url = os.getenv("QDRANT_URL", "").strip()
+            qdrant_api_key = os.getenv("QDRANT_API_KEY", "").strip() or None
 
-            _client = QdrantClient(
-                host=host,
-                port=port,
-                timeout=QDRANT_TIMEOUT,
-                prefer_grpc=False,
-                trust_env=False,
-            )
+            if qdrant_url:
+                # Qdrant Cloud: URL + optional API Key
+                _client = QdrantClient(
+                    url=qdrant_url,
+                    api_key=qdrant_api_key,
+                    timeout=QDRANT_TIMEOUT,
+                    prefer_grpc=False,
+                )
+            else:
+                host = os.getenv("QDRANT_HOST", "localhost")
+                port = int(os.getenv("QDRANT_PORT", "6333"))
+                _client = QdrantClient(
+                    host=host,
+                    port=port,
+                    timeout=QDRANT_TIMEOUT,
+                    prefer_grpc=False,
+                    trust_env=False,
+                )
         except Exception as e:
             logger.warning("Failed to connect to Qdrant: %s", e)
             return None
@@ -196,6 +207,9 @@ def search(client, query_vec: list[float], top_k: int, flt=None, request_id: str
 
 
 def _qdrant_base_url() -> str:
+    qdrant_url = os.getenv("QDRANT_URL", "").strip()
+    if qdrant_url:
+        return qdrant_url.rstrip("/")
     host = os.getenv("QDRANT_HOST", "localhost")
     port = int(os.getenv("QDRANT_PORT", "6333"))
     return f"http://{host}:{port}"
@@ -210,8 +224,12 @@ def search_via_curl(query_vec: list[float], top_k: int, doc_id: Optional[str] = 
     if doc_id:
         body["filter"] = {"must": [{"key": "doc_id", "match": {"value": doc_id}}]}
     body_str = json.dumps(body)
+    curl_cmd = ["curl", "-sS", "-X", "POST", url, "-H", "Content-Type: application/json", "-d", body_str]
+    api_key = os.getenv("QDRANT_API_KEY", "").strip()
+    if api_key:
+        curl_cmd.extend(["-H", f"api-key: {api_key}"])
     r = subprocess.run(
-        ["curl", "-sS", "-X", "POST", url, "-H", "Content-Type: application/json", "-d", body_str],
+        curl_cmd,
         capture_output=True,
         text=True,
         timeout=int(QDRANT_TIMEOUT),
