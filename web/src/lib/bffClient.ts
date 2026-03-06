@@ -368,4 +368,30 @@ export const studentBff = {
 
   exportStatement: () =>
     bffRequest<unknown>('/bff/student/export/statement'),
+
+  getJobMatches: async (): Promise<{ count: number; items: Array<{ role_id: string; role_title: string; readiness: number }> }> => {
+    const [rolesData, docsData] = await Promise.all([
+      bffRequest<{ items: unknown[] }>('/bff/student/roles?limit=20'),
+      bffRequest<{ items: Array<{ doc_id?: string }> }>('/bff/student/documents?limit=1').catch(() => ({ items: [] })),
+    ]);
+    const latestDocId = (docsData.items || [])[0]?.doc_id;
+    if (!latestDocId || !rolesData.items?.length) return { count: 0, items: [] };
+
+    const results = await Promise.allSettled(
+      (rolesData.items as Array<{ role_id?: string; role_title?: string }>).map(async (r) => {
+        const roleId = r.role_id ?? '';
+        const res = await bffRequest<{ score?: number }>('/bff/student/roles/alignment', {
+          method: 'POST',
+          body: { role_id: roleId, doc_id: latestDocId },
+        });
+        const readiness = Math.round(Math.max(0, Math.min(1, res.score ?? 0)) * 100);
+        return { role_id: roleId, role_title: r.role_title ?? '', readiness };
+      })
+    );
+    const matched = results
+      .filter((r): r is PromiseFulfilledResult<{ role_id: string; role_title: string; readiness: number }> => r.status === 'fulfilled')
+      .map(r => r.value)
+      .filter(r => r.readiness >= 60);
+    return { count: matched.length, items: matched };
+  },
 };

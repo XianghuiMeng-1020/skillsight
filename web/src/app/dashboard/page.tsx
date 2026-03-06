@@ -52,10 +52,8 @@ export default function StudentDashboard() {
         studentBff.getSkills(10).catch(() => ({ items: [] })),
       ]);
       setDocuments((docsData.items || []) as Document[]);
-      // Optional: fetch job match count when API is available
-      studentBff.getJobMatches?.().then((res: { count?: number; items?: unknown[] }) => {
-        const n = typeof res?.count === 'number' ? res.count : (Array.isArray(res?.items) ? res.items.length : 0);
-        setJobsMatchedCount(n);
+      studentBff.getJobMatches().then((res) => {
+        setJobsMatchedCount(res.count);
       }).catch(() => setJobsMatchedCount(0));
       // Transform skills data with deterministic status based on skill_id hash
       const skillsWithStatus: Skill[] = ((skillsData.items || []) as Array<Record<string, unknown>>).slice(0, 6).map((s) => {

@@ -124,6 +124,12 @@ export default function JobsPage() {
                   <span className="spinner"></span>
                   {t('jobs.analyzing')}
                 </div>
+              ) : roles.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--gray-500)' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎯</div>
+                  <p style={{ fontWeight: 500, marginBottom: '0.5rem' }}>{t('jobs.noRolesYet')}</p>
+                  <p style={{ fontSize: '0.875rem' }}>{t('jobs.uploadFirst')}</p>
+                </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
                   {roles.slice(0, 3).sort((a, b) => b.readiness - a.readiness).map((role, i) => (
@@ -256,6 +262,11 @@ export default function JobsPage() {
                   </button>
                 </div>
                 <div className="modal-body">
+                  {selectedRole.description && (
+                    <p style={{ color: 'var(--gray-600)', marginBottom: '1.25rem', fontSize: '0.875rem', lineHeight: 1.6 }}>
+                      {selectedRole.description}
+                    </p>
+                  )}
                   <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                     <div style={{ fontSize: '3rem', fontWeight: 700, color: `var(--${getReadinessColor(selectedRole.readiness)})` }}>
                       {selectedRole.readiness}%

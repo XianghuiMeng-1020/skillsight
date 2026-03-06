@@ -59,6 +59,102 @@ def _run_schema_health_check() -> dict:
     return {"ok": len(missing) == 0, "missing": missing, "checked_at": None}
 
 
+def _seed_roles_and_skills(db):
+    """Seed roles + skills from JSON data files if DB tables are empty."""
+    import json, pathlib, uuid
+    from datetime import datetime, timezone
+    from sqlalchemy import text
+
+    base = pathlib.Path(__file__).resolve().parent.parent / "data"
+    now = datetime.now(timezone.utc)
+
+    # --- seed skills ---
+    skills_file = base / "skills.json"
+    if skills_file.exists():
+        try:
+            count = db.execute(text("SELECT count(*) FROM skills")).scalar() or 0
+        except Exception:
+            count = -1
+        if count == 0:
+            skills = json.loads(skills_file.read_text(encoding="utf-8"))
+            for s in skills:
+                sid = s.get("skill_id", "").strip()
+                if not sid:
+                    continue
+                db.execute(
+                    text("""
+                        INSERT INTO skills (skill_id, canonical_name, aliases, definition,
+                                            evidence_rules, level_rubric, version, source, created_at)
+                        VALUES (:skill_id, :canonical_name, :aliases, :definition,
+                                :evidence_rules, :level_rubric, :version, :source, :created_at)
+                        ON CONFLICT (skill_id) DO NOTHING
+                    """),
+                    {
+                        "skill_id": sid,
+                        "canonical_name": s.get("canonical_name", ""),
+                        "aliases": json.dumps(s.get("aliases", []), ensure_ascii=False),
+                        "definition": s.get("definition", ""),
+                        "evidence_rules": s.get("evidence_rules", ""),
+                        "level_rubric": json.dumps(s.get("level_rubric", {}), ensure_ascii=False),
+                        "version": s.get("version", "v1"),
+                        "source": s.get("source", "HKU"),
+                        "created_at": now,
+                    },
+                )
+            logger.info("Seeded %d skills from skills.json", len(skills))
+
+    # --- seed roles ---
+    roles_file = base / "roles.json"
+    if roles_file.exists():
+        try:
+            count = db.execute(text("SELECT count(*) FROM roles")).scalar() or 0
+        except Exception:
+            count = -1
+        if count == 0:
+            roles = json.loads(roles_file.read_text(encoding="utf-8"))
+            for r in roles:
+                rid = r.get("role_id", "").strip()
+                if not rid:
+                    continue
+                db.execute(
+                    text("""
+                        INSERT INTO roles (role_id, role_title, description, created_at, updated_at)
+                        VALUES (:role_id, :role_title, :description, :created_at, :updated_at)
+                        ON CONFLICT (role_id) DO NOTHING
+                    """),
+                    {
+                        "role_id": rid,
+                        "role_title": r.get("role_title", ""),
+                        "description": r.get("description", ""),
+                        "created_at": now,
+                        "updated_at": now,
+                    },
+                )
+                for sr in r.get("skills_required", []):
+                    skill_id = sr.get("skill_id", "").strip()
+                    if not skill_id:
+                        continue
+                    db.execute(
+                        text("""
+                            INSERT INTO role_skill_requirements
+                                   (req_id, role_id, skill_id, target_level, required, weight, created_at)
+                            VALUES ((:req_id)::uuid, :role_id, :skill_id, :target_level, :required, :weight, :created_at)
+                            ON CONFLICT (role_id, skill_id) DO UPDATE
+                                SET target_level=EXCLUDED.target_level, required=EXCLUDED.required, weight=EXCLUDED.weight
+                        """),
+                        {
+                            "req_id": str(uuid.uuid4()),
+                            "role_id": rid,
+                            "skill_id": skill_id,
+                            "target_level": int(sr.get("target_level", 0)),
+                            "required": bool(sr.get("required", True)),
+                            "weight": float(sr.get("weight", 1.0)),
+                            "created_at": now,
+                        },
+                    )
+            logger.info("Seeded %d roles from roles.json", len(roles))
+
+
 @app.on_event("startup")
 def _startup_check():
     require_production_secret()
@@ -76,6 +172,18 @@ def _startup_check():
         logger.info("Assessment tables ensured.")
     except Exception as exc:
         logger.warning("Could not ensure assessment tables: %s", exc)
+
+    # Seed roles + skills from JSON files if DB tables are empty
+    try:
+        from backend.app.db.session import SessionLocal as _SL
+        _db = _SL()
+        try:
+            _seed_roles_and_skills(_db)
+            _db.commit()
+        finally:
+            _db.close()
+    except Exception as exc:
+        logger.warning("Could not seed roles/skills: %s", exc)
 
     global _SCHEMA_HEALTH
     _SCHEMA_HEALTH = _run_schema_health_check()

@@ -504,6 +504,8 @@ export const translations: Translations = {
   'jobs.addEvidence': { zh: '添加证据', 'zh-TW': '添加證據', en: 'Add Evidence' },
   'jobs.close': { zh: '关闭', 'zh-TW': '關閉', en: 'Close' },
   'jobs.viewMySkills': { zh: '查看我的技能', 'zh-TW': '查看我的技能', en: 'View My Skills' },
+  'jobs.noRolesYet': { zh: '暂无匹配数据', 'zh-TW': '暫無匹配資料', en: 'No matching data yet' },
+  'jobs.uploadFirst': { zh: '请先上传文档并运行 AI 评估，然后系统会自动计算你与各职位的匹配度。', 'zh-TW': '請先上傳文件並執行 AI 評估，系統會自動計算你與各職位的匹配度。', en: 'Upload a document and run an AI assessment first. The system will then calculate your readiness for each role.' },
 
   // 通用
   'common.loading': { zh: '加载中...', 'zh-TW': '載入中...', en: 'Loading...' },

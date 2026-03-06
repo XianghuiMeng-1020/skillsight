@@ -1,34 +1,106 @@
 [
   {
-    "role_id": "HKU.ROLE.ASSISTANT_PM.v1",
-    "role_title": "Assistant Project Manager (Demo)",
+    "role_id": "ROLE.JUNIOR_DATA_ANALYST.v1",
+    "role_title": "Junior Data Analyst",
+    "description": "Entry-level analyst responsible for data cleaning, visualization, and basic statistical reporting to support business decisions.",
     "skills_required": [
-      {
-        "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
-        "target_level": 2,
-        "required": true
-      },
-      {
-        "skill_id": "HKU.SKILL.PRIVACY.v1",
-        "target_level": 3,
-        "required": true
-      }
+      { "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",       "target_level": 2, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.STATISTICS.v1",           "target_level": 2, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.DATA_VISUALIZATION.v1",   "target_level": 2, "required": true,  "weight": 0.8 },
+      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 1, "required": true,  "weight": 0.8 },
+      { "skill_id": "HKU.SKILL.DATABASE.v1",             "target_level": 1, "required": false, "weight": 0.5 }
     ]
   },
   {
-    "role_id": "HKU.ROLE.EDTECH_RESEARCH_ASSISTANT.v1",
-    "role_title": "EdTech Research Assistant (Demo)",
+    "role_id": "ROLE.ML_ENGINEER.v1",
+    "role_title": "Machine Learning Engineer",
+    "description": "Designs, trains, and deploys ML models at scale. Requires strong programming, ML theory, and cloud deployment skills.",
     "skills_required": [
-      {
-        "skill_id": "HKU.SKILL.ACADEMIC_INTEGRITY.v1",
-        "target_level": 3,
-        "required": true
-      },
-      {
-        "skill_id": "HKU.SKILL.PRIVACY.v1",
-        "target_level": 1,
-        "required": false
-      }
+      { "skill_id": "HKU.SKILL.MACHINE_LEARNING.v1",     "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.DEEP_LEARNING.v1",        "target_level": 2, "required": true,  "weight": 0.9 },
+      { "skill_id": "HKU.SKILL.SOFTWARE_ENGINEERING.v1",  "target_level": 2, "required": true,  "weight": 0.8 },
+      { "skill_id": "HKU.SKILL.CLOUD_COMPUTING.v1",      "target_level": 2, "required": false, "weight": 0.6 },
+      { "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",        "target_level": 1, "required": false, "weight": 0.4 }
+    ]
+  },
+  {
+    "role_id": "ROLE.NLP_RESEARCHER.v1",
+    "role_title": "NLP Research Scientist",
+    "description": "Conducts research in natural language processing, designs experiments, publishes papers, and develops novel NLP solutions.",
+    "skills_required": [
+      { "skill_id": "HKU.SKILL.NLP.v1",                  "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.DEEP_LEARNING.v1",        "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.RESEARCH_METHODS.v1",     "target_level": 3, "required": true,  "weight": 0.9 },
+      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 2, "required": true,  "weight": 0.8 },
+      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 3, "required": true,  "weight": 0.8 },
+      { "skill_id": "HKU.SKILL.STATISTICS.v1",           "target_level": 2, "required": false, "weight": 0.5 }
+    ]
+  },
+  {
+    "role_id": "ROLE.AI_ETHICS_CONSULTANT.v1",
+    "role_title": "AI Ethics & Policy Consultant",
+    "description": "Evaluates AI systems for fairness, bias, and regulatory compliance. Advises organizations on responsible AI deployment.",
+    "skills_required": [
+      { "skill_id": "HKU.SKILL.AI_ETHICS.v1",            "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",    "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.PRIVACY.v1",              "target_level": 3, "required": true,  "weight": 0.9 },
+      { "skill_id": "HKU.SKILL.MACHINE_LEARNING.v1",     "target_level": 2, "required": true,  "weight": 0.7 },
+      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 2, "required": false, "weight": 0.6 },
+      { "skill_id": "HKU.SKILL.PRESENTATION.v1",         "target_level": 2, "required": false, "weight": 0.5 }
+    ]
+  },
+  {
+    "role_id": "ROLE.FULLSTACK_DEVELOPER.v1",
+    "role_title": "Full-Stack Software Developer",
+    "description": "Builds end-to-end web applications, from database design to frontend UI, following modern engineering practices.",
+    "skills_required": [
+      { "skill_id": "HKU.SKILL.SOFTWARE_ENGINEERING.v1",  "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 2, "required": true,  "weight": 0.9 },
+      { "skill_id": "HKU.SKILL.DATABASE.v1",             "target_level": 2, "required": true,  "weight": 0.9 },
+      { "skill_id": "HKU.SKILL.CLOUD_COMPUTING.v1",      "target_level": 2, "required": true,  "weight": 0.7 },
+      { "skill_id": "HKU.SKILL.COLLABORATION.v1",        "target_level": 2, "required": false, "weight": 0.5 }
+    ]
+  },
+  {
+    "role_id": "ROLE.DATA_SCIENTIST.v1",
+    "role_title": "Data Scientist",
+    "description": "Combines statistical modeling, ML, and domain expertise to extract insights from complex datasets and drive data-informed strategies.",
+    "skills_required": [
+      { "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",        "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.MACHINE_LEARNING.v1",     "target_level": 2, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.STATISTICS.v1",           "target_level": 3, "required": true,  "weight": 0.9 },
+      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 2, "required": true,  "weight": 0.8 },
+      { "skill_id": "HKU.SKILL.DATA_VISUALIZATION.v1",   "target_level": 2, "required": true,  "weight": 0.7 },
+      { "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",    "target_level": 2, "required": false, "weight": 0.5 },
+      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 2, "required": false, "weight": 0.4 }
+    ]
+  },
+  {
+    "role_id": "ROLE.RESEARCH_ASSISTANT.v1",
+    "role_title": "Research Assistant (AI / HCI)",
+    "description": "Supports faculty research by conducting literature reviews, running experiments, analyzing data, and drafting research outputs.",
+    "skills_required": [
+      { "skill_id": "HKU.SKILL.RESEARCH_METHODS.v1",     "target_level": 2, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 2, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 2, "required": true,  "weight": 0.8 },
+      { "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",        "target_level": 2, "required": true,  "weight": 0.7 },
+      { "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",    "target_level": 2, "required": true,  "weight": 0.7 },
+      { "skill_id": "HKU.SKILL.COLLABORATION.v1",        "target_level": 1, "required": false, "weight": 0.4 },
+      { "skill_id": "HKU.SKILL.PRESENTATION.v1",         "target_level": 1, "required": false, "weight": 0.3 }
+    ]
+  },
+  {
+    "role_id": "ROLE.PROJECT_MANAGER.v1",
+    "role_title": "Technical Project Manager",
+    "description": "Leads cross-functional technical teams, manages timelines, coordinates stakeholders, and ensures project delivery with quality.",
+    "skills_required": [
+      { "skill_id": "HKU.SKILL.PROJECT_PLANNING.v1",     "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.COLLABORATION.v1",        "target_level": 3, "required": true,  "weight": 1.0 },
+      { "skill_id": "HKU.SKILL.PRESENTATION.v1",         "target_level": 2, "required": true,  "weight": 0.8 },
+      { "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",    "target_level": 2, "required": true,  "weight": 0.7 },
+      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 2, "required": false, "weight": 0.5 },
+      { "skill_id": "HKU.SKILL.SOFTWARE_ENGINEERING.v1",  "target_level": 1, "required": false, "weight": 0.4 }
     ]
   }
 ]
