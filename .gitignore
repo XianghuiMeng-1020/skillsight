@@ -61,4 +61,6 @@ web/blob-report/
 .vscode/
 *.swp
 *.swo
-.github/
+
+# Wrangler
+.wrangler/
