@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { adminBff, getToken } from '@/lib/bffClient';
+import { useLanguage } from '@/lib/contexts';
 
 interface ChangeLogItem {
   id: string;
@@ -20,15 +21,16 @@ interface ChangeLogItem {
   actor_role?: string;
 }
 
-const EVENT_LABELS: Record<string, string> = {
-  skill_changed: '技能变化',
-  role_readiness_changed: '角色就绪度',
-  consent_withdrawn: '同意撤回',
-  document_deleted: '文档删除',
-  actions_changed: '动作更新',
+const EVENT_TYPE_KEYS: Record<string, string> = {
+  skill_changed: 'admin.changelog.eventSkillChanged',
+  role_readiness_changed: 'admin.changelog.eventRoleReadiness',
+  consent_withdrawn: 'admin.changelog.eventConsentWithdrawn',
+  document_deleted: 'admin.changelog.eventDocDeleted',
+  actions_changed: 'admin.changelog.eventActionsChanged',
 };
 
 export default function AdminChangeLogPage() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<ChangeLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -80,10 +82,10 @@ export default function AdminChangeLogPage() {
           <div>
             <h1 className="page-title">Change Log (Admin)</h1>
             <p className="page-subtitle">
-              治理审计：按 subject_id / event_type / request_id 过滤
+              {t('admin.changelog.subtitle')}
             </p>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={fetchData}>↻ 刷新</button>
+          <button className="btn btn-secondary btn-sm" onClick={fetchData}>{t('changelog.refresh')}</button>
         </div>
 
         <div className="page-content">
@@ -108,8 +110,8 @@ export default function AdminChangeLogPage() {
                   style={{ display: 'block', marginTop: 4, padding: '0.5rem', width: 180, borderRadius: 6, border: '1px solid var(--gray-200)' }}
                 >
                   <option value="">All</option>
-                  {Object.keys(EVENT_LABELS).map(et => (
-                    <option key={et} value={et}>{EVENT_LABELS[et]}</option>
+                  {Object.keys(EVENT_TYPE_KEYS).map(et => (
+                    <option key={et} value={et}>{t(EVENT_TYPE_KEYS[et])}</option>
                   ))}
                 </select>
               </label>
@@ -123,17 +125,17 @@ export default function AdminChangeLogPage() {
                   style={{ display: 'block', marginTop: 4, padding: '0.5rem', width: 220, borderRadius: 6, border: '1px solid var(--gray-200)' }}
                 />
               </label>
-              <button className="btn btn-primary btn-sm" onClick={fetchData}>查询</button>
+              <button className="btn btn-primary btn-sm" onClick={fetchData}>{t('admin.changelog.search')}</button>
             </div>
           </div>
 
           {loading ? (
-            <div className="loading"><span className="spinner"></span> 加载中...</div>
+            <div className="loading"><span className="spinner"></span> {t('common.loading')}</div>
           ) : error ? (
             <div className="alert alert-error">
               <span>⚠</span>
               <div>
-                <strong>加载失败</strong>
+                <strong>{t('common.loadFailed')}</strong>
                 <p style={{ marginTop: '0.25rem', fontSize: '0.875rem' }}>{error}</p>
               </div>
             </div>
@@ -141,15 +143,15 @@ export default function AdminChangeLogPage() {
             <div className="card">
               <div className="empty-state">
                 <div className="empty-icon">📜</div>
-                <div className="empty-title">暂无变更事件</div>
-                <div className="empty-desc">尝试放宽筛选条件后重试。</div>
+                <div className="empty-title">{t('changelog.noEvents')}</div>
+                <div className="empty-desc">{t('admin.changelog.noEventsFilterHint')}</div>
               </div>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {items.map(item => {
                 const isExp = expanded.has(item.id);
-                const eventLabel = EVENT_LABELS[item.event_type] ?? item.event_type;
+                const eventLabel = EVENT_TYPE_KEYS[item.event_type] ? t(EVENT_TYPE_KEYS[item.event_type]) : item.event_type;
                 return (
                   <div key={item.id} className="card">
                     <div className="card-content" style={{ cursor: 'pointer' }} onClick={() => toggleExpanded(item.id)}>
@@ -176,7 +178,7 @@ export default function AdminChangeLogPage() {
                         </div>
                       )}
                       <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--gray-400)' }}>
-                        {isExp ? '▲ 收起' : '▼ 展开 JSON'}
+                        {isExp ? t('changelog.collapse') : t('admin.changelog.expandJson')}
                       </div>
                     </div>
                   </div>

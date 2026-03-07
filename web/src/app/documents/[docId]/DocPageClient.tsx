@@ -580,7 +580,7 @@ export default function DocPage() {
                   {assessing ? t("doc.analyzing") : t("doc.skillMatch")}
                 </span>
                 <span style={{ fontSize: "0.625rem", color: "var(--gray-500)" }}>
-                  检测相关证据
+                  {t("doc.detectEvidence")}
                 </span>
               </button>
 
@@ -602,7 +602,7 @@ export default function DocPage() {
                   {profing ? t("doc.assessing") : t("doc.proficiencyAssess")}
                 </span>
                 <span style={{ fontSize: "0.625rem", color: "var(--gray-500)" }}>
-                  规则判定等级
+                  {t("doc.ruleBasedLevel")}
                 </span>
               </button>
 
@@ -624,7 +624,7 @@ export default function DocPage() {
                   {aiProfing ? t("doc.analyzing") : t("doc.aiAssess")}
                 </span>
                 <span style={{ fontSize: "0.625rem", color: "var(--gray-500)" }}>
-                  深度分析熟练度
+                  {t("doc.deepAnalysis")}
                 </span>
               </button>
 
@@ -646,7 +646,7 @@ export default function DocPage() {
                   {aiDemoing ? t("doc.verifying") : t("doc.capabilityVerify")}
                 </span>
                 <span style={{ fontSize: "0.625rem", color: "var(--gray-500)" }}>
-                  验证实际应用
+                  {t("doc.verifyApp")}
                 </span>
               </button>
             </div>
@@ -666,7 +666,7 @@ export default function DocPage() {
                   alignItems: "center",
                   marginBottom: "0.75rem"
                 }}>
-                  <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>🔍 技能匹配</span>
+                  <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>{t("doc.skillMatchTitle")}</span>
                   {assessRes?.decision && (
                     <StatusPill 
                       text={assessRes.decision === "not_enough_information" ? t("skills.insufficient") : t("doc.matched")} 
@@ -688,7 +688,7 @@ export default function DocPage() {
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.375rem", marginTop: "0.375rem" }}>
                           {assessRes.matched_terms?.map((t) => <Tag key={t} text={t} />)}
                         </div>
-                      ) : "无"}
+                      ) : t("common.none")}
                     </div>
                     {assessRes.best_evidence?.chunk_id && (
                       <div>
@@ -783,7 +783,7 @@ export default function DocPage() {
             {/* AI评估结果 */}
             {(aiProfRes || aiProfErr || aiDemoRes || aiDemoErr) && (
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "1rem" }}>
-                {/* AI智能评估 */}
+                {/* AI Smart Assessment */}
                 {(aiProfRes || aiProfErr) && (
                   <div style={{ 
                     padding: "1rem", 
@@ -846,7 +846,7 @@ export default function DocPage() {
                   </div>
                 )}
 
-                {/* 能力验证 */}
+                {/* Capability Verification */}
                 {(aiDemoRes || aiDemoErr) && (
                   <div style={{ 
                     padding: "1rem", 

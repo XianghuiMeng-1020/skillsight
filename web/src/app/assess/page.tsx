@@ -712,9 +712,9 @@ export default function AssessPage() {
                         justifyContent: 'center',
                         margin: '0 auto 1.5rem'
                       }}>💻</div>
-                      <h3 style={{ marginBottom: '0.75rem', fontSize: '1.25rem', color: '#1C1917' }}>编程能力评估</h3>
+                      <h3 style={{ marginBottom: '0.75rem', fontSize: '1.25rem', color: '#1C1917' }}>{t('assess.programmingTitle')}</h3>
                       <p style={{ color: '#78716C', marginBottom: '1.25rem', maxWidth: '400px', margin: '0 auto 1.25rem' }}>
-                        选择难度等级，系统将生成一道算法题目。
+                        {t('assess.programmingDesc')}
                       </p>
                       <div style={{ 
                         display: 'flex', 
@@ -724,9 +724,9 @@ export default function AssessPage() {
                       }}>
                         {(['easy', 'medium', 'hard'] as const).map((d) => {
                           const config = {
-                            easy: { label: '🌱 简单', color: '#98B8A8' },
-                            medium: { label: '🌿 中等', color: '#F9CE9C' },
-                            hard: { label: '🔥 困难', color: '#E18182' }
+                            easy: { label: `🌱 ${t('assess.easy')}`, color: '#98B8A8' },
+                            medium: { label: `🌿 ${t('assess.medium')}`, color: '#F9CE9C' },
+                            hard: { label: `🔥 ${t('assess.hard')}`, color: '#E18182' }
                           };
                           return (
                             <button
@@ -769,7 +769,7 @@ export default function AssessPage() {
                         justifyContent: 'center',
                         margin: '0 auto 1.5rem'
                       }}>✍️</div>
-                      <h3 style={{ marginBottom: '0.75rem', fontSize: '1.25rem', color: '#1C1917' }}>写作能力评估</h3>
+                      <h3 style={{ marginBottom: '0.75rem', fontSize: '1.25rem', color: '#1C1917' }}>{t('assess.writingTitle')}</h3>
                       <p style={{ color: '#78716C', marginBottom: '1.5rem', maxWidth: '400px', margin: '0 auto 1.5rem', lineHeight: 1.6 }}>
                         {t('assess.writingInstructions')}
                       </p>
@@ -781,9 +781,9 @@ export default function AssessPage() {
                         color: '#57534E',
                         fontSize: '0.875rem'
                       }}>
-                        <span>⏱️ 30分钟</span>
-                        <span>📝 300-500字</span>
-                        <span>🛡️ 防抄袭</span>
+                        <span>⏱️ 30 {t('assess.minutes')}</span>
+                        <span>📝 300-500 {t('assess.words')}</span>
+                        <span>🛡️ {t('assess.antiPlagiarism')}</span>
                       </div>
                     </>
                   )}
@@ -811,11 +811,11 @@ export default function AssessPage() {
                     {loading ? (
                       <>
                         <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }}></div>
-                        准备中...
+                        {t('assess.preparing')}
                       </>
                     ) : (
                       <>
-                        ▶️ 开始评估
+                        ▶️ {t('assess.start')}
                       </>
                     )}
                   </button>
@@ -847,7 +847,7 @@ export default function AssessPage() {
                           letterSpacing: '0.05em',
                           fontWeight: 600
                         }}>
-                          📌 你的话题
+                          📌 {t('assess.yourTopic')}
                         </div>
                         <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#1C1917' }}>
                           &ldquo;{session.topic}&rdquo;
@@ -924,9 +924,9 @@ export default function AssessPage() {
                           {formatTime(audioRecorder.isRecording ? audioRecorder.duration : (session.duration_seconds || 60))}
                         </div>
                         <p style={{ color: '#78716C', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-                          {audioRecorder.isRecording ? '正在录制中...' : 
-                           whisperTranscriber.isTranscribing ? '正在转录音频...' :
-                           `时限: ${session.duration_seconds} 秒`}
+                          {audioRecorder.isRecording ? t('assess.recording') : 
+                           whisperTranscriber.isTranscribing ? t('assess.transcribing') :
+                           `${t('assess.timeLimit')}: ${session.duration_seconds} ${t('assess.seconds')}`}
                         </p>
                         
                         {/* 转录结果显示 */}
@@ -939,7 +939,7 @@ export default function AssessPage() {
                             textAlign: 'left',
                           }}>
                             <div style={{ fontSize: '0.75rem', color: '#98B8A8', marginBottom: '0.5rem', fontWeight: 600 }}>
-                              📝 转录结果
+                              📝 {t('assess.transcriptionResult')}
                             </div>
                             <p style={{ fontSize: '0.875rem', color: '#44403C', lineHeight: 1.6 }}>
                               {whisperTranscriber.result.text}
@@ -1002,7 +1002,7 @@ export default function AssessPage() {
                               opacity: whisperTranscriber.isTranscribing ? 0.7 : 1,
                             }}
                           >
-                            {audioRecorder.isRecording ? '⏹️ 停止录制' : '▶️ 开始录制'}
+                            {audioRecorder.isRecording ? `⏹️ ${t('assess.stopRecording')}` : `▶️ ${t('assess.startRecording')}`}
                           </button>
                           
                           {!audioRecorder.isRecording && audioRecorder.audioBlob && (
@@ -1024,7 +1024,7 @@ export default function AssessPage() {
                                 transition: 'all 0.2s ease'
                               }}
                             >
-                              {submitting ? '提交中...' : whisperTranscriber.isTranscribing ? '转录中...' : '📤 提交评估'}
+                              {submitting ? t('assess.submitting') : whisperTranscriber.isTranscribing ? t('assess.transcribing') : `📤 ${t('assess.submitAssessment')}`}
                             </button>
                           )}
                         </div>
@@ -1102,7 +1102,7 @@ export default function AssessPage() {
                           marginBottom: '0.5rem'
                         }}>
                           <label style={{ fontWeight: 500, color: '#44403C', fontSize: '0.875rem' }}>
-                            你的代码 (Python)
+                            {t('assess.yourCode')} (Python)
                           </label>
                           <span style={{ fontSize: '0.75rem', color: '#A8A29E' }}>
                             {code.split('\n').length} {t('assess.lines')}
@@ -1139,7 +1139,7 @@ export default function AssessPage() {
                             lineHeight: 1.6,
                             outline: 'none'
                           }}
-                          placeholder="def solution(nums, target):&#10;    # 在这里编写你的解答&#10;    pass"
+                          placeholder={`def solution(nums, target):\n    # ${t('assess.codePlaceholder')}\n    pass`}
                           value={code}
                           onChange={(e) => setCode(e.target.value)}
                         />
@@ -1161,7 +1161,7 @@ export default function AssessPage() {
                             marginBottom: '0.5rem'
                           }}>
                             <span style={{ fontSize: '0.75rem', color: '#98B8A8', fontWeight: 600 }}>
-                              📤 输出
+                              📤 {t('assess.output')}
                             </span>
                             {codeExecutor.result?.executionTime && (
                               <span style={{ fontSize: '0.6875rem', color: '#A8A29E' }}>
@@ -1182,7 +1182,7 @@ export default function AssessPage() {
                           {codeExecutor.result?.testResults && (
                             <div style={{ marginTop: '1rem', borderTop: '1px solid #44403C', paddingTop: '1rem' }}>
                               <div style={{ fontSize: '0.75rem', color: '#F9CE9C', marginBottom: '0.5rem', fontWeight: 600 }}>
-                                🧪 测试结果
+                                🧪 {t('assess.testResults')}
                               </div>
                               {codeExecutor.result.testResults.map((test, i) => (
                                 <div key={i} style={{
@@ -1198,7 +1198,7 @@ export default function AssessPage() {
                                   <span style={{ color: '#e2e8f0' }}>{test.name}</span>
                                   {!test.passed && (
                                     <span style={{ color: '#A8A29E', fontSize: '0.75rem' }}>
-                                      (期望: {test.expected}, 实际: {test.actual})
+                                      ({t('assess.expected')}: {test.expected}, {t('assess.actual')}: {test.actual})
                                     </span>
                                   )}
                                 </div>
@@ -1266,10 +1266,10 @@ export default function AssessPage() {
                           {submitting ? (
                             <>
                               <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }}></div>
-                              评估中...
+                              {t('assess.evaluating')}
                             </>
                           ) : (
-                            <>🚀 提交代码</>
+                            <>🚀 {t('assess.submitCode')}</>
                           )}
                         </button>
                       </div>
@@ -1295,7 +1295,7 @@ export default function AssessPage() {
                           letterSpacing: '0.05em',
                           fontWeight: 600
                         }}>
-                          ✏️ 写作主题
+                          ✏️ {t('assess.writingPrompt')}
                         </div>
                         <div style={{ fontSize: '1.125rem', color: '#1C1917', fontWeight: 500 }}>
                           {session.prompt}
@@ -1308,10 +1308,10 @@ export default function AssessPage() {
                           fontSize: '0.875rem'
                         }}>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            ⏱️ {session.time_limit_minutes} 分钟
+                            ⏱️ {session.time_limit_minutes} {t('assess.minutes')}
                           </span>
                           <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            📝 300-500 字
+                            📝 300-500 {t('assess.words')}
                           </span>
                         </div>
                       </div>
@@ -1351,7 +1351,7 @@ export default function AssessPage() {
                           }}>
                             {essay.length}
                           </span>
-                          <span style={{ color: '#A8A29E', fontSize: '0.75rem' }}>/ 300-500 字</span>
+                          <span style={{ color: '#A8A29E', fontSize: '0.75rem' }}>/ 300-500 {t('assess.words')}</span>
                         </div>
                       </div>
                       
@@ -1392,7 +1392,7 @@ export default function AssessPage() {
                             outline: 'none',
                             transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
                           }}
-                          placeholder="在这里输入你的文章..."
+                          placeholder={t('assess.essayPlaceholder')}
                           value={essay}
                           onChange={(e) => setEssay(e.target.value)}
                           onFocus={(e) => {
@@ -1430,7 +1430,7 @@ export default function AssessPage() {
                               alignItems: 'center',
                               gap: '0.375rem'
                             }}>
-                              ✨ AI 实时反馈
+                              ✨ {t('assess.aiRealtimeFeedback')}
                             </span>
                             {isAnalyzingWriting && (
                               <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }}></div>
@@ -1473,10 +1473,10 @@ export default function AssessPage() {
                               
                               {/* 分项评分 */}
                               {[
-                                { label: '语法', score: aiFeedback.grammar.score, icon: '📖', color: '#98B8A8' },
-                                { label: '内容', score: aiFeedback.content.score, icon: '📝', color: '#F9CE9C' },
-                                { label: '结构', score: aiFeedback.structure.score, icon: '🏗️', color: '#C9DDE3' },
-                                { label: '风格', score: aiFeedback.style.score, icon: '✨', color: '#E18182' },
+                                { label: t('assess.grammar'), score: aiFeedback.grammar.score, icon: '📖', color: '#98B8A8' },
+                                { label: t('assess.content'), score: aiFeedback.content.score, icon: '📝', color: '#F9CE9C' },
+                                { label: t('assess.structure'), score: aiFeedback.structure.score, icon: '🏗️', color: '#C9DDE3' },
+                                { label: t('assess.style'), score: aiFeedback.style.score, icon: '✨', color: '#E18182' },
                               ].map(item => (
                                 <div key={item.label} style={{ marginBottom: '0.75rem' }}>
                                   <div style={{ 
@@ -1517,7 +1517,7 @@ export default function AssessPage() {
                                   border: '1px solid rgba(249,206,156,0.2)',
                                 }}>
                                   <div style={{ fontSize: '0.6875rem', color: '#D97706', fontWeight: 600, marginBottom: '0.375rem' }}>
-                                    💡 建议
+                                    💡 {t('assess.suggestions')}
                                   </div>
                                   {aiFeedback.content.suggestions.map((s, i) => (
                                     <div key={i} style={{ fontSize: '0.75rem', color: '#78716C', marginBottom: '0.25rem' }}>
@@ -1537,7 +1537,7 @@ export default function AssessPage() {
                                   border: '1px solid rgba(225,129,130,0.2)',
                                 }}>
                                   <div style={{ fontSize: '0.6875rem', color: '#E18182', fontWeight: 600, marginBottom: '0.375rem' }}>
-                                    ⚠️ 语法问题
+                                    ⚠️ {t('assess.grammarIssues')}
                                   </div>
                                   {aiFeedback.grammar.issues.slice(0, 3).map((issue, i) => (
                                     <div key={i} style={{ fontSize: '0.75rem', color: '#78716C', marginBottom: '0.25rem' }}>
@@ -1555,7 +1555,7 @@ export default function AssessPage() {
                             }}>
                               <span style={{ fontSize: '2rem', display: 'block', marginBottom: '0.5rem' }}>✍️</span>
                               <p style={{ fontSize: '0.8125rem' }}>
-                                开始写作后，AI 将实时分析你的文章并提供反馈
+                                {t('assess.aiAnalysisHint')}
                               </p>
                             </div>
                           )}
@@ -1590,10 +1590,10 @@ export default function AssessPage() {
                         {submitting ? (
                           <>
                             <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }}></div>
-                            评估中...
+                            {t('assess.evaluating')}
                           </>
                         ) : (
-                          <>📤 提交文章</>
+                          <>📤 {t('assess.submitEssay')}</>
                         )}
                       </button>
                     </>
@@ -1629,7 +1629,7 @@ export default function AssessPage() {
                     justifyContent: 'center',
                     fontSize: '0.875rem'
                   }}>📋</span>
-                  评估说明
+                  {t('assess.instructions')}
                 </h3>
                 <div style={{ 
                   display: 'grid', 
@@ -1639,20 +1639,20 @@ export default function AssessPage() {
                   {[
                     { 
                       icon: '🎙️', 
-                      title: '沟通能力',
-                      desc: '评估口头表达、逻辑组织、自信度和内容相关性',
+                      title: t('assess.communication'),
+                      desc: t('assess.communicationDesc'),
                       color: '#E18182'
                     },
                     { 
                       icon: '💻', 
-                      title: '编程能力',
-                      desc: '评估代码正确性、效率、风格和问题解决能力',
+                      title: t('assess.programming'),
+                      desc: t('assess.programmingAbilityDesc'),
                       color: '#98B8A8'
                     },
                     { 
                       icon: '✍️', 
-                      title: '写作能力',
-                      desc: '评估语法、结构、内容深度和原创性',
+                      title: t('assess.writing'),
+                      desc: t('assess.writingAbilityDesc'),
                       color: '#F9CE9C'
                     }
                   ].map((item) => (

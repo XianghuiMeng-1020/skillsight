@@ -46,7 +46,23 @@ export default function SkillAliasesAdmin() {
           <input value={alias} onChange={(e)=>setAlias(e.target.value)} style={{ padding:8, border:"1px solid #ccc", borderRadius:6, minWidth: 260 }} />
           <button onClick={doResolve} style={{ padding:"8px 14px", cursor:"pointer" }}>Resolve</button>
           <button onClick={refreshConflicts} style={{ padding:"8px 14px", cursor:"pointer" }}>Refresh conflicts</button>
-          <a href={`${apiBase}/bff/admin/skill-aliases/conflicts/report?format=csv`} style={{ textDecoration:"underline" }}>Download CSV report</a>
+          <button onClick={async () => {
+            try {
+              const res = await fetch(`${apiBase}/bff/admin/skill-aliases/conflicts/report?format=csv`, { headers: authHeaders() });
+              if (!res.ok) { setMsg(`CSV download failed: HTTP ${res.status}`); return; }
+              const blob = await res.blob();
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'skill-alias-conflicts.csv';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              URL.revokeObjectURL(url);
+            } catch (e: any) {
+              setMsg(e.message || 'CSV download failed');
+            }
+          }} style={{ textDecoration:"underline", background:"none", border:"none", cursor:"pointer", color:"inherit", font:"inherit", padding:0 }}>Download CSV report</button>
         </div>
         {msg && <div style={{ marginTop: 10, color: "crimson" }}>{msg}</div>}
       </section>
