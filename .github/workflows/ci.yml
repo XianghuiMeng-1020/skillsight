@@ -46,6 +46,8 @@ jobs:
           DATABASE_URL: postgresql+psycopg2://skillsight:skillsight@127.0.0.1:55432/skillsight
           SKILLSIGHT_AUTH_SECRET: ci_test_secret_change_in_production
           SKILLSIGHT_ENV: development
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 56379
         run: |
           cd backend && PYTHONPATH=.. python -m pytest tests/ -v --tb=short 2>&1 | tee ../pytest.log
 
@@ -56,9 +58,14 @@ jobs:
           SKILLSIGHT_ENV: development
           QDRANT_HOST: 127.0.0.1
           QDRANT_PORT: 6333
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 56379
         run: |
           PYTHONPATH=. python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8001 &
-          sleep 15
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8001/health > /dev/null 2>&1 && break
+            sleep 2
+          done
 
       - name: Run E2E Golden Path
         run: |
