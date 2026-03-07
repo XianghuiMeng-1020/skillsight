@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 
 // ==========================================
 // 1. 主题上下文 (深色模式)
@@ -911,27 +912,21 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
   const [currentStep, setCurrentStep] = useState(0);
   const [tutorialName, setTutorialNameState] = useState('');
   const totalSteps = 5;
+  const pathname = usePathname();
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-
-    const check = () => {
-      const hasSeenTutorial = localStorage.getItem('skillsight-tutorial-completed');
-      const user = localStorage.getItem('user');
-      const savedName = localStorage.getItem('skillsight-onboarding-name');
-      if (savedName) setTutorialNameState(savedName);
-      if (!hasSeenTutorial && user) {
-        timer = setTimeout(() => setShowTutorial(true), 800);
-      }
-    };
-
-    check();
-    window.addEventListener('skillsight-login', check);
+    const hasSeenTutorial = localStorage.getItem('skillsight-tutorial-completed');
+    const user = localStorage.getItem('user');
+    const savedName = localStorage.getItem('skillsight-onboarding-name');
+    if (savedName) setTutorialNameState(savedName);
+    if (!hasSeenTutorial && user) {
+      timer = setTimeout(() => setShowTutorial(true), 800);
+    }
     return () => {
       if (timer) clearTimeout(timer);
-      window.removeEventListener('skillsight-login', check);
     };
-  }, []);
+  }, [pathname]);
 
   const setTutorialName = useCallback((name: string) => {
     const clean = name.trim();
