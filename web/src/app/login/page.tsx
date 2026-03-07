@@ -57,6 +57,7 @@ export default function LoginPage() {
         role: bffRole,
         avatar: displayName[0].toUpperCase()
       }));
+      window.dispatchEvent(new Event('skillsight-login'));
       router.push(role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed');

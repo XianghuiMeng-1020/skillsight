@@ -914,15 +914,22 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const hasSeenTutorial = localStorage.getItem('skillsight-tutorial-completed');
-    const user = localStorage.getItem('user');
-    const savedName = localStorage.getItem('skillsight-onboarding-name');
-    if (savedName) setTutorialNameState(savedName);
-    if (!hasSeenTutorial && user) {
-      timer = setTimeout(() => setShowTutorial(true), 1000);
-    }
+
+    const check = () => {
+      const hasSeenTutorial = localStorage.getItem('skillsight-tutorial-completed');
+      const user = localStorage.getItem('user');
+      const savedName = localStorage.getItem('skillsight-onboarding-name');
+      if (savedName) setTutorialNameState(savedName);
+      if (!hasSeenTutorial && user) {
+        timer = setTimeout(() => setShowTutorial(true), 800);
+      }
+    };
+
+    check();
+    window.addEventListener('skillsight-login', check);
     return () => {
       if (timer) clearTimeout(timer);
+      window.removeEventListener('skillsight-login', check);
     };
   }, []);
 
