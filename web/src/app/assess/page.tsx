@@ -23,6 +23,7 @@ interface Session {
   prompt?: string;
   duration_seconds?: number;
   time_limit_minutes?: number;
+  anti_copy_token?: string;
 }
 
 interface EvaluationResult {
@@ -339,7 +340,7 @@ export default function AssessPage() {
           body = {
             session_id: session.session_id,
             content: essay,
-            anti_copy_token: 'demo_token',
+            anti_copy_token: session.anti_copy_token ?? '',
             keystroke_data: { chars_per_minute: 180, paste_count: 0 },
           };
           break;

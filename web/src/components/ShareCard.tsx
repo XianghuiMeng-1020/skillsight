@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
+import { logger } from '@/lib/logger';
 
 interface ShareButtonProps {
   userName: string;
@@ -25,7 +26,7 @@ export function ShareButton({ userName, skills, overallScore }: ShareButtonProps
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err);
+      logger.error('Failed to copy', err);
     }
   };
 
@@ -38,7 +39,7 @@ export function ShareButton({ userName, skills, overallScore }: ShareButtonProps
           url: window.location.origin + '/dashboard',
         });
       } catch (err) {
-        console.error('Share failed:', err);
+        logger.error('Share failed', err);
       }
     }
   };
@@ -116,20 +117,18 @@ function ShareModal({
     if (!cardRef.current) return;
 
     try {
-      // 动态导入 html2canvas
-      const html2canvas = (await import('html2canvas')).default;
-      const canvas = await html2canvas(cardRef.current, {
+      const { toPng } = await import('html-to-image');
+      const dataUrl = await toPng(cardRef.current, {
         backgroundColor: '#ffffff',
-        scale: 2,
+        pixelRatio: 2,
       });
-      
+
       const link = document.createElement('a');
       link.download = `${userName}-skillsight-profile.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.href = dataUrl;
       link.click();
     } catch (err) {
-      console.error('Failed to generate image:', err);
-      // Fallback: just show a message
+      logger.error('Failed to generate image', err);
       alert(t('share.noHtml2canvas'));
     }
   }, [userName]);

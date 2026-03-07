@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage, getDateLocale } from "@/lib/contexts";
 import { getToken } from "@/lib/bffClient";
+import { logger } from "@/lib/logger";
 
 // 文档信息接口
 interface DocInfo {
@@ -266,7 +267,7 @@ export default function DocPage() {
         if (!skillId && items[0]) setSkillId(items[0].skill_id);
       })
       .catch((e) => {
-        console.error("Failed to load skills", e);
+        logger.error("Failed to load skills", e);
         setSkills([]);
         setMetaLoadErr("Failed to load skills/roles metadata");
       });
@@ -279,7 +280,7 @@ export default function DocPage() {
         if (!roleId && items[0]) setRoleId(items[0].role_id);
       })
       .catch((e) => {
-        console.error("Failed to load roles", e);
+        logger.error("Failed to load roles", e);
         setRoles([]);
         setMetaLoadErr("Failed to load skills/roles metadata");
       });

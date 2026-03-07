@@ -203,10 +203,12 @@ _CORS_ORIGINS_RAW = [
     if o.strip()
 ]
 _CORS_PATTERNS = [
-    _re.compile(r"^https://[a-z0-9-]+\.trycloudflare\.com$"),
     _re.compile(r"^https://[a-z0-9-]+\.skillsight-\d+\.pages\.dev$"),
     _re.compile(r"^https://skillsight-\d+\.pages\.dev$"),
 ]
+# Allow *.trycloudflare.com only outside production (local dev tunnels)
+if not _os.getenv("SKILLSIGHT_ENV", "").strip().lower() in ("production", "prod"):
+    _CORS_PATTERNS.append(_re.compile(r"^https://[a-z0-9-]+\.trycloudflare\.com$"))
 _IS_PRODUCTION = _os.getenv("SKILLSIGHT_ENV", "").strip().lower() == "production"
 
 

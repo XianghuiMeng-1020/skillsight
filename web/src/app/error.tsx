@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
+import { logger } from '@/lib/logger';
 
 export default function Error({
   error,
@@ -13,7 +14,7 @@ export default function Error({
 }) {
   const { t } = useLanguage();
   useEffect(() => {
-    console.error('App error:', error);
+    logger.error('App error', error);
   }, [error]);
 
   return (

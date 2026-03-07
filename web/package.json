@@ -14,7 +14,7 @@
     "test:e2e:i18n-screenshots": "playwright test tests/e2e/i18n_route_screenshot_regression.spec.ts --reporter=list"
   },
   "dependencies": {
-    "html2canvas": "^1.4.1",
+    "html-to-image": "^1.11.13",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",

@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { API_BASE_URL } from '@/lib/api';
+import { logger } from '@/lib/logger';
 
 // ==========================================
 // 1. 音频录制 Hook (Web Audio API)
@@ -133,7 +134,7 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
     } catch (err) {
       const message = err instanceof Error ? err.message : '无法访问麦克风';
       setError(message);
-      console.error('录音错误:', err);
+      logger.error('录音错误', err);
     }
   };
 
@@ -291,7 +292,7 @@ export function useCodeExecutor(): CodeExecutorState & CodeExecutorActions {
 
       document.head.appendChild(script);
     } catch (err) {
-      console.error('Failed to load Pyodide:', err);
+      logger.error('Failed to load Pyodide', err);
     }
   };
 
@@ -746,7 +747,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         setStoredValue(JSON.parse(item));
       }
     } catch (error) {
-      console.error('Error reading from localStorage:', error);
+      logger.error('Error reading from localStorage', error);
     }
     setIsLoaded(true);
   }, [key]);
@@ -757,7 +758,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
       setStoredValue(valueToStore);
       localStorage.setItem(key, JSON.stringify(valueToStore));
     } catch (error) {
-      console.error('Error writing to localStorage:', error);
+      logger.error('Error writing to localStorage', error);
     }
   }, [key, storedValue]);
 
@@ -818,7 +819,7 @@ export function useWhisperTranscriber() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Transcription failed';
       setError(message);
-      console.error('Whisper transcription error:', err);
+      logger.error('Whisper transcription error', err);
       return null;
     } finally {
       setIsTranscribing(false);
@@ -892,7 +893,7 @@ export function useAIWritingFeedback() {
         const data = await response.json();
         if (mountedRef.current) setFeedback(data);
       } catch (err) {
-        console.error('AI writing analysis error:', err);
+        logger.error('AI writing analysis error', err);
         if (mountedRef.current) setFeedback(generateLocalFeedback(text));
       } finally {
         if (mountedRef.current) setIsAnalyzing(false);
@@ -1005,7 +1006,7 @@ export function useAchievements() {
           return savedA ? { ...a, ...savedA } : a;
         }));
       } catch (e) {
-        console.error('Failed to load achievements:', e);
+        logger.error('Failed to load achievements', e);
       }
     }
   }, []);
@@ -1180,7 +1181,7 @@ export function useLearningPath() {
       // If response not ok, use local generation
       generateLocalRecs();
     } catch (err) {
-      console.error('Failed to fetch learning path:', err);
+      logger.error('Failed to fetch learning path', err);
       // Fallback to local generation
       generateLocalRecs();
     } finally {
