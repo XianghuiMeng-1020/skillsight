@@ -28,6 +28,26 @@ _memory: dict[str, dict[str, tuple[int, float]]] = defaultdict(dict)
 _memory_lock = Lock()
 _WINDOW_SECONDS = 60
 
+# Module-level Redis connection pool (created once, reused across requests)
+_redis_pool: "redis.ConnectionPool | None" = None
+_redis_pool_lock = Lock()
+
+
+def _get_redis_pool() -> "redis.ConnectionPool":
+    global _redis_pool
+    if _redis_pool is None:
+        with _redis_pool_lock:
+            if _redis_pool is None:
+                import redis as _redis_mod
+                host = os.getenv("REDIS_HOST", "localhost")
+                port = int(os.getenv("REDIS_PORT", "6379"))
+                _redis_pool = _redis_mod.ConnectionPool(
+                    host=host, port=port, db=0,
+                    socket_connect_timeout=1,
+                    max_connections=20,
+                )
+    return _redis_pool
+
 
 def _parse_bool_env(key: str, default: bool = False) -> bool:
     """Parse env var as bool.
@@ -107,9 +127,7 @@ def _redis_incr(scope: str, client_key: str, limit: int) -> Optional[tuple[bool,
     """Returns (allowed, current_count) or None if Redis unavailable."""
     try:
         import redis
-        host = os.getenv("REDIS_HOST", "localhost")
-        port = int(os.getenv("REDIS_PORT", "6379"))
-        r = redis.Redis(host=host, port=port, db=0, socket_connect_timeout=1)
+        r = redis.Redis(connection_pool=_get_redis_pool())
         now = time.time()
         window_start = int(now // _WINDOW_SECONDS) * _WINDOW_SECONDS
         rkey = f"rl:{scope}:{client_key}:{window_start}"
