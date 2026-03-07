@@ -817,6 +817,122 @@ def _text_to_chunks(
 
 
 # ====================
+# EPUB Parser
+# ====================
+def parse_epub_to_chunks(
+    file_path: str = None,
+    file_bytes: bytes = None,
+    min_chunk_len: int = 50,
+) -> List[Dict[str, Any]]:
+    """Parse EPUB e-book by extracting text from its XHTML content files."""
+    import zipfile
+    from xml.etree import ElementTree
+
+    cleanup_temp = False
+    if file_bytes and not file_path:
+        with tempfile.NamedTemporaryFile(suffix=".epub", delete=False) as tmp:
+            tmp.write(file_bytes)
+            file_path = tmp.name
+            cleanup_temp = True
+
+    texts: List[str] = []
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            for name in sorted(zf.namelist()):
+                if name.endswith((".xhtml", ".html", ".htm", ".xml")):
+                    raw = zf.read(name).decode("utf-8", errors="ignore")
+                    try:
+                        root = ElementTree.fromstring(raw)
+                        body_text = " ".join(root.itertext())
+                    except ElementTree.ParseError:
+                        body_text = re.sub(r"<[^>]+>", " ", raw)
+                    stripped = body_text.strip()
+                    if stripped:
+                        texts.append(stripped)
+    except Exception:
+        return [_placeholder_chunk("document", "EPUB parsing failed. The file may be corrupted.")]
+    finally:
+        if cleanup_temp and file_path:
+            try:
+                os.unlink(file_path)
+            except OSError:
+                pass
+
+    combined = "\n\n".join(texts)
+    if not combined.strip():
+        return [_placeholder_chunk("document", "EPUB file contained no extractable text.")]
+    return _text_to_chunks(combined, min_chunk_len, source_type="document")
+
+
+# ====================
+# ZIP Archive Parser
+# ====================
+def parse_zip_to_chunks(
+    file_path: str = None,
+    file_bytes: bytes = None,
+    min_chunk_len: int = 50,
+) -> List[Dict[str, Any]]:
+    """Extract a ZIP archive and recursively parse each supported file inside."""
+    import zipfile
+
+    cleanup_temp = False
+    if file_bytes and not file_path:
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+            tmp.write(file_bytes)
+            file_path = tmp.name
+            cleanup_temp = True
+
+    all_chunks: List[Dict[str, Any]] = []
+    idx_offset = 0
+    max_files = 50
+    max_total_bytes = 100 * 1024 * 1024  # 100 MB safety limit
+    files_processed = 0
+
+    try:
+        with zipfile.ZipFile(file_path, "r") as zf:
+            for info in zf.infolist():
+                if info.is_dir():
+                    continue
+                if files_processed >= max_files:
+                    break
+                inner_ext = os.path.splitext(info.filename)[1].lower()
+                if inner_ext not in SUPPORTED_EXTENSIONS or inner_ext == ".zip":
+                    continue
+                if info.file_size > max_total_bytes:
+                    continue
+                try:
+                    inner_bytes = zf.read(info.filename)
+                except Exception:
+                    continue
+
+                sub_result = parse_multimodal_file(
+                    file_bytes=inner_bytes,
+                    filename=info.filename,
+                    min_chunk_len=min_chunk_len,
+                )
+                for ch in sub_result.get("chunks", []):
+                    ch["idx"] = idx_offset
+                    ch["section_path"] = f"{info.filename} / {ch.get('section_path') or ''}"
+                    all_chunks.append(ch)
+                    idx_offset += 1
+                files_processed += 1
+    except zipfile.BadZipFile:
+        return [_placeholder_chunk("archive", "Invalid or corrupted ZIP file.")]
+    except Exception as exc:
+        return [_placeholder_chunk("archive", f"ZIP extraction failed: {type(exc).__name__}")]
+    finally:
+        if cleanup_temp and file_path:
+            try:
+                os.unlink(file_path)
+            except OSError:
+                pass
+
+    if not all_chunks:
+        return [_placeholder_chunk("archive", "ZIP archive contained no supported files.")]
+    return all_chunks
+
+
+# ====================
 # Unified Multimodal Parser
 # ====================
 SUPPORTED_EXTENSIONS = {
@@ -948,6 +1064,15 @@ SUPPORTED_EXTENSIONS = {
     ".log": "text",
     ".diff": "code",
     ".patch": "code",
+    # LaTeX
+    ".tex": "text",
+    ".latex": "text",
+    # Markdown extended
+    ".mdx": "text",
+    # eBook
+    ".epub": "document",
+    # Archives (extracted recursively)
+    ".zip": "archive",
 }
 
 
@@ -1079,6 +1204,20 @@ def parse_multimodal_file(
         
         # Split by function/class definitions for better chunking
         result["chunks"] = _parse_code_to_chunks(content, ext, min_chunk_len)
+    
+    elif media_type == "archive":
+        result["chunks"] = parse_zip_to_chunks(
+            file_path=file_path,
+            file_bytes=file_bytes,
+            min_chunk_len=min_chunk_len,
+        )
+    
+    elif ext == ".epub":
+        result["chunks"] = parse_epub_to_chunks(
+            file_path=file_path,
+            file_bytes=file_bytes,
+            min_chunk_len=min_chunk_len,
+        )
     
     else:
         result["error"] = f"Unsupported file type: {ext}"

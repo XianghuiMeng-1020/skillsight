@@ -771,8 +771,7 @@ export default function AssessPage() {
                       }}>✍️</div>
                       <h3 style={{ marginBottom: '0.75rem', fontSize: '1.25rem', color: '#1C1917' }}>写作能力评估</h3>
                       <p style={{ color: '#78716C', marginBottom: '1.5rem', maxWidth: '400px', margin: '0 auto 1.5rem', lineHeight: 1.6 }}>
-                        系统将给你一个写作主题，你需要在 30 分钟内完成 300-500 字的文章。
-                        系统会检测复制粘贴行为，请手动输入。
+                        {t('assess.writingInstructions')}
                       </p>
                       <div style={{ 
                         display: 'flex', 
@@ -1106,7 +1105,7 @@ export default function AssessPage() {
                             你的代码 (Python)
                           </label>
                           <span style={{ fontSize: '0.75rem', color: '#A8A29E' }}>
-                            {code.split('\n').length} 行
+                            {code.split('\n').length} {t('assess.lines')}
                           </span>
                         </div>
                         
@@ -1233,10 +1232,10 @@ export default function AssessPage() {
                           {codeExecutor.isExecuting ? (
                             <>
                               <div className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }}></div>
-                              运行中...
+                              {t('assess.running')}
                             </>
                           ) : (
-                            <>▶️ 运行测试</>
+                            <>▶️ {t('assess.runTests')}</>
                           )}
                         </button>
                         

@@ -581,7 +581,7 @@ async def transcribe_audio(audio: UploadFile = File(...)) -> Dict[str, Any]:
         
         # If still no transcript, return mock for demo
         if not transcript_text:
-            transcript_text = "[音频转录服务暂不可用。请安装 openai-whisper 或配置 OpenAI API 密钥。]"
+            transcript_text = "[Audio transcription unavailable. Configure OPENAI_API_KEY or install openai-whisper.]"
             confidence = 0.0
         
         # Get audio duration

@@ -3,6 +3,7 @@ Consent Management Routes for SkillSight
 - POST /consent/grant: Grant consent for document processing
 - POST /consent/revoke: Revoke consent and cascade delete all related data
 """
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -17,6 +18,8 @@ from backend.app.audit import log_audit
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
 from backend.app.security import Identity, require_auth
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter(tags=["consents"])
 
@@ -77,8 +80,8 @@ def _delete_stored_file(doc_id: str, db: Session) -> int:
             if not stored_path.startswith("upload://") and os.path.exists(stored_path):
                 os.remove(stored_path)
                 return 1
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("Failed to delete stored file for doc %s: %s", doc_id, exc)
     return 0
 
 
@@ -112,8 +115,8 @@ def _cascade_delete_document_data(db: Session, doc_id: str) -> Dict[str, int]:
             {"doc_id": doc_id}
         )
         deleted["role_readiness"] = result.rowcount or 0
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("cascade delete role_readiness for %s: %s", doc_id, exc)
     
     # Delete skill_proficiency
     try:
@@ -122,8 +125,8 @@ def _cascade_delete_document_data(db: Session, doc_id: str) -> Dict[str, int]:
             {"doc_id": doc_id}
         )
         deleted["skill_proficiency"] = result.rowcount or 0
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("cascade delete skill_proficiency for %s: %s", doc_id, exc)
     
     # Delete skill_assessments
     try:
@@ -132,8 +135,8 @@ def _cascade_delete_document_data(db: Session, doc_id: str) -> Dict[str, int]:
             {"doc_id": doc_id}
         )
         deleted["skill_assessments"] = result.rowcount or 0
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("cascade delete skill_assessments for %s: %s", doc_id, exc)
     
     # Delete chunks
     try:
@@ -142,8 +145,8 @@ def _cascade_delete_document_data(db: Session, doc_id: str) -> Dict[str, int]:
             {"doc_id": doc_id}
         )
         deleted["chunks"] = result.rowcount or 0
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("cascade delete chunks for %s: %s", doc_id, exc)
     
     # Delete vector embeddings (Qdrant)
     deleted["embeddings"] = _delete_vector_embeddings(doc_id)
@@ -158,8 +161,8 @@ def _cascade_delete_document_data(db: Session, doc_id: str) -> Dict[str, int]:
             {"doc_id": doc_id}
         )
         deleted["documents"] = result.rowcount or 0
-    except Exception:
-        pass
+    except Exception as exc:
+        _log.warning("cascade delete documents for %s: %s", doc_id, exc)
     
     return deleted
 

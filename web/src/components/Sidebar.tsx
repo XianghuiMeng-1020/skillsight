@@ -74,8 +74,8 @@ const adminNav: NavItem[] = [
   { icon: '📜', labelKey: 'admin.changeLog', href: '/admin/change-log' },
   { icon: '🎯', labelKey: 'admin.skillsRegistry', href: '/admin/skills' },
   { icon: '💼', labelKey: 'admin.rolesLibrary', href: '/admin/roles' },
-  { icon: '📚', labelKey: 'admin.courses', href: '/admin/courses' },
-  { icon: '📈', labelKey: 'admin.analytics', href: '/admin/analytics' },
+  { icon: '📚', labelKey: 'admin.courses', href: '/admin/course-skill-map' },
+  { icon: '📈', labelKey: 'admin.analytics', href: '/admin/metrics' },
 ];
 
 const settingsNav: NavItem[] = [

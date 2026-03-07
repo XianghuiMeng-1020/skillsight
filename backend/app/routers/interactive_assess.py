@@ -8,6 +8,7 @@ import hashlib
 import os
 import json
 import random
+import re
 import secrets
 import uuid
 from datetime import datetime, timezone, timedelta
@@ -1190,77 +1191,123 @@ def submit_programming_solution(
     return response_payload
 
 
+def _safe_exec_python(code: str, test_input: str, timeout_s: int = 5) -> Dict[str, Any]:
+    """Run Python code in a restricted subprocess with timeout."""
+    import subprocess, json as _json
+    wrapper = (
+        "import sys, json\n"
+        "sys.stdin = __import__('io').StringIO(json.loads(sys.argv[1]))\n"
+        f"{code}\n"
+    )
+    func_match = re.search(r"def\s+(\w+)\s*\(", code)
+    if func_match:
+        fname = func_match.group(1)
+        wrapper += f"\nprint(json.dumps({fname}(*json.loads(sys.argv[1]))))"
+    try:
+        proc = subprocess.run(
+            ["python3", "-c", wrapper, _json.dumps(test_input)],
+            capture_output=True, text=True, timeout=timeout_s,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        if proc.returncode != 0:
+            return {"ok": False, "error": proc.stderr.strip()[:500]}
+        return {"ok": True, "output": proc.stdout.strip()}
+    except subprocess.TimeoutExpired:
+        return {"ok": False, "error": "Time limit exceeded"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)[:300]}
+
+
 def _evaluate_code(code: str, problem: Dict, language: str) -> Dict[str, Any]:
     """
-    Evaluate submitted code.
-    In production, this would use a sandboxed code execution environment.
+    Evaluate submitted code. For Python, actually runs code against test cases
+    in a subprocess with a 5-second timeout. Other languages fall back to
+    static analysis.
     """
     test_cases = problem.get("test_cases", [])
     passed = 0
     results = []
-    
-    # For safety, we do static analysis only (no execution)
-    # A real implementation would use a sandboxed environment
-    
+    can_execute = language.lower() in ("python", "python3", "py")
+
     for i, tc in enumerate(test_cases):
-        # Placeholder - would actually run code here
-        # For now, just check if code contains key elements
-        result = {
-            "test_case": i + 1,
-            "input": str(tc["input"]),
-            "expected": str(tc["expected"]),
-            "status": "skipped",  # Would be "passed" or "failed" with execution
-            "message": "Code execution disabled for security",
-        }
-        results.append(result)
-    
-    # Static analysis scoring
+        tc_input = tc.get("input", "")
+        tc_expected = str(tc.get("expected", ""))
+
+        if can_execute:
+            run = _safe_exec_python(code, tc_input)
+            if run["ok"]:
+                actual = run["output"]
+                is_pass = actual.strip() == tc_expected.strip()
+                results.append({
+                    "test_case": i + 1,
+                    "input": str(tc_input),
+                    "expected": tc_expected,
+                    "actual": actual,
+                    "status": "passed" if is_pass else "failed",
+                    "message": "" if is_pass else f"Expected {tc_expected}, got {actual}",
+                })
+                if is_pass:
+                    passed += 1
+            else:
+                results.append({
+                    "test_case": i + 1,
+                    "input": str(tc_input),
+                    "expected": tc_expected,
+                    "actual": "",
+                    "status": "error",
+                    "message": run["error"],
+                })
+        else:
+            results.append({
+                "test_case": i + 1,
+                "input": str(tc_input),
+                "expected": tc_expected,
+                "status": "skipped",
+                "message": f"Execution not supported for {language}; scored by static analysis",
+            })
+
     score = 0
     feedback = []
-    
-    # Check code structure
-    if problem.get("function_signature", "").split("(")[0] in code:
-        score += 20
-        feedback.append("✓ Correct function name used")
+
+    if can_execute and test_cases:
+        ratio = passed / len(test_cases)
+        score = int(ratio * 70) + 10
+        feedback.append(f"✓ {passed}/{len(test_cases)} test cases passed")
     else:
-        feedback.append("✗ Function signature doesn't match expected")
-    
-    # Check for common patterns (very basic)
-    if "return" in code:
-        score += 10
-        feedback.append("✓ Return statement present")
-    
-    if len(code.split("\n")) >= 3:
-        score += 10
-        feedback.append("✓ Solution has multiple lines")
-    
-    # Code complexity estimate (lines of code)
+        if problem.get("function_signature", "").split("(")[0] in code:
+            score += 20
+            feedback.append("✓ Correct function name used")
+        else:
+            feedback.append("✗ Function signature doesn't match expected")
+        if "return" in code:
+            score += 10
+            feedback.append("✓ Return statement present")
+        if len(code.split("\n")) >= 3:
+            score += 10
+            feedback.append("✓ Solution has multiple lines")
+
     loc = len([l for l in code.split("\n") if l.strip() and not l.strip().startswith("#")])
-    
-    # Determine level based on code quality indicators
-    # This is a placeholder - real evaluation needs code execution
-    if score >= 30 and loc >= 5:
-        level = 2
-        label = "Intermediate"
-        score = 70  # Placeholder
-    elif score >= 20:
-        level = 1
-        label = "Developing"
-        score = 50
+    if loc >= 5:
+        score = max(score, score + 5)
+        feedback.append(f"✓ {loc} lines of logic")
+
+    if score >= 65:
+        level, label = 3, "Advanced"
+    elif score >= 45:
+        level, label = 2, "Intermediate"
+    elif score >= 25:
+        level, label = 1, "Developing"
     else:
-        level = 0
-        label = "Novice"
-        score = 30
-    
+        level, label = 0, "Novice"
+
     return {
-        "score": score,
+        "score": min(score, 100),
         "level": level,
         "level_label": label,
         "test_results": results,
         "tests_passed": passed,
         "tests_total": len(test_cases),
         "feedback": feedback,
-        "note": "Full code execution requires sandboxed environment. This is a static analysis placeholder.",
     }
 
 

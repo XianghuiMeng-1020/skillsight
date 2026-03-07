@@ -13,10 +13,12 @@ interface UploadResult {
 }
 
 const ACCEPTED_FILE_TYPES = [
-  '.txt', '.doc', '.docx', '.pdf', '.pptx', '.ppt', '.rtf', '.odt', '.md', '.markdown',
+  '.txt', '.doc', '.docx', '.pdf', '.pptx', '.ppt', '.rtf', '.odt', '.md', '.markdown', '.mdx',
+  '.tex', '.latex', '.epub',
   '.xlsx', '.xls', '.csv',
   '.jpg', '.jpeg', '.png', '.webp', '.bmp', '.tiff', '.tif', '.gif', '.svg', '.ico', '.heic', '.heif',
   '.mp4', '.webm', '.mov', '.avi', '.mkv', '.flv', '.wmv', '.mp3', '.wav', '.m4a', '.ogg', '.flac', '.aac',
+  '.zip',
   '.py', '.pyw', '.pyi', '.ipynb',
   '.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs', '.vue', '.svelte',
   '.html', '.htm', '.css', '.scss', '.sass', '.less',
@@ -35,16 +37,18 @@ export default function UploadPage() {
   const [results, setResults] = useState<UploadResult[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supportedFormats = [
-    { ext: 'Docs', icon: '📄', desc: 'PDF, DOCX, PPTX, MD, RTF, ODT' },
+    { ext: 'Docs', icon: '📄', desc: 'PDF, DOCX, PPTX, MD, RTF, ODT, LaTeX, EPUB' },
     { ext: 'Spreadsheets', icon: '📊', desc: 'XLSX, XLS, CSV' },
     { ext: 'Images', icon: '🖼️', desc: 'JPG, PNG, WEBP, SVG, HEIC' },
     { ext: 'Media', icon: '🎬', desc: 'MP4, WEBM, MP3, WAV, AAC' },
     { ext: 'Notebook', icon: '📓', desc: 'IPYNB' },
     { ext: 'Code', icon: '💻', desc: 'Python, JS/TS, Java, C/C++, Go, Rust, PHP...' },
     { ext: 'Config', icon: '⚙️', desc: 'JSON, YAML, TOML, XML, ENV, SQL' },
+    { ext: 'Archive', icon: '📦', desc: 'ZIP (auto-extracts and parses contents)' },
   ];
 
   const handleDrag = (e: DragEvent) => {
@@ -93,12 +97,14 @@ export default function UploadPage() {
     setUploading(true);
     setError(null);
     setResults([]);
+    setUploadProgress({ current: 0, total: files.length });
 
     try {
       const uploadResults: UploadResult[] = [];
 
-      for (const file of files) {
-        const data = await studentBff.upload(file, 'skill_assessment', 'full', token);
+      for (let i = 0; i < files.length; i++) {
+        setUploadProgress({ current: i + 1, total: files.length });
+        const data = await studentBff.upload(files[i], 'skill_assessment', 'full', token);
         uploadResults.push(data);
       }
 
@@ -109,6 +115,7 @@ export default function UploadPage() {
       setError(err instanceof Error ? err.message : t('upload.failed'));
     } finally {
       setUploading(false);
+      setUploadProgress({ current: 0, total: 0 });
     }
   };
 
@@ -309,7 +316,9 @@ export default function UploadPage() {
                   {uploading ? (
                     <>
                       <span className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }}></span>
-                      {t('upload.processing')}
+                      {uploadProgress.total > 1
+                        ? `${t('upload.processing')} (${uploadProgress.current}/${uploadProgress.total})`
+                        : t('upload.processing')}
                     </>
                   ) : (
                     <>{files.length > 0 ? t('upload.uploadNFiles').replace('{n}', String(files.length)) : t('upload.uploadFiles')}</>
