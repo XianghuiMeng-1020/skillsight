@@ -3,8 +3,9 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
+from backend.app.security import require_auth
 
-router = APIRouter(tags=["courses"])
+router = APIRouter(tags=["courses"], dependencies=[Depends(require_auth)])
 
 @router.get("/courses")
 def list_courses(db: Session = Depends(get_db), limit: int = 50):

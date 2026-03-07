@@ -11,6 +11,7 @@ Access rules:
 
 Protocol 1 (RBAC+ABAC) + Protocol 4 (review workflow) + Protocol 8 (audit).
 """
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -34,6 +35,7 @@ from backend.app.security.access_control import (
 )
 
 router = APIRouter(prefix="/bff/staff", tags=["bff-staff"])
+_log = logging.getLogger(__name__)
 
 _STAFF_PURPOSE = "teaching_support"
 
@@ -551,7 +553,8 @@ def bff_staff_health(
     try:
         db.execute(text("SELECT 1"))
         db_ok = True
-    except Exception:
+    except Exception as exc:
+        _log.warning("health check db probe failed: %s", exc)
         db_ok = False
 
     open_tickets = db.execute(

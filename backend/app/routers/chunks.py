@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import subprocess
 from typing import Any, Dict, List
@@ -22,6 +23,7 @@ except ImportError:
     from app.vector_store import get_client, ensure_collection, upsert_points, delete_by_doc_id, _qdrant_base_url
 
 router = APIRouter(prefix="/chunks", tags=["chunks"])
+_log = logging.getLogger(__name__)
 
 
 def _qdrant_url(path: str) -> str:
@@ -171,7 +173,8 @@ def embed_document_chunks(
                 }) for r, v in zip(rows, vecs)]
                 if points:
                     upsert_points(client, points)
-            except Exception:
+            except Exception as exc:
+                _log.warning("qdrant upsert failed, falling back to curl: %s", exc)
                 use_curl = True
         else:
             use_curl = True

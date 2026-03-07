@@ -109,8 +109,8 @@ def ensure_collection(client, dim: int):
     try:
         client.get_collection(COLLECTION)
         return
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("collection check failed, will create: %s", exc)
     client.create_collection(
         collection_name=COLLECTION,
         vectors_config=qm.VectorParams(size=dim, distance=qm.Distance.COSINE),
@@ -148,7 +148,8 @@ def collection_exists(client) -> bool:
     try:
         client.get_collection(COLLECTION)
         return True
-    except Exception:
+    except Exception as exc:
+        logger.warning("collection_exists check failed: %s", exc)
         return False
 
 
@@ -240,7 +241,8 @@ def search_via_curl(query_vec: list[float], top_k: int, doc_id: Optional[str] = 
         data = json.loads(r.stdout or "{}")
         hits = data.get("result", [])
         return [type("ScoredPoint", (), {"score": h.get("score", 0), "payload": h.get("payload", {})})() for h in hits]
-    except Exception:
+    except Exception as exc:
+        logger.warning("curl search response parse failed: %s", exc)
         return []
 
 

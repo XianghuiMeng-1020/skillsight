@@ -5,6 +5,7 @@ Interactive Assessment Routes for SkillSight
 - Writing Assessment (Timed writing with anti-copy protection)
 """
 import hashlib
+import logging
 import os
 import json
 import random
@@ -33,6 +34,7 @@ router = APIRouter(prefix="/interactive", tags=["interactive-assessment"], depen
 DEFAULT_MODEL_VERSION = os.getenv("ASSESSMENT_MODEL_VERSION", "heuristic-v1")
 DEFAULT_RUBRIC_VERSION = os.getenv("ASSESSMENT_RUBRIC_VERSION", "rubric-v1")
 REPAIR_MAX_ATTEMPTS = max(1, int(os.getenv("ASSESSMENT_REPAIR_MAX_ATTEMPTS", "5")))
+_log = logging.getLogger(__name__)
 
 
 def _now_utc():
@@ -358,7 +360,8 @@ def _resolve_or_create_assessment_doc_id(db: Session, user_id: str, assessment_t
         """), {"user_id": user_id}).mappings().first()
         if row and row.get("doc_id"):
             return str(row["doc_id"])
-    except Exception:
+    except Exception as exc:
+        _log.warning("consent doc lookup rollback: %s", exc)
         db.rollback()
 
     doc_id = str(uuid.uuid4())

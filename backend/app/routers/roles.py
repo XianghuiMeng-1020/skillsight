@@ -1,4 +1,4 @@
-## HARDENED_ROLES_ROUTER
+"""Roles router – CRUD operations for role definitions and skill mappings."""
 import json
 import uuid
 from datetime import datetime, timezone

@@ -380,6 +380,7 @@ interface ShareIconButtonProps {
 }
 
 export function ShareIconButton({ onClick, size = 'md' }: ShareIconButtonProps) {
+  const { t } = useLanguage();
   const sizes = {
     sm: { width: '32px', height: '32px', fontSize: '0.875rem' },
     md: { width: '40px', height: '40px', fontSize: '1rem' },
@@ -408,7 +409,7 @@ export function ShareIconButton({ onClick, size = 'md' }: ShareIconButtonProps) 
       onMouseLeave={(e) => {
         e.currentTarget.style.background = 'white';
       }}
-      title="分享"
+      title={t('common.share')}
     >
       📤
     </button>

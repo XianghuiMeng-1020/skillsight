@@ -1008,7 +1008,7 @@ export default function DocPage() {
                           fontSize: "0.75rem", 
                           color: "var(--gray-500)" 
                         }}>
-                          L{it.observed_level} / 目标L{it.target_level}
+                          L{it.observed_level} / {t('doc.target')}L{it.target_level}
                         </span>
                       </div>
                       <StatusPill 

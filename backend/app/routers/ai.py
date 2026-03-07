@@ -7,6 +7,7 @@ AI Assessment Routes for SkillSight
 - POST /ai/learning-path: Personalized learning path recommendations
 """
 import json
+import logging
 import re
 import uuid
 import tempfile
@@ -24,6 +25,8 @@ from backend.app.db.deps import get_db
 from backend.app.db.session import engine
 from backend.app.deps import check_doc_access
 from backend.app.security import Identity, require_auth
+
+_log = logging.getLogger(__name__)
 
 # Lazy imports for optional dependencies
 def _get_llm():
@@ -576,8 +579,8 @@ async def transcribe_audio(audio: UploadFile = File(...)) -> Dict[str, Any]:
                 with open(tmp_path, "rb") as audio_file:
                     result = openai.Audio.transcribe("whisper-1", audio_file)
                 transcript_text = result.get("text", "")
-            except Exception:
-                pass
+            except Exception as exc:
+                _log.warning("whisper transcription failed: %s", exc)
         
         # If still no transcript, return mock for demo
         if not transcript_text:
@@ -594,8 +597,8 @@ async def transcribe_audio(audio: UploadFile = File(...)) -> Dict[str, Any]:
             )
             if result.returncode == 0 and result.stdout.strip():
                 duration = float(result.stdout.strip())
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.debug("ffprobe unavailable: %s", exc)
         
         return {
             "text": transcript_text,
@@ -745,8 +748,8 @@ def analyze_writing(req: WritingAnalysisRequest) -> Dict[str, Any]:
                     content_suggestions.extend(parsed["content_suggestions"][:2])
                 if parsed.get("style_feedback"):
                     style_suggestions.append(parsed["style_feedback"])
-        except Exception:
-            pass  # Fall back to rule-based analysis
+        except Exception as exc:
+            _log.warning("LLM writing analysis failed: %s", exc)
     
     return {
         "grammar": {

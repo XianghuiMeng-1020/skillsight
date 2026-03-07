@@ -3,6 +3,7 @@ Action Routes for SkillSight
 - POST /actions/recommend: Generate action cards based on skill gaps (Decision 5)
 """
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -22,6 +23,7 @@ except ImportError:
     from app.security import Identity, require_auth
 
 router = APIRouter(prefix="/actions", tags=["actions"])
+_log = logging.getLogger(__name__)
 
 # Load action templates
 TEMPLATES_PATH = Path(__file__).parent.parent.parent / "data" / "action_templates.json"
@@ -38,7 +40,8 @@ def _load_templates() -> List[Dict[str, Any]]:
     if TEMPLATES_PATH.exists():
         try:
             _templates_cache = json.loads(TEMPLATES_PATH.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as exc:
+            _log.warning("action template loading failed: %s", exc)
             _templates_cache = []
     return _templates_cache
 
@@ -65,7 +68,8 @@ def _get_matched_resource(
         """)
         row = db.execute(sql, {"skill_id": skill_id, "gap_type": gap_type or ""}).mappings().first()
         return dict(row) if row else None
-    except Exception:
+    except Exception as exc:
+        _log.warning("resource lookup failed for skill %s: %s", skill_id, exc)
         return None
 
 

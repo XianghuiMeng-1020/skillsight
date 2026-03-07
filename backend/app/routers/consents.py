@@ -65,7 +65,8 @@ def _delete_vector_embeddings(doc_id: str) -> int:
         client = get_client()
         delete_by_doc_id(client, doc_id)
         return 1  # Success indicator
-    except Exception:
+    except Exception as exc:
+        _log.warning("vector embedding delete failed for doc %s: %s", doc_id, exc)
         return 0
 
 
@@ -383,35 +384,40 @@ def consent_revoke_dry_run(
         try:
             c = db.execute(text("SELECT COUNT(*) FROM role_readiness WHERE doc_id = :doc_id"), {"doc_id": payload.doc_id}).scalar()
             counts["role_readiness"] = int(c or 0)
-        except Exception:
+        except Exception as exc:
+            _log.warning("dry-run count role_readiness failed: %s", exc)
             counts["role_readiness"] = 0
         
         # Count skill_proficiency
         try:
             c = db.execute(text("SELECT COUNT(*) FROM skill_proficiency WHERE doc_id = :doc_id"), {"doc_id": payload.doc_id}).scalar()
             counts["skill_proficiency"] = int(c or 0)
-        except Exception:
+        except Exception as exc:
+            _log.warning("dry-run count skill_proficiency failed: %s", exc)
             counts["skill_proficiency"] = 0
         
         # Count skill_assessments
         try:
             c = db.execute(text("SELECT COUNT(*) FROM skill_assessments WHERE doc_id = :doc_id"), {"doc_id": payload.doc_id}).scalar()
             counts["skill_assessments"] = int(c or 0)
-        except Exception:
+        except Exception as exc:
+            _log.warning("dry-run count skill_assessments failed: %s", exc)
             counts["skill_assessments"] = 0
         
         # Count chunks
         try:
             c = db.execute(text("SELECT COUNT(*) FROM chunks WHERE doc_id = :doc_id"), {"doc_id": payload.doc_id}).scalar()
             counts["chunks"] = int(c or 0)
-        except Exception:
+        except Exception as exc:
+            _log.warning("dry-run count chunks failed: %s", exc)
             counts["chunks"] = 0
         
         # Check document exists
         try:
             c = db.execute(text("SELECT COUNT(*) FROM documents WHERE doc_id = :doc_id"), {"doc_id": payload.doc_id}).scalar()
             counts["documents"] = int(c or 0)
-        except Exception:
+        except Exception as exc:
+            _log.warning("dry-run count documents failed: %s", exc)
             counts["documents"] = 0
         
         counts["embeddings"] = 1 if counts["chunks"] > 0 else 0

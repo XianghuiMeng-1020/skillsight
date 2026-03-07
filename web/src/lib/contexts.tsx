@@ -589,6 +589,7 @@ export const translations: Translations = {
   'common.pagePrefix': { zh: '第', 'zh-TW': '第', en: 'Page ' },
   'common.chars': { zh: '字符数:', 'zh-TW': '字元數:', en: 'Characters:' },
   'common.collapse': { zh: '点击收起', 'zh-TW': '點擊收起', en: 'Click to collapse' },
+  'common.share': { zh: '分享', 'zh-TW': '分享', en: 'Share' },
 
   // 上传页面
   'upload.title': { zh: '上传证据文档', 'zh-TW': '上傳證據文件', en: 'Upload Evidence Document' },
@@ -813,6 +814,7 @@ export const translations: Translations = {
   'doc.noChunks': { zh: '此文档尚未生成内容片段', 'zh-TW': '此文件尚未生成內容片段', en: 'No content chunks generated for this document' },
   'doc.dashboard': { zh: '仪表盘', 'zh-TW': '儀表板', en: 'Dashboard' },
   'doc.document': { zh: '文档', 'zh-TW': '文件', en: 'Document' },
+  'doc.target': { zh: '目标', 'zh-TW': '目標', en: 'Target ' },
   'doc.details': { zh: '文档详情', 'zh-TW': '文件詳情', en: 'Document Details' },
 };
 

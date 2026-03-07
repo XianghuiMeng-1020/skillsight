@@ -10,7 +10,7 @@ try:
     if _env_path.exists():
         load_dotenv(dotenv_path=str(_env_path), override=False)
 except Exception:
-    pass
+    pass  # dotenv is optional for production
 
 DB_URL = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URL")
 if not DB_URL:

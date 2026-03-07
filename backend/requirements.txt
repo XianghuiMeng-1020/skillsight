@@ -37,6 +37,9 @@ openai>=1.0
 python-dotenv>=1.0
 requests>=2.31
 
+# Validation
+jsonschema>=4.20
+
 # Testing
 pytest>=8.0
 pytest-asyncio>=0.23

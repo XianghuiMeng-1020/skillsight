@@ -73,7 +73,8 @@ def _seed_roles_and_skills(db):
     if skills_file.exists():
         try:
             count = db.execute(text("SELECT count(*) FROM skills")).scalar() or 0
-        except Exception:
+        except Exception as exc:
+            logger.debug("skills table not ready: %s", exc)
             count = -1
         if count == 0:
             skills = json.loads(skills_file.read_text(encoding="utf-8"))
@@ -108,7 +109,8 @@ def _seed_roles_and_skills(db):
     if roles_file.exists():
         try:
             count = db.execute(text("SELECT count(*) FROM roles")).scalar() or 0
-        except Exception:
+        except Exception as exc:
+            logger.debug("roles table not ready: %s", exc)
             count = -1
         if count == 0:
             roles = json.loads(roles_file.read_text(encoding="utf-8"))

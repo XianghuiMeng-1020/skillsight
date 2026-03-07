@@ -11,6 +11,7 @@ Access rules:
 
 Protocol 1 (RBAC+ABAC) + Protocol 8 (audit).
 """
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -31,6 +32,7 @@ from backend.app.security.access_control import (
 )
 
 router = APIRouter(prefix="/bff/programme", tags=["bff-programme"])
+_log = logging.getLogger(__name__)
 
 _PROG_PURPOSE = "aggregate_programme_analysis"
 
@@ -277,7 +279,8 @@ def bff_programme_trend(
 
     try:
         rows = db.execute(text(simple_sql), params).mappings().all()
-    except Exception:
+    except Exception as exc:
+        _log.warning("programme overview query failed: %s", exc)
         rows = []
 
     trend_data = [
@@ -360,7 +363,8 @@ def bff_programme_health(
     try:
         db.execute(text("SELECT 1"))
         db_ok = True
-    except Exception:
+    except Exception as exc:
+        _log.warning("health check db probe failed: %s", exc)
         db_ok = False
 
     prog_count = db.execute(text("SELECT COUNT(*) FROM programmes")).scalar() or 0

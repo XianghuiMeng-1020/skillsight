@@ -5,6 +5,7 @@ Assessment Routes for SkillSight
 - POST /assess/role_readiness: Role readiness assessment (Decision 4)
 """
 import json
+import logging
 import re
 import uuid
 from datetime import datetime, timezone
@@ -36,6 +37,7 @@ from backend.app.change_log_events import (
 )
 
 router = APIRouter(prefix="/assess", tags=["assess"], dependencies=[Depends(require_auth)])
+_log = logging.getLogger(__name__)
 
 
 def _now_utc():
@@ -423,7 +425,8 @@ def assess_skill(req: SkillAssessRequest, db: Session = Depends(get_db)) -> Dict
                 "created_at": _now_utc(),
             })
             db.commit()
-        except Exception:
+        except Exception as exc:
+            _log.warning("skill assessment commit failed: %s", exc)
             db.rollback()
     
     return {
@@ -529,7 +532,8 @@ def assess_proficiency(req: ProficiencyAssessRequest, db: Session = Depends(get_
                 "created_at": _now_utc(),
             })
             db.commit()
-        except Exception:
+        except Exception as exc:
+            _log.warning("proficiency assessment commit failed: %s", exc)
             db.rollback()
     
     return {

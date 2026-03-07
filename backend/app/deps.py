@@ -1,9 +1,12 @@
 """Shared dependencies for SkillSight."""
+import logging
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
 from backend.app.security import Identity, require_auth
+
+_log = logging.getLogger(__name__)
 
 
 def check_doc_access(ident: Identity, doc_id: str, db: Session) -> None:
@@ -22,7 +25,8 @@ def check_doc_access(ident: Identity, doc_id: str, db: Session) -> None:
             """),
             {"doc_id": doc_id, "sub": ident.subject_id},
         ).first()
-    except Exception:
+    except Exception as exc:
+        _log.warning("consent access check failed: %s", exc)
         row = None
     if not row:
         from fastapi import HTTPException

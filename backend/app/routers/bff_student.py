@@ -10,6 +10,7 @@ All student requests must:
   5. Return structured refusal hints when evidence is insufficient
 """
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -37,6 +38,7 @@ from backend.app.db.session import engine
 from backend.app.security import Identity, issue_token, require_auth
 
 router = APIRouter(prefix="/bff/student", tags=["bff-student"])
+_log = logging.getLogger(__name__)
 
 ALLOWED_PURPOSES = ["skill_assessment", "role_alignment", "portfolio"]
 ALLOWED_SCOPES = ["full", "excerpt", "summary"]
@@ -603,19 +605,54 @@ async def bff_student_profile(
     try:
         rows = db.execute(
             text("""
-                SELECT session_id, assessment_type, skill_id, status, created_at, completed_at
-                FROM assessment_sessions
-                WHERE user_id = :uid
-                ORDER BY created_at DESC LIMIT 6
+                SELECT s.session_id, s.assessment_type, s.skill_id, s.status,
+                       s.created_at, s.completed_at,
+                       a.score  AS attempt_score,
+                       a.evaluation AS attempt_evaluation,
+                       a.submitted_at
+                FROM assessment_sessions s
+                LEFT JOIN LATERAL (
+                    SELECT score, evaluation, submitted_at
+                    FROM assessment_attempts
+                    WHERE session_id = s.session_id
+                    ORDER BY attempt_number DESC
+                    LIMIT 1
+                ) a ON true
+                WHERE s.user_id = :uid
+                ORDER BY s.created_at DESC LIMIT 6
             """),
             {"uid": subject},
         ).mappings().all()
-        recent_assessment_events = [dict(r) for r in rows]
-        for evt in recent_assessment_events:
-            for k in ("created_at", "completed_at"):
+        for r in rows:
+            evt = dict(r)
+            score = evt.pop("attempt_score", None)
+            evaluation = evt.pop("attempt_evaluation", None)
+            if isinstance(evaluation, str):
+                try:
+                    evaluation = json.loads(evaluation)
+                except Exception:
+                    evaluation = {}
+            if not isinstance(evaluation, dict):
+                evaluation = {}
+            if score is None:
+                score = evaluation.get("overall_score", evaluation.get("score", 0))
+            evt["score"] = float(score or 0)
+            raw_level = evaluation.get("level")
+            if isinstance(raw_level, str):
+                level_map = {"novice": 0, "developing": 1, "intermediate": 2, "advanced": 3, "expert": 3}
+                raw_level = level_map.get(raw_level.lower(), 0)
+            elif isinstance(raw_level, (int, float)):
+                raw_level = int(raw_level)
+            else:
+                s = evt["score"]
+                raw_level = 3 if s >= 85 else 2 if s >= 70 else 1 if s >= 50 else 0
+            evt["level"] = raw_level
+            for k in ("created_at", "completed_at", "submitted_at"):
                 if evt.get(k) and hasattr(evt[k], "isoformat"):
                     evt[k] = evt[k].isoformat()
-    except Exception:
+            recent_assessment_            events.append(evt)
+    except Exception as exc:
+        _log.warning("assessment events query failed: %s", exc)
         recent_assessment_events = []
 
     return {
@@ -642,10 +679,21 @@ def bff_recent_assessment_updates(
         safe_limit = max(1, min(limit, 50))
         rows = db.execute(
             text("""
-                SELECT session_id, assessment_type, skill_id, status, created_at, completed_at
-                FROM assessment_sessions
-                WHERE user_id = :uid
-                ORDER BY created_at DESC LIMIT :lim
+                SELECT s.session_id, s.assessment_type, s.skill_id, s.status,
+                       s.created_at, s.completed_at,
+                       a.score  AS attempt_score,
+                       a.evaluation AS attempt_evaluation,
+                       a.submitted_at
+                FROM assessment_sessions s
+                LEFT JOIN LATERAL (
+                    SELECT score, evaluation, submitted_at
+                    FROM assessment_attempts
+                    WHERE session_id = s.session_id
+                    ORDER BY attempt_number DESC
+                    LIMIT 1
+                ) a ON true
+                WHERE s.user_id = :uid
+                ORDER BY s.created_at DESC LIMIT :lim
             """),
             {"uid": ident.subject_id, "lim": safe_limit},
         ).mappings().all()
@@ -653,7 +701,29 @@ def bff_recent_assessment_updates(
         events = []
         for r in rows:
             evt = dict(r)
-            for k in ("created_at", "completed_at"):
+            score = evt.pop("attempt_score", None)
+            evaluation = evt.pop("attempt_evaluation", None)
+            if isinstance(evaluation, str):
+                try:
+                    evaluation = json.loads(evaluation)
+                except Exception:
+                    evaluation = {}
+            if not isinstance(evaluation, dict):
+                evaluation = {}
+            if score is None:
+                score = evaluation.get("overall_score", evaluation.get("score", 0))
+            evt["score"] = float(score or 0)
+            raw_level = evaluation.get("level")
+            if isinstance(raw_level, str):
+                level_map = {"novice": 0, "developing": 1, "intermediate": 2, "advanced": 3, "expert": 3}
+                raw_level = level_map.get(raw_level.lower(), 0)
+            elif isinstance(raw_level, (int, float)):
+                raw_level = int(raw_level)
+            else:
+                s = evt["score"]
+                raw_level = 3 if s >= 85 else 2 if s >= 70 else 1 if s >= 50 else 0
+            evt["level"] = raw_level
+            for k in ("created_at", "completed_at", "submitted_at"):
                 if evt.get(k) and hasattr(evt[k], "isoformat"):
                     evt[k] = evt[k].isoformat()
             events.append(evt)
@@ -667,7 +737,8 @@ def bff_recent_assessment_updates(
             detail={"count": len(events)},
         )
         return {"count": len(events), "assessment_events": events, "items": events}
-    except Exception:
+    except Exception as exc:
+        _log.warning("recent assessment items query failed: %s", exc)
         return {"count": 0, "assessment_events": [], "items": []}
 
 

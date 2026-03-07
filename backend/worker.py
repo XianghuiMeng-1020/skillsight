@@ -2,6 +2,7 @@
 Background Worker for SkillSight
 Processes document parsing and embedding jobs.
 """
+import logging
 import os
 import uuid
 import hashlib
@@ -32,6 +33,7 @@ REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 QUEUE_NAME = "skillsight"
 REPAIR_BACKOFF_BASE_SECONDS = max(1, int(os.getenv("ASSESSMENT_REPAIR_BACKOFF_BASE_SECONDS", "5")))
 REPAIR_BACKOFF_MAX_SECONDS = max(1, int(os.getenv("ASSESSMENT_REPAIR_BACKOFF_MAX_SECONDS", "300")))
+_log = logging.getLogger(__name__)
 
 
 def _repair_backoff_seconds(next_attempt: int) -> int:
@@ -217,8 +219,8 @@ def process_doc(doc_id: str, job_id: str):
                         UPDATE jobs SET status = 'qdrant_failed', last_error = :err, updated_at = now()
                         WHERE doc_id = (:doc_id)::uuid AND status = 'running'
                     """), {"doc_id": doc_id, "err": str(qdrant_err)[:500]})
-            except Exception:
-                pass
+            except Exception as exc:
+                _log.warning("failed to update job status after qdrant error: %s", exc)
             raise
 
 

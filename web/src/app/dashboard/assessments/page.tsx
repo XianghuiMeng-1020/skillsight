@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { useLanguage } from '@/lib/contexts';
+import { useToast } from '@/components/Toast';
 import { getToken, studentBff } from '@/lib/bffClient';
 
 type AssessmentType =
@@ -39,6 +40,7 @@ interface RecentUpdateItem {
 
 export default function AssessmentsPage() {
   const { t } = useLanguage();
+  const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<AssessmentType>('communication');
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(false);
@@ -143,7 +145,7 @@ export default function AssessmentsPage() {
       setSession(data);
       idempotencyKeyRef.current = null;
     } catch {
-      alert(t('assessmentsList.couldNotStart'));
+      addToast('error', t('assessmentsList.couldNotStart'));
     } finally {
       setLoading(false);
     }
@@ -219,7 +221,7 @@ export default function AssessmentsPage() {
       }
       fetchRecentUpdates();
     } catch {
-      alert(t('assessmentsList.submissionFailed'));
+      addToast('error', t('assessmentsList.submissionFailed'));
     } finally {
       setSubmitting(false);
     }

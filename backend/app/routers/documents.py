@@ -1,5 +1,6 @@
 import hashlib
 import json
+import logging
 import os
 import re
 import uuid
@@ -17,6 +18,7 @@ from backend.app.deps import check_doc_access
 from backend.app.security import Identity, require_auth
 
 router = APIRouter(prefix="/documents", tags=["documents"])
+_log = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(50 * 1024 * 1024)))  # 50 MB
 
@@ -429,8 +431,8 @@ async def import_document_txt(
                 if "upload_token" in consent_cols:
                     consent_data["upload_token"] = str(uuid.uuid4())
                 _insert_one(db, "consents", {k: v for k, v in consent_data.items() if k in consent_cols})
-        except Exception:
-            pass  # Consents table might have different schema
+        except Exception as exc:
+            _log.warning("consents insert failed: %s", exc)
 
         # chunks
         chunk_cols = set(_table_cols("chunks"))
@@ -626,7 +628,8 @@ async def upload_multimodal_document(
                 """),
                 {"uid": ident.subject_id, "content_hash": content_hash},
             ).mappings().first()
-    except Exception:
+    except Exception as exc:
+        _log.warning("duplicate-check query failed: %s", exc)
         db.rollback()
         existing = None
     if existing:
@@ -722,8 +725,8 @@ async def upload_multimodal_document(
                 "created_at": now,
             })
             nested.commit()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.warning("nested consent insert failed: %s", exc)
     
     # Insert chunks
     chunk_cols = set(_table_cols("chunks"))
@@ -772,7 +775,8 @@ async def upload_multimodal_document(
                 job_data["job_type"] = "embed"
             _insert_one(db, "jobs", job_data)
             nested.commit()
-        except Exception:
+        except Exception as exc:
+            _log.warning("job creation failed: %s", exc)
             job_id = None
     
     db.commit()
