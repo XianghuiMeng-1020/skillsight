@@ -650,7 +650,7 @@ async def bff_student_profile(
             for k in ("created_at", "completed_at", "submitted_at"):
                 if evt.get(k) and hasattr(evt[k], "isoformat"):
                     evt[k] = evt[k].isoformat()
-            recent_assessment_            events.append(evt)
+            recent_assessment_events.append(evt)
     except Exception as exc:
         _log.warning("assessment events query failed: %s", exc)
         recent_assessment_events = []
