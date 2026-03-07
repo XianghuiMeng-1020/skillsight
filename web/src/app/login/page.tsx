@@ -49,6 +49,7 @@ export default function LoginPage() {
     try {
       const bffRole: BffRole = role === 'admin' ? 'admin' : 'student';
       await devLogin({ subject_id: subjectId, role: bffRole, ttl_s: 43200 });
+      localStorage.removeItem('skillsight-tutorial-completed');
       localStorage.setItem('user', JSON.stringify({
         id: subjectId,
         name: displayName,

@@ -38,12 +38,19 @@ export default function Home() {
   
   useEffect(() => {
     setMounted(true);
-    // Check if user is logged in
     const user = localStorage.getItem('user');
-    if (user) {
-      const userData = JSON.parse(user);
-      router.push(userData.role === 'admin' ? '/admin' : '/dashboard');
+    const token = localStorage.getItem('auth_token');
+    if (user && token) {
+      try {
+        const userData = JSON.parse(user);
+        router.push(userData.role === 'admin' ? '/admin' : '/dashboard');
+      } catch {
+        localStorage.removeItem('user');
+        router.push('/login');
+      }
     } else {
+      localStorage.removeItem('user');
+      localStorage.removeItem('auth_token');
       router.push('/login');
     }
   }, [router]);
