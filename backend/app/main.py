@@ -69,7 +69,7 @@ def _seed_roles_and_skills(db):
     now = datetime.now(timezone.utc)
 
     # --- seed skills ---
-    skills_file = base / "skills.json"
+    skills_file = (base / "seeds" / "skills_comprehensive.json") if (base / "seeds" / "skills_comprehensive.json").exists() else (base / "skills.json")
     if skills_file.exists():
         try:
             count = db.execute(text("SELECT count(*) FROM skills")).scalar() or 0

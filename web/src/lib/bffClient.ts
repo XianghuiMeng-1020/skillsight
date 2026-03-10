@@ -56,7 +56,10 @@ function bffPrefix(role?: BffRole | null): string {
   }
 }
 
-// ─── Core request helper ──────────────────────────────────────────────────────
+// ─── Core request helper (retry on network failure for cold-start) ─────────────
+
+const BFF_RETRY_ATTEMPTS = 3;
+const BFF_RETRY_DELAYS_MS = [2000, 4000];
 
 interface RequestOptions {
   method?: string;
@@ -80,21 +83,34 @@ async function bffRequest<T = unknown>(
     ...(options.headers || {}),
   };
 
-  const res = await fetch(`${BFF_BASE}${path}`, {
-    method: options.method || 'GET',
-    headers,
-    ...(options.body !== undefined
-      ? { body: JSON.stringify(options.body) }
-      : {}),
-  });
+  let lastError: unknown;
+  for (let attempt = 0; attempt < BFF_RETRY_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(`${BFF_BASE}${path}`, {
+        method: options.method || 'GET',
+        headers,
+        ...(options.body !== undefined
+          ? { body: JSON.stringify(options.body) }
+          : {}),
+      });
 
-  if (!res.ok) {
-    let detail: unknown;
-    try { detail = await res.json(); } catch { detail = res.statusText; }
-    throw new BffError(res.status, detail);
+      if (!res.ok) {
+        let detail: unknown;
+        try { detail = await res.json(); } catch { detail = res.statusText; }
+        throw new BffError(res.status, detail);
+      }
+
+      return res.json() as Promise<T>;
+    } catch (e) {
+      lastError = e;
+      const isNetworkError =
+        e instanceof TypeError && (e.message === 'Failed to fetch' || e.message?.includes('fetch'));
+      if (!isNetworkError || attempt === BFF_RETRY_ATTEMPTS - 1) throw e;
+      const delay = BFF_RETRY_DELAYS_MS[attempt] ?? 4000;
+      await new Promise((r) => setTimeout(r, delay));
+    }
   }
-
-  return res.json() as Promise<T>;
+  throw lastError;
 }
 
 function defaultPurpose(role?: BffRole | null): string {

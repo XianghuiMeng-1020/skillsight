@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { studentBff } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 import { logger } from '@/lib/logger';
+import styles from './AgentChat.module.css';
 
 export type AgentChatMode = 'assessment' | 'resume_review';
 
@@ -14,30 +15,26 @@ export interface AgentChatProps {
   title?: string;
   onClose: () => void;
   onComplete?: (assessment?: { level: number; evidence_chunk_ids: string[]; why?: string }) => void;
-  /** Optional doc IDs; if not provided, backend uses all consented docs */
   docIds?: string[];
-  /** Render as embedded panel (no overlay) */
   embedded?: boolean;
 }
 
-const ROBOT_AVATAR = (
-  <span
-    style={{
-      width: 32,
-      height: 32,
-      borderRadius: '50%',
-      background: 'linear-gradient(135deg, var(--sage), var(--sage-dark))',
-      color: 'white',
-      display: 'inline-flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      fontSize: '1rem',
-      flexShrink: 0,
-    }}
-  >
-    🤖
-  </span>
-);
+const CAREER_URL = 'https://careers.hku.hk';
+
+type Turn = { role: 'user' | 'assistant'; content: string; ts?: number };
+
+function formatTime(ts: number, t: (k: string) => string): string {
+  const diff = (Date.now() - ts) / 1000;
+  if (diff < 60) return t('agent.justNow');
+  if (diff < 120) return t('agent.minAgo');
+  const mins = Math.floor(diff / 60);
+  return `${mins} ${t('agent.minsAgo')}`;
+}
+
+function UserAvatar({ language }: { language: string }) {
+  const letter = language.startsWith('zh') ? '我' : 'Y';
+  return <span className={`${styles.avatar} ${styles.avatarUser}`}>{letter}</span>;
+}
 
 export function AgentChat({
   mode,
@@ -49,13 +46,14 @@ export function AgentChat({
   docIds,
   embedded = false,
 }: AgentChatProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [turns, setTurns] = useState<Array<{ role: string; content: string }>>([]);
+  const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [concluded, setConcluded] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
+  const [sessionStarted, setSessionStarted] = useState(false);
 
   const startSession = useCallback(async () => {
     setStartError(null);
@@ -63,23 +61,32 @@ export function AgentChat({
     try {
       const res = await studentBff.tutorSessionStart(skillId, docIds, mode);
       setSessionId(res.session_id);
+      const greeting = (t('agent.greeting') as string) || '';
+      setTurns([{ role: 'assistant', content: greeting, ts: Date.now() }]);
     } catch (e) {
       logger.error('AgentChat session start failed', e);
       setStartError(e instanceof Error ? e.message : 'Failed to start session');
     } finally {
       setLoading(false);
     }
-  }, [skillId, docIds, mode]);
+  }, [skillId, docIds, mode, t]);
+
+  useEffect(() => {
+    if (sessionStarted || loading || sessionId) return;
+    setSessionStarted(true);
+    startSession();
+  }, [sessionStarted, loading, sessionId, startSession]);
 
   const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || !sessionId || loading || concluded) return;
     setInput('');
-    setTurns((prev) => [...prev, { role: 'user', content: text }]);
+    const userTurn: Turn = { role: 'user', content: text, ts: Date.now() };
+    setTurns((prev) => [...prev, userTurn]);
     setLoading(true);
     try {
       const res = await studentBff.tutorSessionMessage(sessionId, text);
-      setTurns((prev) => [...prev, { role: 'assistant', content: res.reply }]);
+      setTurns((prev) => [...prev, { role: 'assistant', content: res.reply, ts: Date.now() }]);
       if (res.concluded && res.assessment) {
         setConcluded(true);
         onComplete?.(res.assessment);
@@ -88,7 +95,7 @@ export function AgentChat({
       logger.error('AgentChat message failed', e);
       setTurns((prev) => [
         ...prev,
-        { role: 'assistant', content: t('skills.tutorError') || 'Sorry, something went wrong. Please try again.' },
+        { role: 'assistant', content: (t('skills.tutorError') as string) || 'Sorry, something went wrong. Please try again.', ts: Date.now() },
       ]);
     } finally {
       setLoading(false);
@@ -98,23 +105,14 @@ export function AgentChat({
   const displayTitle =
     title ||
     (mode === 'resume_review'
-      ? (t('agent.resumeReview') as string) || 'Review My Resume'
-      : (t('skills.tutorTitle') as string) + (skillName ? ` — ${skillName}` : ''));
+      ? ((t('agent.resumeReview') as string) || 'Review My Resume')
+      : ((t('skills.tutorTitle') as string) + (skillName ? ` — ${skillName}` : '')));
 
   const content = (
     <>
-      <div
-        style={{
-          padding: '1rem',
-          borderBottom: '1px solid var(--gray-200)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          background: embedded ? 'transparent' : 'var(--gray-50)',
-        }}
-      >
-        <span style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          {ROBOT_AVATAR}
+      <div className={`${styles.header} ${embedded ? styles.headerEmbedded : ''}`}>
+        <span className={styles.titleRow}>
+          <span className={`${styles.avatar} ${styles.avatarAgent}`}>🤖</span>
           {displayTitle}
         </span>
         <button
@@ -124,125 +122,91 @@ export function AgentChat({
           disabled={loading}
           aria-label="Close"
         >
-          {t('skills.tutorClose') || 'Close'}
+          {t('skills.tutorClose') as string}
         </button>
       </div>
 
-      <div
-        style={{
-          flex: 1,
-          overflow: 'auto',
-          padding: '1rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-          minHeight: embedded ? 280 : 320,
-        }}
-      >
+      <div className={`${styles.messages} ${embedded ? styles.messagesEmbedded : ''}`}>
         {!sessionId && !startError && (
-          <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--gray-500)' }}>
+          <div className={styles.startBlock}>
             {loading ? (
               <>
-                <span className="spinner" style={{ display: 'inline-block', marginRight: '0.5rem' }} />
-                Starting...
+                <span className={styles.spinner} />
+                {t('skills.loading') as string}
               </>
-            ) : (
-              <button type="button" className="btn btn-primary" onClick={startSession}>
-                {mode === 'resume_review' ? 'Start Resume Review' : 'Start Assessment'}
-              </button>
-            )}
+            ) : null}
           </div>
         )}
 
         {startError && (
-          <div className="alert alert-error" style={{ margin: 0 }}>
+          <div className={`alert alert-error ${styles.errorBlock}`}>
             {startError}
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => setStartError(null)}>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setStartError(null); setSessionStarted(false); }}>
               Retry
             </button>
           </div>
         )}
 
-        {sessionId && turns.length === 0 && !loading && (
-          <p style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>
-            {mode === 'resume_review'
-              ? 'Share your resume or ask for feedback. I\'ll suggest improvements based on your evidence.'
-              : (t('skills.tutorPlaceholder') as string) || 'Type your message...'}
-          </p>
-        )}
-
         {turns.map((turn, i) => (
           <div
             key={i}
-            style={{
-              display: 'flex',
-              gap: '0.5rem',
-              alignSelf: turn.role === 'user' ? 'flex-end' : 'flex-start',
-              flexDirection: turn.role === 'user' ? 'row-reverse' : 'row',
-              maxWidth: '90%',
-            }}
+            className={`${styles.row} ${turn.role === 'user' ? styles.rowUser : styles.rowAgent}`}
           >
-            {turn.role === 'assistant' && ROBOT_AVATAR}
-            <div
-              style={{
-                padding: '0.75rem 1rem',
-                borderRadius: '12px',
-                background: turn.role === 'user' ? 'var(--peach, #fef3c7)' : 'white',
-                border: '1px solid var(--gray-200)',
-                fontSize: '0.875rem',
-                whiteSpace: 'pre-wrap',
-              }}
-            >
-              {turn.content}
+            {turn.role === 'assistant' && <span className={`${styles.avatar} ${styles.avatarAgent}`}>🤖</span>}
+            <div className={styles.bubbleWrap}>
+              <div className={turn.role === 'user' ? styles.bubbleUser : styles.bubbleAgent}>
+                {turn.content}
+              </div>
+              {turn.ts != null && (
+                <div className={styles.timestamp}>{formatTime(turn.ts, t)}</div>
+              )}
             </div>
+            {turn.role === 'user' && <UserAvatar language={language} />}
           </div>
         ))}
 
         {concluded && mode === 'assessment' && (
-          <p style={{ fontSize: '0.8125rem', color: 'var(--sage)', fontWeight: 500 }}>
-            {t('skills.tutorConcluded') || 'Assessment concluded.'}
-          </p>
+          <p className={styles.concluded}>{t('skills.tutorConcluded') as string}</p>
         )}
       </div>
 
       {sessionId && (
-        <div style={{ padding: '1rem', borderTop: '1px solid var(--gray-200)' }}>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-              placeholder={t('skills.tutorPlaceholder') as string || 'Type your message...'}
-              disabled={loading || concluded}
-              style={{ flex: 1, padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid var(--gray-200)' }}
-            />
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={sendMessage}
-              disabled={!input.trim() || loading || concluded}
-            >
-              {loading ? '…' : (t('skills.tutorSend') as string) || 'Send'}
-            </button>
+        <>
+          <div className={styles.careerBar}>
+            <a href={CAREER_URL} target="_blank" rel="noopener noreferrer" className={styles.careerLink}>
+              {t('agent.careerBar') as string}
+            </a>
           </div>
-        </div>
+          <div className={styles.inputArea}>
+            <div className={styles.inputRow}>
+              <input
+                type="text"
+                className={styles.input}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
+                placeholder={t('skills.tutorPlaceholder') as string}
+                disabled={loading || concluded}
+              />
+              <button
+                type="button"
+                className={styles.sendBtn}
+                onClick={sendMessage}
+                disabled={!input.trim() || loading || concluded}
+                aria-label="Send"
+              >
+                {loading ? '…' : '➤'}
+              </button>
+            </div>
+          </div>
+        </>
       )}
     </>
   );
 
   if (embedded) {
     return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'white',
-          borderRadius: '12px',
-          border: '1px solid var(--gray-200)',
-          overflow: 'hidden',
-        }}
-      >
+      <div className={`${styles.container} ${styles.containerEmbedded}`} style={{ display: 'flex', flexDirection: 'column' }}>
         {content}
       </div>
     );
@@ -262,19 +226,7 @@ export function AgentChat({
       }}
       onClick={(e) => e.target === e.currentTarget && !loading && onClose()}
     >
-      <div
-        style={{
-          background: 'var(--gray-50)',
-          borderRadius: '12px',
-          maxWidth: '480px',
-          width: '100%',
-          maxHeight: '80vh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
+      <div className={styles.container} style={{ maxWidth: '480px', width: '100%', maxHeight: '80vh', boxShadow: '0 8px 32px rgba(0,0,0,0.15)' }} onClick={(e) => e.stopPropagation()}>
         {content}
       </div>
     </div>

@@ -212,7 +212,10 @@ export default function SkillsProfilePage() {
 
           {/* Skills list */}
           {loading ? (
-            <div className="loading"><span className="spinner"></span> {t('skills.loading')}</div>
+            <div className="loading" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+              <span><span className="spinner"></span> {t('skills.loading')}</span>
+              <span style={{ fontSize: '0.8125rem', color: 'var(--gray-500)' }}>{t('skills.loadingSlowHint')}</span>
+            </div>
           ) : error ? (
             <div className="alert alert-error">
               <span>⚠</span>

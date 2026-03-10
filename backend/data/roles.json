@@ -1,106 +1,1575 @@
 [
   {
-    "role_id": "ROLE.JUNIOR_DATA_ANALYST.v1",
-    "role_title": "Junior Data Analyst",
-    "description": "Entry-level analyst responsible for data cleaning, visualization, and basic statistical reporting to support business decisions.",
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0000.v1",
+    "role_title": "Data Scientist Intern",
+    "description": "Employer: Tinder\nLocation: Los Angeles, CA\nOur Mission\nAs humans, there are few things more exciting than meeting someone new. At Tinder, we’re inspired by the challenge of keeping the magic of human connection alive. With tens of millions of users, hundreds of millions of downloads, 2+ billion swipes per day, 20+ million matches per day, and a presence in 190+ countries, our reach is expansive—and rapidly growing.\nWe work together to solve complex problems. Behind the simplicity of every match,",
     "skills_required": [
-      { "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",       "target_level": 2, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.STATISTICS.v1",           "target_level": 2, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.DATA_VISUALIZATION.v1",   "target_level": 2, "required": true,  "weight": 0.8 },
-      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 1, "required": true,  "weight": 0.8 },
-      { "skill_id": "HKU.SKILL.DATABASE.v1",             "target_level": 1, "required": false, "weight": 0.5 }
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.ML.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.NLP.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
     ]
   },
   {
-    "role_id": "ROLE.ML_ENGINEER.v1",
-    "role_title": "Machine Learning Engineer",
-    "description": "Designs, trains, and deploys ML models at scale. Requires strong programming, ML theory, and cloud deployment skills.",
-    "skills_required": [
-      { "skill_id": "HKU.SKILL.MACHINE_LEARNING.v1",     "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.DEEP_LEARNING.v1",        "target_level": 2, "required": true,  "weight": 0.9 },
-      { "skill_id": "HKU.SKILL.SOFTWARE_ENGINEERING.v1",  "target_level": 2, "required": true,  "weight": 0.8 },
-      { "skill_id": "HKU.SKILL.CLOUD_COMPUTING.v1",      "target_level": 2, "required": false, "weight": 0.6 },
-      { "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",        "target_level": 1, "required": false, "weight": 0.4 }
-    ]
-  },
-  {
-    "role_id": "ROLE.NLP_RESEARCHER.v1",
-    "role_title": "NLP Research Scientist",
-    "description": "Conducts research in natural language processing, designs experiments, publishes papers, and develops novel NLP solutions.",
-    "skills_required": [
-      { "skill_id": "HKU.SKILL.NLP.v1",                  "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.DEEP_LEARNING.v1",        "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.RESEARCH_METHODS.v1",     "target_level": 3, "required": true,  "weight": 0.9 },
-      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 2, "required": true,  "weight": 0.8 },
-      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 3, "required": true,  "weight": 0.8 },
-      { "skill_id": "HKU.SKILL.STATISTICS.v1",           "target_level": 2, "required": false, "weight": 0.5 }
-    ]
-  },
-  {
-    "role_id": "ROLE.AI_ETHICS_CONSULTANT.v1",
-    "role_title": "AI Ethics & Policy Consultant",
-    "description": "Evaluates AI systems for fairness, bias, and regulatory compliance. Advises organizations on responsible AI deployment.",
-    "skills_required": [
-      { "skill_id": "HKU.SKILL.AI_ETHICS.v1",            "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",    "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.PRIVACY.v1",              "target_level": 3, "required": true,  "weight": 0.9 },
-      { "skill_id": "HKU.SKILL.MACHINE_LEARNING.v1",     "target_level": 2, "required": true,  "weight": 0.7 },
-      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 2, "required": false, "weight": 0.6 },
-      { "skill_id": "HKU.SKILL.PRESENTATION.v1",         "target_level": 2, "required": false, "weight": 0.5 }
-    ]
-  },
-  {
-    "role_id": "ROLE.FULLSTACK_DEVELOPER.v1",
-    "role_title": "Full-Stack Software Developer",
-    "description": "Builds end-to-end web applications, from database design to frontend UI, following modern engineering practices.",
-    "skills_required": [
-      { "skill_id": "HKU.SKILL.SOFTWARE_ENGINEERING.v1",  "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 2, "required": true,  "weight": 0.9 },
-      { "skill_id": "HKU.SKILL.DATABASE.v1",             "target_level": 2, "required": true,  "weight": 0.9 },
-      { "skill_id": "HKU.SKILL.CLOUD_COMPUTING.v1",      "target_level": 2, "required": true,  "weight": 0.7 },
-      { "skill_id": "HKU.SKILL.COLLABORATION.v1",        "target_level": 2, "required": false, "weight": 0.5 }
-    ]
-  },
-  {
-    "role_id": "ROLE.DATA_SCIENTIST.v1",
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0001.v1",
     "role_title": "Data Scientist",
-    "description": "Combines statistical modeling, ML, and domain expertise to extract insights from complex datasets and drive data-informed strategies.",
+    "description": "Employer: Roku\nLocation: New York, NY\nTeamwork makes the stream work. Roku is changing how the world watches TVRoku is the #1 TV streaming platform in the U.S., Canada, and Mexico, and we've set our sights on powering every television in the world. Roku pioneered streaming to the TV. Our mission is to be the TV streaming platform that connects the entire TV ecosystem. We connect consumers to the content they love, enable content publishers to build and monetize large audiences, and provide adver",
     "skills_required": [
-      { "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",        "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.MACHINE_LEARNING.v1",     "target_level": 2, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.STATISTICS.v1",           "target_level": 3, "required": true,  "weight": 0.9 },
-      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 2, "required": true,  "weight": 0.8 },
-      { "skill_id": "HKU.SKILL.DATA_VISUALIZATION.v1",   "target_level": 2, "required": true,  "weight": 0.7 },
-      { "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",    "target_level": 2, "required": false, "weight": 0.5 },
-      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 2, "required": false, "weight": 0.4 }
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
     ]
   },
   {
-    "role_id": "ROLE.RESEARCH_ASSISTANT.v1",
-    "role_title": "Research Assistant (AI / HCI)",
-    "description": "Supports faculty research by conducting literature reviews, running experiments, analyzing data, and drafting research outputs.",
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0002.v1",
+    "role_title": "Machine Learning / Data Science Engineer",
+    "description": "Employer: CapTech\nLocation: Richmond, VA\nCapTech is an award-winning consulting firm that collaborates with clients to achieve what’s possible through the power of technology. At CapTech, we’re passionate about the work we do and the results we achieve for our clients. From the outset, our founders shared a collective passion to create a consultancy centered on strong relationships that would stand the test of time. Today we work alongside clients that include Fortune 100 companies, mid-sized en",
     "skills_required": [
-      { "skill_id": "HKU.SKILL.RESEARCH_METHODS.v1",     "target_level": 2, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 2, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.PYTHON.v1",               "target_level": 2, "required": true,  "weight": 0.8 },
-      { "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",        "target_level": 2, "required": true,  "weight": 0.7 },
-      { "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",    "target_level": 2, "required": true,  "weight": 0.7 },
-      { "skill_id": "HKU.SKILL.COLLABORATION.v1",        "target_level": 1, "required": false, "weight": 0.4 },
-      { "skill_id": "HKU.SKILL.PRESENTATION.v1",         "target_level": 1, "required": false, "weight": 0.3 }
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.ML.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.NLP.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
     ]
   },
   {
-    "role_id": "ROLE.PROJECT_MANAGER.v1",
-    "role_title": "Technical Project Manager",
-    "description": "Leads cross-functional technical teams, manages timelines, coordinates stakeholders, and ensures project delivery with quality.",
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0003.v1",
+    "role_title": "Data Analyst",
+    "description": "Employer: Stripe\nLocation: New York, United States\nAbout Stripe\n\nStripe is a financial infrastructure platform for businesses. Millions of companies—from the world’s largest enterprises to the most ambitious startups—use Stripe to accept payments, grow their revenue, and accelerate new business opportunities. Our mission is to increase the GDP of the internet, and we have a staggering amount of work ahead. That means you have an unprecedented opportunity to put the global economy within everyone",
     "skills_required": [
-      { "skill_id": "HKU.SKILL.PROJECT_PLANNING.v1",     "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.COLLABORATION.v1",        "target_level": 3, "required": true,  "weight": 1.0 },
-      { "skill_id": "HKU.SKILL.PRESENTATION.v1",         "target_level": 2, "required": true,  "weight": 0.8 },
-      { "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",    "target_level": 2, "required": true,  "weight": 0.7 },
-      { "skill_id": "HKU.SKILL.TECHNICAL_WRITING.v1",    "target_level": 2, "required": false, "weight": 0.5 },
-      { "skill_id": "HKU.SKILL.SOFTWARE_ENGINEERING.v1",  "target_level": 1, "required": false, "weight": 0.4 }
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0004.v1",
+    "role_title": "Public Policy Advisor, U.S. States",
+    "description": "Employer: Discord\nLocation: United States\nDiscord is used by over 200 million people every month for many different reasons, but there’s one thing that nearly everyone does on our platform: play video games. Over 90% of our users play games, spending a combined 1.5 billion hours playing thousands of unique titles on Discord each month. Discord plays a uniquely important role in the future of gaming. We are focused on making it easier and more fun for people to talk and hang out before, during, a",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0005.v1",
+    "role_title": "Arabic-Speaking Senior Government Affairs &amp; Policy Advisor (Gulf)",
+    "description": "Employer: MindFriend PRO\nLocation: Chicago, IL\nLocation: Hybrid (International)\n\nTravel: Frequent - Must be able to travel with 24 hours' notice\n\nCompensation: USD $200K + Bonus Top-tier salary + all travel expenses covered\n\nWe are seeking a highly disciplined, expert Senior Project Manager to serve as the primary strategic lead and communicator between our European clients and stakeholders across the GCC.\n\nThis role requires a unique blend of high-level project management, geopolitical savvy, a",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0006.v1",
+    "role_title": "Government Affairs Analyst",
+    "description": "Employer: Phoenix Tailings\nLocation: Washington, DC\nAbout Phoenix Tailings\n\nPhoenix Tailings is a rapidly growing clean mining and metals production startup dedicated to sustainable and economic critical metals production. Our mission is to be the world’s first fully clean mining and metals production company, producing the resources needed for the next generation of our economy.\n\nWhy Phoenix Tailings\n\nAt Phoenix, we believe nothing great is ever accomplished alone—or without the passion of peop",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0007.v1",
+    "role_title": "Research Analyst",
+    "description": "Employer: Korn Ferry\nLocation: New York City Metropolitan Area\nThe Research Analyst position marks the entry point for a uniquely powerful career development track – one that can truly lead anywhere. As one of us, you will have endless opportunities to innovate, make an impact, and work with the best. You will also have plenty of freedom to chart your own course, as you grow and develop with our business.Talent matters at our company. So, we have created a colleague-centric culture where everyon",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0008.v1",
+    "role_title": "Senior Business Analyst (Change Management focus)",
+    "description": "Employer: SilverSearch, Inc.\nLocation: New York, NY\n** This role will work in a hybrid setting - 3 days onsite in Manhattan.\nSenior Business Analyst (Change Management Focus)We are seeking a highly experienced Senior Business Analyst who thrives in autonomous environments and can independently lead initiatives from discovery through implementation. This role requires a strong background in change management, business process transformation, and data analysis.\nThe ideal candidate is proactive, se",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0009.v1",
+    "role_title": "Quantitative Research Analyst",
+    "description": "Employer: Caxton Associates\nLocation: New York, NY\nAbout Caxton:\n\nCaxton Associates, founded in 1983, is a global trading and investment firm with offices in New York, London, Bengaluru, Monaco, Singapore and Dubai. Caxton Associates' primary business is to manage client and proprietary capital through a suite of products designed to fit the specific needs of investors. Employing a multi-portfolio manager framework, Caxton excels in discretionary global macro investing, leveraging its diversifie",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.RESEARCH.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0010.v1",
+    "role_title": "Lead Data Scientist",
+    "description": "Employer: Hirewell\nLocation: Greater Chicago Area\nLead Data Scientist / Digitization Specialist – Global Data & Analytics (IT)Location: Chicago, ILSummaryWe are seeking a Lead Data Scientist / Digitization Specialist to design, develop, and support advanced analytical solutions that address complex business challenges through Machine Learning (ML) and Artificial Intelligence (AI). This role is ideal for a highly motivated, self-directed professional who thrives in ambiguity and confidently partn",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.ML.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0011.v1",
+    "role_title": "Cheminformatics and Machine Learning Intern",
+    "description": "Employer: Genesis Molecular AI\nLocation: New York, NY\nGenesis Molecular AI is bringing together a world-class computational team to build out the industry's fastest and most accurate small molecule property predictions, by combining the power of machine learning and physics-based methods. We are seeking early career scientists skilled in developing and applying machine-learning, physics and cheminformatics methodologies to help drive forward our challenging drug discovery programs.\n\nAbout The Ro",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.ML.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0012.v1",
+    "role_title": "Backend Software Engineering Intern, Summer 2026",
+    "description": "Employer: Wing\nLocation: Palo Alto, CA\nAbout Wing: \n\nWing offers drone delivery as a safe, fast, and sustainable solution for last mile logistics. Consumer appetites for on-demand services are increasing, but current delivery methods are inefficient, costly, and contribute to road accidents and air pollution. Wing’s fleet of highly automated delivery drones can transport small packages directly from businesses to homes on-demand, in minutes. We design, build, and operate our aircraft, and offer ",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.WEB_DEV.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0013.v1",
+    "role_title": "Junior Quantitative Analyst",
+    "description": "Employer: Los Angeles Dodgers\nLocation: Los Angeles, CA\nJob Details\n\nDescription\n\nThe Los Angeles Dodgers currently have a job opportunity for a Junior Quantitative Analyst. Following you will find a brief description of the job and application process. For additional information, please contact TalentRelations@ladodgers.com.\n\nTitle: Junior Quantitative Analyst \n\nDepartment: Quantitative Analysis \n\nStatus: Full-Time, Exempt\n\nPay Rate: $85,000 to $ $95,000*\n\nReports to: Director, Quantitative Ana",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.ML.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.RESEARCH.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0014.v1",
+    "role_title": "Quantitative Analyst",
+    "description": "Employer: Atlantic Partners Corporation\nLocation: United States\nOur client a growing ETF based Investment firm is seeking a Portfolio Associate to support the Portfolio Management team, working closely with the Portfolio Manager to ensure the efficient execution, monitoring, and operational integrity of their strategies. This role is critical to the day-to-day investment process, combining trade execution support, portfolio analytics, and operational coordination.Reporting directly to the Portfo",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0015.v1",
+    "role_title": "Derivatives Valuations &amp; Quantitative Analytics Senior Analyst",
+    "description": "Employer: Toyota North America\nLocation: Plano, TX\nOverview\n\nWho we are\n\nCollaborative. Respectful. A place to dream and do. These are just a few words that describe what life is like at Toyota. As one of the world’s most admired brands, Toyota is growing and leading the future of mobility through innovative, high-quality solutions designed to enhance lives and delight those we serve. We’re looking for talented team members who want to Dream. Do. Grow. with us.\n\nAn important part of the Toyota f",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0016.v1",
+    "role_title": "Geographic Information System Specialist | $65 Remote",
+    "description": "Employer: Crossing Hurdles\nLocation: United States\nPosition: QGIS ExpertType: Hourly contractCompensation: $19–$65/hourLocation: RemoteCommitment: 10–40 hours/week\nRole Responsibilities\n• Lead end-to-end GIS projects in QGIS, from raw spatial data acquisition and cleaning to final cartographic outputs.\n• Document workflows and reasoning while performing data management, spatial analysis, and map production tasks.\n• Organize, clean, and validate spatial datasets to ensure high accuracy and consis",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0017.v1",
+    "role_title": "GIS Specialist",
+    "description": "Employer: Blue Sky Innovative Solutions\nLocation: Upper Marlboro, MD\nBlue Sky is seeking a GIS Specialist to support a county-level planning agency in the development and revision of a comprehensive Environmental Technical Manual. The GIS Specialist will be responsible for developing, managing, validating, and delivering geospatial data products that meet strict government GIS, metadata, projection, and formatting standards.\n\nLocation: Hybrid - Prince George's County, Maryland (2-3 days onsite r",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.IR.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0018.v1",
+    "role_title": "Geographic Information System Specialist",
+    "description": "Employer: Goldbelt Glacier Health Services\nLocation: Carlsbad, NM\nOverview\n\nPlease note that this position is contingent upon the successful award of a contract currently under bid.\n\nGoldbelt Glacier is accelerating healthcare delivery and providing superior force health readiness across the military, federal, and civilian landscapes. Goldbelt Glacier is committed to providing transformative and comprehensive health operational capabilities to support customers across scientific, clinical, techn",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.IR.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0019.v1",
+    "role_title": "Associate Manager, Brand Marketing Spotify for Artists Marketing &amp; Policy",
+    "description": "Employer: Spotify\nLocation: New York, NY\nWe are looking for a creative, detail-oriented Associate Brand Marketing Manager to join the Spotify for Artists Marketing & Policy team—a group dedicated to supporting artists and their teams as they build and grow their careers on Spotify. Spotify for Artists a leading music industry brand, providing tools and resources for artists, labels, managers, songwriters, and publishers. There are over 1 million artists using Spotify for Artists today—from the b",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0020.v1",
+    "role_title": "Marketing Analyst (Remote)",
+    "description": "Employer: DEMAND.com\nLocation: United States\nDemandFactor is seeking a focused and skilled Marketing Analyst. This position is fully remote, and shifts are available during EST through PST hours. The selected candidate will perform various tasks to assist the sales team, including:\n\nIf you’re passionate about building relationships, closing deals, and helping clients achieve measurable success, join DemandFactor and be part of a team that drives real business impact.\n\n• Analyzing data using spre",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BASC_SDS.0021.v1",
+    "role_title": "Marketing Analyst",
+    "description": "Employer: iFIT\nLocation: United States\niFIT’s vision is to create the world's most holistic health and fitness platform, integrating all elements of health - physical fitness, mental health, nutrition and active recovery - into a seamless interactive experience. We develop proprietary software that learns and adjusts to the habits of each person as it delivers immersive content that guides them on their own individual fitness journey.\n\nWe are currently seeking an ambitious pace-setter to join ou",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.R.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0000.v1",
+    "role_title": "Senior IT Support Analyst",
+    "description": "Employer: MedReview Inc.\nLocation: New York, NY\nPosition Summary: \nThe Senior IT Support Analyst will provide front‐line support to end users on various technical issues and problems relating to hardware, software and peripherals. Also, in addition to assisting with identity management tasks such as on/off boarding and permission to systems. The role requires a strong and more in-depth problem-solving acumen in order to diagnose, evaluate and resolve user issues, serves as a point of escalation ",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0001.v1",
+    "role_title": "Senior Director, Health Information Management",
+    "description": "Employer: New Jersey Hospital Association\nLocation: Princeton, NJ\nOur client, New Jersey Hospital Association (NJHA), is a mission-driven trade organization, supporting hospitals and other healthcare providers across the state to improve the health of the people of New Jersey. NJHA is a trusted leader in healthcare advocacy with specialized teams that help healthcare organizations thrive statewide. NJHA’s Health Information Management (HIM) division is seeking a Senior Director of Health Informa",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.IR.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0002.v1",
+    "role_title": "Chief Information Officer",
+    "description": "Employer: Pocatello Fire Department\nLocation: Pocatello, ID\nThis job was posted by https://idahoworks.gov : For more information,\n\nplease see: https://idahoworks.gov/jobs/2508031\n\nThe Chief Information Officer plans, manages, and participates in the\n\ndaily operations of the Citys Information Technology Department to\n\nensure secure, reliable, and efficient operation of computer, network,\n\ndata, and voice/telecommunications systems. The City operates across\n\nmultiple facilities and off-site locati",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0003.v1",
+    "role_title": "Business Intelligence Analyst",
+    "description": "Employer: Ray Thomas\nLocation: Cleveland, OH\nA top ranked and highly reputable law firm is hiring a Business Intelligence Analyst to join its Cleveland-based Business Development team. \nThis role supports firm leadership and attorneys by combining internal performance data with external market research to guide business development strategy. The team is small, fast-paced, and highly visible within the firm.\nWhat You’ll Be Responsible For\n• Conducting company and industry research to support stra",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0004.v1",
+    "role_title": "Business Intelligence Analyst | Remote",
+    "description": "Employer: Crossing Hurdles\nLocation: United States\nPosition: Join Expert Network: Business Intelligence AnalystsType: Part-time / Project-basedCompensation: $70–$120 per hourLocation: RemoteCommitment: 10–40 hours/week\nRole Responsibilities\n• Join Mercor’s Business Intelligence Analyst Talent Network to be matched with companies hiring for BI-focused roles\n• Perform SQL-based querying and advanced data analysis\n• Create data visualizations using tools such as Tableau or Power BI\n• Support data m",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0005.v1",
+    "role_title": "Database Administrator (DBA)",
+    "description": "Employer: Air Apps\nLocation: San Francisco, CA\nAbout Air Apps\n\nAt Air Apps, we believe in thinking bigger—and moving faster. We’re a family-founded company on a mission to create the world’s first AI-powered Personal & Entrepreneurial Resource Planner (PRP), and we need your passion and ambition to help us change how people plan, work, and live. Born in Lisbon, Portugal in 2018—and now with offices in both Lisbon and San Francisco—we’ve remained self-funded while reaching over 100 million downlo",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0006.v1",
+    "role_title": "Senior Database Administrator",
+    "description": "Employer: CGS Federal (Contact Government Services)\nLocation: United States\nEmployment Type: Full-Time, Mid Level\n\nDepartment: Information Technology\n\nContact Government Services is seeking a Senior Database Administrator to assist with administering all aspects of Microsoft SQL Server.\n\nCGS brings motivated, highly skilled, and creative people together to solve the government’s most dynamic problems with cutting-edge technology. To carry out our mission, we are seeking candidates who are excite",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0007.v1",
+    "role_title": "Senior Database Administrator II",
+    "description": "Employer: CGS Federal (Contact Government Services)\nLocation: United States\nEmployment Type: Full-Time, Mid Level\n\nDepartment: Information Technology\n\nContact Government Services is seeking a Senior Database Administrator to assist with administering all aspects of Microsoft SQL Server.\n\nCGS brings motivated, highly skilled, and creative people together to solve the government’s most dynamic problems with cutting-edge technology. To carry out our mission, we are seeking candidates who are excite",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0008.v1",
+    "role_title": "Business Analyst - Operations",
+    "description": "Employer: MedReview Inc.\nLocation: New York, NY\nPosition Summary\nWe are seeking a Business Analyst to support our growing Payment Integrity (PI) operations. This role will work closely with business stakeholders, product managers, and technical teams to document requirements, analyze healthcare claims data, and support the delivery of solutions that reduce improper payments and improve financial accuracy.\nThe ideal candidate will have hands-on experience with claims data analysis, requirements d",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0009.v1",
+    "role_title": "Senior Business Analyst",
+    "description": "Employer: AppWorks\nLocation: Atlanta, GA\nResponsibilities\n• Serve as a liaison between the business partners and the development team to provide technical solutions that meet user needs.\n• Elicit, analyze, and document business requirements through workshops, interviews, and other techniques.\n• Develop use cases, functional specifications, user stories (JIRA), and process flow diagrams (Lucidchart).\n• Identify project milestones and ensure timelines and budgets are maintained.\n• Conduct user acc",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0010.v1",
+    "role_title": "Business Control Analyst",
+    "description": "Employer: FanDuel\nLocation: New York, NY\nTHE POSITION\n\nOur roster has an opening with your name on it\n\nSeeking a highly motivated individual to join the Operational Excellence team’s business control function. This role will contribute to the identification, assessment, and mitigation of business risks across FanDuel's operational teams. The analyst will work closely with business stakeholders, enterprise risk function, and internal audit to ensure effective control design and implementation wit",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0011.v1",
+    "role_title": "Transformation Project Manager, Global Talent Organization",
+    "description": "Employer: LinkedIn\nLocation: Sunnyvale, CA\nCompany Description\n\nLinkedIn is the world’s largest professional network, built to create economic opportunity for every member of the global workforce. Our products help people make powerful connections, discover exciting opportunities, build necessary skills, and gain valuable insights every day. We’re also committed to providing transformational opportunities for our own employees by investing in their growth. We aspire to create a culture that’s bu",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0012.v1",
+    "role_title": "Senior Project Manager",
+    "description": "Employer: Seneca Resources Company, LLC\nLocation: New York, NY\nJob Title: Senior Technology Project Manager (Agile / DevOps / SDLC)Duration: 12 months+\n\nLocation: New York, NY (Hybrid; 3 days onsite, 2 remote)\n\nInterview Mode: 1st round via Teams; 2nd round onsite\n\nSalary Range: $68-$78/hr (W2); depending on experience \nPosition OverviewOur Fortune 500 client located in New York, NY is seeking a Senior Technology Project Manager with 10+ years of experience leading complex, interdependent techno",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0013.v1",
+    "role_title": "Knowledge Manager",
+    "description": "Employer: GCyber\nLocation: Arlington, VA\nGCyber is seeking a Knowledge Manager, to support our government customer. As a Knowledge Manager, you will play a pivotal role in ensuring mission partners have access to the operational capabilities they need, driving organizational improvement and operational excellence.\n\nAs The Knowledge Manager, You Will\n\n• Support and sustain Knowledge Management across people, processes, and tools to improve organizational effectiveness, including maintenance and e",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.IR.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0014.v1",
+    "role_title": "Records Management Specialist III",
+    "description": "Employer: CGS Federal (Contact Government Services)\nLocation: United States\nEmployment Type: Full-Time, Mid-Level\n\nDepartment: Office Support\n\nCGS is seeking an experienced Records Management Specialist to provide technical, management, and documentation support for a large Federal agency initiative.\n\nCGS brings motivated, highly skilled, and creative people together to solve the government’s most dynamic problems with cutting-edge technology. To carry out our mission, we are seeking candidates ",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.IR.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0015.v1",
+    "role_title": "Organizational Change Manager",
+    "description": "Employer: NewRocket\nLocation: Santa Clara, CA\nUnited States or Canada - Remote\n\nWhy Us\n\nNewRocket is a ServiceNow Global Elite Partner, delivering solutions that revolutionize the world of work. We are a leading global technology strategy, design, and enterprise operations partner to public and private sector clients. We work with some of the world’s biggest brands, bridging the gap between what customers expect and what their technology can deliver. We are “Raising the Bar” in delivering techno",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0016.v1",
+    "role_title": "Information System Specialist",
+    "description": "Employer: Expeditors\nLocation: Memphis, TN\nWe take care of our employees, and they take care of our customers!\n\nBecome a member of a global community! The international logistics industry is an integral piece of the global trade puzzle; we make the world go round. Global supply chain management is what we do, and at the heart of Expeditors you will find professionalism, leadership, and a friendly environment, all of which foster an innovative, customer service-based approach to logistics. Expedi",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.GIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0017.v1",
+    "role_title": "Systems Analyst",
+    "description": "Employer: Kforce Inc\nLocation: Roanoke, TX\nResponsibilities\n\nKforce has a client that is seeking a Systems Analyst in Westlake, TX. Duties:\n\n•  Systems Analyst will examine inter-dependencies between systems\n•  Conduct requirements analysis and create proposals for modifications, upgrades, or replacements to systems\n•  Participate in the design of new computer systems and applications\n•  Document requirements through analysis of existing business models, use cases, workflow analysis, and documen",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.WEB_DEV.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0018.v1",
+    "role_title": "Data Analyst",
+    "description": "Employer: Stripe\nLocation: New York, United States\nAbout Stripe\n\nStripe is a financial infrastructure platform for businesses. Millions of companies—from the world’s largest enterprises to the most ambitious startups—use Stripe to accept payments, grow their revenue, and accelerate new business opportunities. Our mission is to increase the GDP of the internet, and we have a staggering amount of work ahead. That means you have an unprecedented opportunity to put the global economy within everyone",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.STATISTICS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0019.v1",
+    "role_title": "Data Analyst I",
+    "description": "Employer: Honeywell\nLocation: Phoenix, AZ\nJob Description\n\nThe future is what you make it.\n\nWhen you join Honeywell, you become a member of our global team of thinkers, innovators, dreamers, and doers who make the things that make the future. That means changing the way we fly, fueling jets in an eco-friendly way, keeping buildings smart and safe and even making it possible to breathe on Mars. Working at Honeywell isn't just about developing cool things. That's why all our employees enjoy access",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.R.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.TEAMWORK.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.LINKEDIN.BSC_IM.0020.v1",
+    "role_title": "Healthcare Data Analyst",
+    "description": "Employer: 81qd\nLocation: New York City Metropolitan Area\nHealth Care Data AnalystWe are seeking a Health Care Data Analyst to join our team. They must have strong technical skills with database administration and development skills. The Health Care Data Analyst is responsible for programming scripts used for updating databases, migrating data, running reports, importing and exporting data, and repairing data anomalies. This individual will develop database scripts using SQL programming and other",
+    "skills_required": [
+      {
+        "skill_id": "HKU.SKILL.PYTHON.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.R.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.SQL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_VIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.EXCEL.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      },
+      {
+        "skill_id": "HKU.SKILL.CLOUD.v1",
+        "target_level": 2,
+        "required": true,
+        "weight": 1.0
+      }
     ]
   }
 ]
