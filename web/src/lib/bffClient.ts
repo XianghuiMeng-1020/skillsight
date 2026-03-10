@@ -157,7 +157,7 @@ export interface ExportStatementResponse {
     demonstrated_skills: number;
     total_evidence_items: number;
     documents: Array<{ doc_id: string; filename: string; status: string; scope?: string }>;
-    skills: Array<{ skill_id: string; canonical_name: string; label: string; rationale?: string; evidence_items?: unknown[] }>;
+    skills: Array<{ skill_id: string; canonical_name: string; label: string; rationale?: string; evidence_items?: Array<{ chunk_id: string; snippet: string; doc_id: string; section_path?: string; page_start?: number }> }>;
   };
 }
 
@@ -372,7 +372,7 @@ export interface ExportStatementResponse {
     demonstrated_skills: number;
     total_evidence_items: number;
     documents: Array<{ doc_id: string; filename: string; status: string; scope?: string }>;
-    skills: Array<{ skill_id: string; canonical_name: string; label: string; rationale?: string; evidence_items?: unknown[] }>;
+    skills: Array<{ skill_id: string; canonical_name: string; label: string; rationale?: string; evidence_items?: Array<{ chunk_id: string; snippet: string; doc_id: string; section_path?: string; page_start?: number }> }>;
   };
 }
 

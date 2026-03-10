@@ -93,7 +93,7 @@ export default function JobsPage() {
               const skillAlignment: SkillAlignment[] = details.map((it) => ({
                 skill_id: String(it?.skill_id || ''),
                 skill_name: String(it?.skill_name || it?.skill_id || ''),
-                required_level: Number(it?.target_level ?? it?.required_level ?? 2),
+                required_level: Number(it?.target_level ?? 2),
                 current_level: Number(it?.achieved_level ?? 0),
                 status: String(it?.status || ''),
               }));

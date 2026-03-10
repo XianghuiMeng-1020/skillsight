@@ -207,11 +207,10 @@ _CORS_ORIGINS_RAW = [
 _CORS_PATTERNS = [
     _re.compile(r"^https://[a-z0-9-]+\.skillsight-\d+\.pages\.dev$"),
     _re.compile(r"^https://skillsight-\d+\.pages\.dev$"),
+    _re.compile(r"^https://skillsight\.pages\.dev$"),
 ]
-# Allow *.trycloudflare.com only outside production (local dev tunnels)
 if not _os.getenv("SKILLSIGHT_ENV", "").strip().lower() in ("production", "prod"):
     _CORS_PATTERNS.append(_re.compile(r"^https://[a-z0-9-]+\.trycloudflare\.com$"))
-_IS_PRODUCTION = _os.getenv("SKILLSIGHT_ENV", "").strip().lower() == "production"
 
 
 def _origin_allowed(origin: str) -> bool:
@@ -222,33 +221,26 @@ def _origin_allowed(origin: str) -> bool:
     return any(p.match(origin) for p in _CORS_PATTERNS)
 
 
-class DynamicCORSMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        origin = request.headers.get("origin", "")
+_CORS_ALLOWED_HEADERS = [
+    "Content-Type", "Authorization", "X-Requested-With", "X-Purpose",
+    "X-Idempotency-Key", "X-Model-Version", "X-Rubric-Version", "Accept", "Origin",
+]
 
-        if request.method == "OPTIONS":
-            if _origin_allowed(origin):
-                response = Response(status_code=200)
-                response.headers["Access-Control-Allow-Origin"] = origin
-                response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-                response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With, X-Purpose, X-Idempotency-Key, X-Model-Version, X-Rubric-Version, Accept, Origin"
-                response.headers["Access-Control-Allow-Credentials"] = "true"
-                response.headers["Access-Control-Max-Age"] = "3600"
-                return response
-            return Response(status_code=204)
+# Use FastAPI's built-in CORSMiddleware with allow_origin_regex for reliable
+# preflight handling (BaseHTTPMiddleware can drop headers on unhandled errors).
+app.add_middleware(
+    CORSMiddleware,
+    allow_origin_regex=r"^https://(skillsight-\d+\.pages\.dev|[a-z0-9-]+\.skillsight-\d+\.pages\.dev|skillsight\.pages\.dev)$",
+    allow_origins=_CORS_ORIGINS_RAW,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=_CORS_ALLOWED_HEADERS,
+    max_age=3600,
+)
 
-        response = await call_next(request)
-        if _origin_allowed(origin):
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Access-Control-Allow-Credentials"] = "true"
-        return response
-
-
-# Rate limiting (P1): /auth, /documents/upload*, /ai, /search when RATE_LIMIT_ENABLED truthy
 if _parse_bool_env("RATE_LIMIT_ENABLED"):
     app.add_middleware(RateLimitMiddleware)
 app.add_middleware(AuditMiddleware)
-app.add_middleware(DynamicCORSMiddleware)
 
 @app.get("/")
 def root():

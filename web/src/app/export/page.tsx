@@ -240,12 +240,12 @@ export default function ExportPage() {
                       </p>
                     )}
 
-                    {skill.evidence_items.length > 0 && (
+                    {(skill.evidence_items?.length ?? 0) > 0 && (
                       <div>
                         <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.375rem' }}>
                           {t('export.evidence')}
                         </div>
-                        {skill.evidence_items.slice(0, 2).map((ev, i) => (
+                        {(skill.evidence_items ?? []).slice(0, 2).map((ev, i) => (
                           <div key={ev.chunk_id} style={{
                             marginBottom: '0.5rem',
                             padding: '0.5rem 0.75rem',

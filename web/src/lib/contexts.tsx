@@ -588,7 +588,6 @@ export const translations: Translations = {
   'jobs.skillName': { zh: '技能', 'zh-TW': '技能', en: 'Skill' },
   'jobs.requiredLevel': { zh: '要求等级', 'zh-TW': '要求等級', en: 'Required' },
   'jobs.currentLevel': { zh: '当前等级', 'zh-TW': '當前等級', en: 'Yours' },
-  'jobs.status': { zh: '状态', 'zh-TW': '狀態', en: 'Status' },
   'jobs.meet': { zh: '达标', 'zh-TW': '達標', en: 'Meet' },
   'jobs.needsStrengthening': { zh: '需加强', 'zh-TW': '需加強', en: 'Needs strengthening' },
   'jobs.missingProof': { zh: '缺证据', 'zh-TW': '缺證據', en: 'Missing proof' },

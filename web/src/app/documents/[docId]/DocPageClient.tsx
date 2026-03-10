@@ -1141,12 +1141,12 @@ export default function DocPage() {
                             </button>
                           )}
                         </div>
-                        {card.what_to_do && (
+                        {!!card.what_to_do && (
                           <p style={{ fontSize: "0.875rem", color: "var(--gray-600)", marginBottom: "0.5rem" }}>
                             {String(card.what_to_do)}
                           </p>
                         )}
-                        {card.artifact && (
+                        {!!card.artifact && (
                           <div style={{ fontSize: "0.8125rem", color: "var(--gray-500)" }}>
                             <strong>{t("doc.output")}</strong> {String(card.artifact)}
                           </div>

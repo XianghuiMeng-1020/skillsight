@@ -1007,7 +1007,7 @@ export function useAchievements() {
         if (list.length > 0) {
           setAchievements(list.map(a => ({
             ...a,
-            unlockedAt: a.unlockedAt ?? (a as Record<string, unknown>).unlocked_at as string | undefined,
+            unlockedAt: a.unlockedAt ?? (a as unknown as Record<string, unknown>).unlocked_at as string | undefined,
           })));
         }
         if (data.recentUnlock) setRecentUnlock(data.recentUnlock as Achievement);
