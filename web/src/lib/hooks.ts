@@ -994,43 +994,63 @@ const DEFAULT_ACHIEVEMENTS: Achievement[] = [
 export function useAchievements() {
   const [achievements, setAchievements] = useState<Achievement[]>(DEFAULT_ACHIEVEMENTS);
   const [recentUnlock, setRecentUnlock] = useState<Achievement | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    // 从 localStorage 加载成就进度
-    const saved = localStorage.getItem('skillsight-achievements');
-    if (saved) {
+    let cancelled = false;
+    const load = async () => {
       try {
-        const parsed = JSON.parse(saved);
-        setAchievements(prev => prev.map(a => {
-          const savedA = parsed.find((s: Achievement) => s.id === a.id);
-          return savedA ? { ...a, ...savedA } : a;
-        }));
+        const { studentBff } = await import('@/lib/bffClient');
+        const data = await studentBff.getAchievements();
+        if (cancelled) return;
+        const list = (data.achievements || []) as Achievement[];
+        if (list.length > 0) {
+          setAchievements(list.map(a => ({
+            ...a,
+            unlockedAt: a.unlockedAt ?? (a as Record<string, unknown>).unlocked_at as string | undefined,
+          })));
+        }
+        if (data.recentUnlock) setRecentUnlock(data.recentUnlock as Achievement);
       } catch (e) {
         logger.error('Failed to load achievements', e);
+        const saved = localStorage.getItem('skillsight-achievements');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            setAchievements(prev => prev.map(a => {
+              const savedA = parsed.find((s: Achievement) => s.id === a.id);
+              return savedA ? { ...a, ...savedA } : a;
+            }));
+          } catch {
+            // ignore
+          }
+        }
+      } finally {
+        if (!cancelled) setLoaded(true);
       }
-    }
+    };
+    load();
+    return () => { cancelled = true; };
   }, []);
 
   const updateProgress = useCallback((achievementId: string, progress: number) => {
     setAchievements(prev => {
       const updated = prev.map(a => {
         if (a.id !== achievementId) return a;
-        
         const newProgress = Math.min(progress, a.target);
         const wasUnlocked = a.unlocked;
         const isNowUnlocked = newProgress >= a.target;
-        
         if (!wasUnlocked && isNowUnlocked) {
           const unlockedAchievement = { ...a, progress: newProgress, unlocked: true, unlockedAt: new Date().toISOString() };
           setRecentUnlock(unlockedAchievement);
           return unlockedAchievement;
         }
-        
         return { ...a, progress: newProgress };
       });
-      
-      // 保存到 localStorage
       localStorage.setItem('skillsight-achievements', JSON.stringify(updated));
+      import('@/lib/bffClient').then(({ studentBff }) => {
+        studentBff.postAchievementProgress(achievementId, progress).catch(() => {});
+      });
       return updated;
     });
   }, []);
@@ -1116,18 +1136,16 @@ export function useLearningPath() {
 
   const generateRecommendations = useCallback(async (
     skills: { name: string; level: number }[],
-    targetRole?: string
+    _targetRole?: string
   ) => {
-    // Skip if no skills provided
     if (!skills || skills.length === 0) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    
-    // Helper to generate local recommendations
-    const generateLocalRecs = () => {
+
+    try {
       const gaps: SkillGap[] = skills
         .filter(s => s.level < 3)
         .map(s => ({
@@ -1140,50 +1158,68 @@ export function useLearningPath() {
 
       setSkillGaps(gaps);
 
-      const localRecs: LearningRecommendation[] = gaps.slice(0, 5).map((gap, i) => ({
-        id: `rec-${i}`,
-        title: `提升 ${gap.skill}`,
-        titleEn: `Improve ${gap.skill}`,
-        description: `通过练习和项目提升您的${gap.skill}技能`,
-        descriptionEn: `Improve your ${gap.skill} skills through practice and projects`,
-        type: i % 2 === 0 ? 'course' : 'project',
-        skill: gap.skill,
-        priority: gap.gap >= 2 ? 'high' : gap.gap === 1 ? 'medium' : 'low',
-        estimatedHours: gap.gap * 10,
-        icon: i % 3 === 0 ? '📚' : i % 3 === 1 ? '💻' : '📝',
-      }));
+      const token = typeof window !== 'undefined' ? localStorage.getItem('skillsight_token') : null;
+      let courseRecs: LearningRecommendation[] = [];
 
-      setRecommendations(localRecs);
-    };
-
-    try {
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-
-      const response = await fetch(`${API_BASE_URL}/ai/learning-path`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ skills, targetRole }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (response.ok) {
-        const data = await response.json();
-        setRecommendations(data.recommendations || []);
-        setSkillGaps(data.skillGaps || []);
-        setLoading(false);
-        return;
+      if (token) {
+        try {
+          const res = await fetch(
+            `${API_BASE_URL}/bff/student/courses/for-gaps`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ skill_ids: gaps.map(g => g.skill).length > 0 ? undefined : undefined }),
+            }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const courses = (data.items || []) as Array<{
+              course_id: string;
+              course_name: string;
+              credits: number;
+              programme: string;
+              skills: Array<{ skill_id: string; skill_name: string }>;
+            }>;
+            courseRecs = courses.slice(0, 8).map((c, i) => ({
+              id: `course-${c.course_id}`,
+              title: `${c.course_id} — ${c.course_name}`,
+              titleEn: `${c.course_id} — ${c.course_name}`,
+              description: `${c.programme} · ${c.credits} credits · Develops: ${c.skills.map(s => s.skill_name).join(', ')}`,
+              descriptionEn: `${c.programme} · ${c.credits} credits · Develops: ${c.skills.map(s => s.skill_name).join(', ')}`,
+              type: 'course' as const,
+              skill: c.skills[0]?.skill_name || '',
+              priority: i < 3 ? 'high' as const : i < 6 ? 'medium' as const : 'low' as const,
+              estimatedHours: c.credits * 4,
+              icon: '📚',
+            }));
+          }
+        } catch {
+          // fall through to local recs
+        }
       }
-      
-      // If response not ok, use local generation
-      generateLocalRecs();
+
+      if (courseRecs.length > 0) {
+        setRecommendations(courseRecs);
+      } else {
+        const localRecs: LearningRecommendation[] = gaps.slice(0, 5).map((gap, i) => ({
+          id: `rec-${i}`,
+          title: `Improve ${gap.skill}`,
+          titleEn: `Improve ${gap.skill}`,
+          description: `Practice and projects to improve your ${gap.skill} skills`,
+          descriptionEn: `Practice and projects to improve your ${gap.skill} skills`,
+          type: i % 2 === 0 ? 'course' as const : 'project' as const,
+          skill: gap.skill,
+          priority: gap.gap >= 2 ? 'high' as const : gap.gap === 1 ? 'medium' as const : 'low' as const,
+          estimatedHours: gap.gap * 10,
+          icon: i % 3 === 0 ? '📚' : i % 3 === 1 ? '💻' : '📝',
+        }));
+        setRecommendations(localRecs);
+      }
     } catch (err) {
-      logger.error('Failed to fetch learning path', err);
-      // Fallback to local generation
-      generateLocalRecs();
+      logger.error('Failed to generate learning path', err);
     } finally {
       setLoading(false);
     }

@@ -85,31 +85,42 @@ def _get_skill(db: Session, skill_id: str) -> Optional[Dict[str, Any]]:
     return dict(row) if row else None
 
 
+_DEFAULT_ACTION_FALLBACK = (
+    "Upload evidence that demonstrates this skill or complete relevant courses/projects so we can assess your level."
+)
+
+
 def _get_default_action(skill_id: str, skill_name: str, gap_type: str) -> Dict[str, Any]:
-    """P5: Action card with 4 required fields."""
+    """P5: Action card with 4 required fields. Includes fallback copy when no template exists."""
     if gap_type == "missing_proof":
         return {
             "skill_id": skill_id,
             "gap_type": gap_type,
             "title": f"Add evidence for {skill_name}",
-            "what_to_do": f"Create an artifact that demonstrates your {skill_name} capability. This could be a written reflection, project documentation, or code sample.",
+            "what_to_do": (
+                f"Create an artifact that demonstrates your {skill_name} capability. This could be a written reflection, "
+                f"project documentation, or code sample. {_DEFAULT_ACTION_FALLBACK}"
+            ),
             "where_to_do_it": "HKU course / workshop / approved external resource",
             "what_to_submit_next": "Written evidence (text, document, or code)",
             "when_to_recheck": "After uploading new evidence or next portfolio review",
             "artifact": "Written evidence (text, document, or code)",
-            "how_verified": f"Evidence explicitly describes or demonstrates {skill_name} in a concrete, verifiable way.",
+            "how_verified": f"Evidence explicitly describes or demonstrates {skill_name} in a concrete, verifiable way. {_DEFAULT_ACTION_FALLBACK}",
         }
     else:  # needs_strengthening
         return {
             "skill_id": skill_id,
             "gap_type": gap_type,
             "title": f"Strengthen {skill_name}",
-            "what_to_do": f"Expand your existing evidence for {skill_name} with more detailed examples, multiple instances, or deeper analysis.",
+            "what_to_do": (
+                f"Expand your existing evidence for {skill_name} with more detailed examples, multiple instances, "
+                f"or deeper analysis. {_DEFAULT_ACTION_FALLBACK}"
+            ),
             "where_to_do_it": "HKU course / workshop / approved external resource",
             "what_to_submit_next": "Extended evidence with additional examples",
             "when_to_recheck": "After uploading strengthened evidence or next portfolio review",
             "artifact": "Extended evidence with additional examples",
-            "how_verified": f"Evidence shows multiple concrete applications of {skill_name} or deeper understanding.",
+            "how_verified": f"Evidence shows multiple concrete applications of {skill_name} or deeper understanding. {_DEFAULT_ACTION_FALLBACK}",
         }
 
 

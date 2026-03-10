@@ -5,6 +5,8 @@ import Sidebar from '@/components/Sidebar';
 import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
 import { getToken, studentBff } from '@/lib/bffClient';
+import { AgentChat } from '@/components/AgentChat';
+import { useAudioRecorder, useWhisperTranscriber, useAchievements } from '@/lib/hooks';
 
 type AssessmentType =
   | 'communication'
@@ -13,6 +15,15 @@ type AssessmentType =
   | 'data_analysis'
   | 'problem_solving'
   | 'presentation';
+
+const ASSESSMENT_TYPE_TO_SKILL: Record<AssessmentType, string> = {
+  communication: 'HKU.SKILL.COMMUNICATION.v1',
+  programming: 'HKU.SKILL.PYTHON.v1',
+  writing: 'HKU.SKILL.COMMUNICATION.v1',
+  data_analysis: 'HKU.SKILL.DATA_ANALYSIS.v1',
+  problem_solving: 'HKU.SKILL.CRITICAL_THINKING.v1',
+  presentation: 'HKU.SKILL.COMMUNICATION.v1',
+};
 
 interface Session {
   session_id: string;
@@ -55,6 +66,14 @@ export default function AssessmentsPage() {
   const [code, setCode] = useState('');
   const [essay, setEssay] = useState('');
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('easy');
+  const [showAgentChat, setShowAgentChat] = useState(false);
+  const [agentAssessmentResult, setAgentAssessmentResult] = useState<{ level: number; why?: string } | null>(null);
+  const [transcriptResult, setTranscriptResult] = useState<string | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+
+  const audioRecorder = useAudioRecorder();
+  const whisperTranscriber = useWhisperTranscriber();
+  const { checkAssessmentAchievements } = useAchievements();
 
   const getCurrentUserId = () => {
     if (typeof window === 'undefined') return 'demo_user';
@@ -169,14 +188,24 @@ export default function AssessmentsPage() {
       }
       
       switch (activeTab) {
-        case 'communication':
+        case 'communication': {
+          let transcript = '';
+          if (transcriptResult !== null) {
+            transcript = transcriptResult;
+          } else if (audioRecorder.audioBlob) {
+            const transcriptionResult = await whisperTranscriber.transcribeAudio(audioRecorder.audioBlob);
+            transcript = transcriptionResult?.text ?? t('assess.transcribeFailed');
+          } else {
+            transcript = t('assess.noAudio');
+          }
           endpoint = '/interactive/communication/submit';
           body = {
             session_id: session.session_id,
-            transcript: 'This is a simulated transcript of my response to the topic. I believe effective communication is essential for success in any professional environment.',
-            audio_duration_seconds: 45,
+            transcript,
+            audio_duration_seconds: audioRecorder.duration || 0,
           };
           break;
+        }
         case 'programming':
           endpoint = '/interactive/programming/submit';
           body = { session_id: session.session_id, code, language: 'python' };
@@ -212,6 +241,10 @@ export default function AssessmentsPage() {
       setResult(data);
       setSession(null);
       idempotencyKeyRef.current = null;
+      const score = typeof data?.score === 'number' ? data.score : (data?.evaluation as { score?: number })?.score ?? 0;
+      if (activeTab === 'communication' || activeTab === 'programming' || activeTab === 'writing') {
+        checkAssessmentAchievements(activeTab, score);
+      }
       if (data?.idempotent_replay) {
         setUiHint(t('assessmentsList.idempotentReplayHint'));
       } else if (data?.skill_update?.queued) {
@@ -220,8 +253,9 @@ export default function AssessmentsPage() {
         setUiHint(null);
       }
       fetchRecentUpdates();
-    } catch {
-      addToast('error', t('assessmentsList.submissionFailed'));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addToast('error', msg && msg.length < 120 ? msg : (t('assessmentsList.submissionFailed') || 'Assessment service temporarily unavailable. Please try again.'));
     } finally {
       setSubmitting(false);
     }
@@ -233,6 +267,8 @@ export default function AssessmentsPage() {
     setCode('');
     setEssay('');
     setRecording(false);
+    setTranscriptResult(null);
+    setTranscribing(false);
   };
 
   const getEvaluation = () => {
@@ -397,7 +433,7 @@ export default function AssessmentsPage() {
                 ))}
               </div>
 
-              {/* Start Section */}
+              {/* Start Section: Traditional vs AI Agent */}
               <div className="card">
                 <div className="card-header">
                   <h3 className="card-title">
@@ -405,7 +441,7 @@ export default function AssessmentsPage() {
                     {assessments.find(a => a.id === activeTab) && t(assessments.find(a => a.id === activeTab)!.titleKey)} {t('assess.assessmentSuffix')}
                   </h3>
                 </div>
-                <div className="card-content" style={{ textAlign: 'center', padding: '2rem' }}>
+                <div className="card-content" style={{ padding: '2rem' }}>
                   {activeTab === 'programming' && (
                     <div style={{ marginBottom: '1.5rem' }}>
                       <div style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: '0.75rem' }}>
@@ -424,32 +460,82 @@ export default function AssessmentsPage() {
                       </div>
                     </div>
                   )}
-                  
-                  <p style={{ color: 'var(--gray-600)', marginBottom: '1.5rem', maxWidth: '500px', margin: '0 auto 1.5rem' }}>
+
+                  <p style={{ color: 'var(--gray-600)', marginBottom: '1.5rem', maxWidth: '500px', margin: '0 auto 1.5rem', textAlign: 'center' }}>
                     {activeTab === 'communication' && t('assessmentsList.descComm')}
                     {activeTab === 'programming' && t('assessmentsList.descProg')}
                     {activeTab === 'writing' && t('assessmentsList.descWriting')}
+                    {(activeTab === 'data_analysis' || activeTab === 'problem_solving' || activeTab === 'presentation') && t('assessmentsList.comingSoonHint')}
                   </p>
-                  
-                  <button 
-                    className="btn btn-primary btn-lg"
-                    onClick={startSession}
-                    disabled={loading || !!assessments.find((a) => a.id === activeTab)?.comingSoon}
-                  >
-                    {loading ? (
-                      <>
-                        <span className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px' }}></span>
-                        {t('assessmentsList.starting')}
-                      </>
-                    ) : t('assessmentsList.startAssessment')}
-                  </button>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '400px', margin: '0 auto' }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={startSession}
+                      disabled={loading || !!assessments.find((a) => a.id === activeTab)?.comingSoon}
+                    >
+                      {loading ? (
+                        <>
+                          <span className="spinner" style={{ width: '1rem', height: '1rem', borderWidth: '2px', marginRight: '0.5rem' }} />
+                          {t('assessmentsList.starting')}
+                        </>
+                      ) : (
+                        t('assess.traditionalMode')
+                      )}
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      onClick={() => {
+                        setAgentAssessmentResult(null);
+                        setShowAgentChat(true);
+                      }}
+                    >
+                      🤖 {t('assess.aiAgentMode')}
+                    </button>
+                  </div>
                   {assessments.find((a) => a.id === activeTab)?.comingSoon && (
-                    <p style={{ marginTop: '0.75rem', color: 'var(--gray-500)' }}>
-                      {t('assessmentsList.comingSoonHint')}
+                    <p style={{ marginTop: '0.75rem', color: 'var(--gray-500)', textAlign: 'center' }}>
+                      {t('assessmentsList.comingSoonHint')} {t('assess.aiAgentMode')} is available for all types.
                     </p>
                   )}
                 </div>
               </div>
+
+              {/* AI Agent chat panel (embedded when active) */}
+              {showAgentChat && (
+                <div className="card" style={{ marginTop: '1.5rem' }}>
+                  <div className="card-content" style={{ padding: 0 }}>
+                    <AgentChat
+                      mode="assessment"
+                      skillId={ASSESSMENT_TYPE_TO_SKILL[activeTab]}
+                      skillName={assessments.find(a => a.id === activeTab) ? t(assessments.find(a => a.id === activeTab)!.titleKey) : undefined}
+                      title={`${assessments.find(a => a.id === activeTab)?.icon} ${assessments.find(a => a.id === activeTab) ? t(assessments.find(a => a.id === activeTab)!.titleKey) : ''} — AI Agent`}
+                      onClose={() => setShowAgentChat(false)}
+                      onComplete={(assessment) => {
+                        setAgentAssessmentResult({ level: assessment?.level ?? 0, why: assessment?.why });
+                        fetchRecentUpdates();
+                      }}
+                      embedded
+                    />
+                  </div>
+                </div>
+              )}
+
+              {agentAssessmentResult !== null && !showAgentChat && (
+                <div className="alert alert-success" style={{ marginTop: '1.5rem' }}>
+                  <span className="alert-icon">✓</span>
+                  <div className="alert-content">
+                    <div className="alert-title">{t('assessmentsList.complete')}</div>
+                    <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
+                      Level: {agentAssessmentResult.level} (0=novice, 1=developing, 2=proficient, 3=advanced).
+                      {agentAssessmentResult.why && ` ${agentAssessmentResult.why}`}
+                    </p>
+                    <button className="btn btn-secondary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => setAgentAssessmentResult(null)}>
+                      {t('common.close')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -505,7 +591,27 @@ export default function AssessmentsPage() {
                       <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
                         <button 
                           className={`btn ${recording ? 'btn-danger' : 'btn-primary'}`}
-                          onClick={() => setRecording(!recording)}
+                          onClick={async () => {
+                            if (recording) {
+                              const blob = await audioRecorder.stopRecording();
+                              setRecording(false);
+                              setTranscriptResult(null);
+                              if (blob) {
+                                setTranscribing(true);
+                                try {
+                                  const res = await whisperTranscriber.transcribeAudio(blob);
+                                  setTranscriptResult(res?.text ?? t('assess.transcribeFailed'));
+                                } catch {
+                                  setTranscriptResult(t('assess.transcribeFailed'));
+                                } finally {
+                                  setTranscribing(false);
+                                }
+                              }
+                            } else {
+                              await audioRecorder.startRecording();
+                              setRecording(true);
+                            }
+                          }}
                         >
                           {recording ? t('assessmentsList.stopRecording') : t('assessmentsList.startRecording')}
                         </button>
@@ -514,10 +620,15 @@ export default function AssessmentsPage() {
                           <button 
                             className="btn btn-secondary"
                             onClick={submitAssessment}
-                            disabled={submitting}
+                            disabled={submitting || transcribing}
                           >
-                            {submitting ? t('assessmentsList.submitting') : t('assessmentsList.submitResponse')}
+                            {transcribing ? t('assessmentsList.transcribing') : submitting ? t('assessmentsList.submitting') : t('assessmentsList.submitResponse')}
                           </button>
+                        )}
+                        {transcriptResult !== null && !transcriptResult.startsWith(t('assess.transcribeFailed')) && !transcriptResult.startsWith(t('assess.noAudio')) && (
+                          <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginTop: '0.5rem', maxWidth: '360px', marginLeft: 'auto', marginRight: 'auto' }}>
+                            {t('assessmentsList.transcriptReady')}
+                          </p>
                         )}
                       </div>
                     </div>

@@ -5,6 +5,31 @@ import Sidebar from '@/components/Sidebar';
 import { studentBff, getToken } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 
+interface GapSkill {
+  skill_id: string;
+  skill_name: string;
+  status: string;
+  achieved_level: number;
+  target_level: number;
+}
+
+interface RecommendedCourse {
+  course_id: string;
+  course_name: string;
+  credits: number;
+  programme: string;
+  category: string;
+  skills: Array<{ skill_id: string; skill_name: string }>;
+}
+
+interface SkillAlignment {
+  skill_id: string;
+  skill_name: string;
+  required_level: number;
+  current_level: number;
+  status: string;
+}
+
 interface Role {
   role_id: string;
   role_title: string;
@@ -13,6 +38,8 @@ interface Role {
   skills_met: number;
   skills_total: number;
   gaps: string[];
+  gapDetails: GapSkill[];
+  skillAlignment: SkillAlignment[];
 }
 
 export default function JobsPage() {
@@ -20,6 +47,8 @@ export default function JobsPage() {
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
+  const [recommendedCourses, setRecommendedCourses] = useState<RecommendedCourse[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -49,11 +78,25 @@ export default function JobsPage() {
               const details = Array.isArray(readinessRes.items) ? readinessRes.items : [];
               const skills_total = details.length;
               const skills_met = details.filter((it) => it?.status === 'meet').length;
-              const gaps = details
-                .filter((it) => it?.status !== 'meet')
-                .map((it) => String(it?.skill_id || ''))
+              const gapItems = details.filter((it) => it?.status !== 'meet');
+              const gaps = gapItems
+                .map((it) => String(it?.skill_name || it?.skill_id || ''))
                 .filter(Boolean)
                 .slice(0, 3);
+              const gapDetails: GapSkill[] = gapItems.map((it) => ({
+                skill_id: String(it?.skill_id || ''),
+                skill_name: String(it?.skill_name || it?.skill_id || ''),
+                status: String(it?.status || ''),
+                achieved_level: Number(it?.achieved_level ?? 0),
+                target_level: Number(it?.target_level ?? 2),
+              }));
+              const skillAlignment: SkillAlignment[] = details.map((it) => ({
+                skill_id: String(it?.skill_id || ''),
+                skill_name: String(it?.skill_name || it?.skill_id || ''),
+                required_level: Number(it?.target_level ?? it?.required_level ?? 2),
+                current_level: Number(it?.achieved_level ?? 0),
+                status: String(it?.status || ''),
+              }));
 
               return {
                 role_id: roleId,
@@ -63,6 +106,8 @@ export default function JobsPage() {
                 skills_met,
                 skills_total,
                 gaps,
+                gapDetails,
+                skillAlignment,
               };
             } catch {
               return {
@@ -73,6 +118,8 @@ export default function JobsPage() {
                 skills_met: 0,
                 skills_total: 0,
                 gaps: [],
+                gapDetails: [],
+                skillAlignment: [],
               };
             }
           })
@@ -88,6 +135,23 @@ export default function JobsPage() {
     };
     load();
   }, []);
+
+  const handleSelectRole = async (role: Role) => {
+    setSelectedRole(role);
+    setRecommendedCourses([]);
+    if (role.gapDetails.length > 0) {
+      setCoursesLoading(true);
+      try {
+        const gapSkillIds = role.gapDetails.map((g) => g.skill_id);
+        const res = await studentBff.getCourseRecommendations(role.role_id, gapSkillIds);
+        setRecommendedCourses((res.items || []) as RecommendedCourse[]);
+      } catch {
+        setRecommendedCourses([]);
+      } finally {
+        setCoursesLoading(false);
+      }
+    }
+  };
 
   const getReadinessColor = (readiness: number) => {
     if (readiness >= 80) return 'success';
@@ -143,7 +207,7 @@ export default function JobsPage() {
                         cursor: 'pointer',
                         transition: 'all 0.2s ease'
                       }}
-                      onClick={() => setSelectedRole(role)}
+                      onClick={() => handleSelectRole(role)}
                     >
                       {i === 0 && (
                         <span className="badge badge-success" style={{ marginBottom: '0.75rem' }}>
@@ -238,7 +302,7 @@ export default function JobsPage() {
                         <td>
                           <button 
                             className="btn btn-sm btn-secondary"
-                            onClick={() => setSelectedRole(role)}
+                            onClick={() => handleSelectRole(role)}
                           >
                             {t('jobs.viewDetails')}
                           </button>
@@ -298,16 +362,48 @@ export default function JobsPage() {
                     </div>
                   </div>
 
-                  {selectedRole.gaps.length > 0 && (
+                  {selectedRole.skillAlignment.length > 0 && (
+                    <>
+                      <h4 style={{ marginBottom: '0.75rem' }}>{t('jobs.skillComparison')}</h4>
+                      <div style={{ overflowX: 'auto', marginBottom: '1.5rem' }}>
+                        <table style={{ width: '100%', fontSize: '0.875rem', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--gray-200)', textAlign: 'left' }}>
+                              <th style={{ padding: '0.5rem 0.5rem 0.5rem 0' }}>{t('jobs.skillName')}</th>
+                              <th style={{ padding: '0.5rem' }}>{t('jobs.requiredLevel')}</th>
+                              <th style={{ padding: '0.5rem' }}>{t('jobs.currentLevel')}</th>
+                              <th style={{ padding: '0.5rem' }}>{t('jobs.status')}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {selectedRole.skillAlignment.map((s, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                                <td style={{ padding: '0.5rem 0.5rem 0.5rem 0' }}>{s.skill_name}</td>
+                                <td style={{ padding: '0.5rem' }}>Lv.{s.required_level}</td>
+                                <td style={{ padding: '0.5rem' }}>Lv.{s.current_level}</td>
+                                <td style={{ padding: '0.5rem' }}>
+                                  <span className={`badge badge-${s.status === 'meet' ? 'success' : s.status === 'needs_strengthening' ? 'warning' : 'neutral'}`}>
+                                    {s.status === 'meet' ? t('jobs.meet') : s.status === 'needs_strengthening' ? t('jobs.needsStrengthening') : t('jobs.missingProof')}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+
+                  {selectedRole.gapDetails.length > 0 && (
                     <>
                       <h4 style={{ marginBottom: '0.75rem' }}>{t('jobs.recommendedActions')}</h4>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                        {selectedRole.gaps.map((gap, i) => (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                        {selectedRole.gapDetails.map((gap, i) => (
                           <div 
                             key={i}
                             style={{ 
                               padding: '1rem', 
-                              background: 'var(--warning-light)', 
+                              background: gap.status === 'needs_strengthening' ? '#fefce8' : '#fef2f2', 
                               borderRadius: 'var(--radius)',
                               display: 'flex',
                               justifyContent: 'space-between',
@@ -315,9 +411,10 @@ export default function JobsPage() {
                             }}
                           >
                             <div>
-                              <div style={{ fontWeight: 500 }}>{gap}</div>
+                              <div style={{ fontWeight: 500 }}>{gap.skill_name}</div>
                               <div style={{ fontSize: '0.813rem', color: 'var(--gray-600)' }}>
-                                {t('jobs.uploadOrAssess')}
+                                Lv.{gap.achieved_level} → Lv.{gap.target_level}
+                                {gap.status === 'needs_strengthening' ? ' · needs strengthening' : ' · missing proof'}
                               </div>
                             </div>
                             <a href="/dashboard/upload" className="btn btn-sm btn-secondary">
@@ -326,6 +423,54 @@ export default function JobsPage() {
                           </div>
                         ))}
                       </div>
+
+                      <h4 style={{ marginBottom: '0.75rem' }}>📚 Recommended HKU Courses</h4>
+                      {coursesLoading ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '1rem', color: 'var(--gray-500)' }}>
+                          <span className="spinner" style={{ width: 16, height: 16 }}></span>
+                          Loading courses...
+                        </div>
+                      ) : recommendedCourses.length === 0 ? (
+                        <div style={{ padding: '1rem', color: 'var(--gray-500)', fontSize: '0.875rem' }}>
+                          No matching HKU courses found for these skill gaps.
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                          {recommendedCourses.slice(0, 6).map((course) => (
+                            <div
+                              key={course.course_id}
+                              style={{
+                                padding: '1rem',
+                                background: 'var(--hku-green-50, #f0fdf4)',
+                                borderRadius: 'var(--radius)',
+                                border: '1px solid var(--hku-green, #16a34a)',
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div>
+                                  <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>
+                                    {course.course_id} — {course.course_name}
+                                  </div>
+                                  <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.5rem' }}>
+                                    {course.programme} · {course.category} · {course.credits} credits
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                                    {course.skills.map((s) => (
+                                      <span
+                                        key={s.skill_id}
+                                        className="badge badge-success"
+                                        style={{ fontSize: '0.7rem' }}
+                                      >
+                                        {s.skill_name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

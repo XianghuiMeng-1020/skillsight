@@ -72,19 +72,22 @@ def _get_role_with_requirements(db: Session, role_id: str) -> Optional[Dict[str,
     
     role = dict(role_row)
     
-    # Get skill requirements
+    # Get skill requirements with canonical names
     req_sql = text("""
-        SELECT req_id, role_id, skill_id, target_level, required, weight
-        FROM role_skill_requirements
-        WHERE role_id = :role_id
-        ORDER BY required DESC, skill_id ASC
+        SELECT rsr.req_id, rsr.role_id, rsr.skill_id, rsr.target_level, rsr.required, rsr.weight,
+               s.canonical_name AS skill_name
+        FROM role_skill_requirements rsr
+        LEFT JOIN skills s ON s.skill_id = rsr.skill_id
+        WHERE rsr.role_id = :role_id
+        ORDER BY rsr.required DESC, rsr.skill_id ASC
     """)
     req_rows = db.execute(req_sql, {"role_id": role_id}).mappings().all()
-    
+
     requirements = []
     for r in req_rows:
         requirements.append({
             "skill_id": r["skill_id"],
+            "skill_name": r["skill_name"] or r["skill_id"],
             "target_level": int(r["target_level"]) if r["target_level"] is not None else 0,
             "required": bool(r["required"]),
             "weight": float(r["weight"]) if r["weight"] is not None else 1.0,
@@ -608,6 +611,7 @@ def role_readiness(
 
     for req_item in requirements:
         skill_id = req_item["skill_id"]
+        skill_name = req_item.get("skill_name", skill_id)
         target_level = req_item["target_level"]
         required = req_item["required"]
         weight = req_item["weight"]
@@ -655,6 +659,7 @@ def role_readiness(
 
         item = {
             "skill_id": skill_id,
+            "skill_name": skill_name,
             "target_level": target_level,
             "achieved_level": achieved_level,
             "required": required,

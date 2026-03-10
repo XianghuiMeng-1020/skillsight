@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage, getDateLocale } from "@/lib/contexts";
-import { getToken } from "@/lib/bffClient";
+import { getToken, studentBff } from "@/lib/bffClient";
 import { logger } from "@/lib/logger";
 
 // 文档信息接口
@@ -218,7 +218,17 @@ export default function DocPage() {
 
   const [plan, setPlan] = useState<any>(null);
   const [planErr, setPlanErr] = useState<string>("");
+  const [lastMarkedSkillId, setLastMarkedSkillId] = useState<string | null>(null);
   const [planning, setPlanning] = useState(false);
+
+  // Tutor dialogue (evidence-insufficient follow-up)
+  const [tutorOpen, setTutorOpen] = useState(false);
+  const [tutorSessionId, setTutorSessionId] = useState<string | null>(null);
+  const [tutorSkillId, setTutorSkillId] = useState<string>("");
+  const [tutorTurns, setTutorTurns] = useState<Array<{ role: string; content: string }>>([]);
+  const [tutorInput, setTutorInput] = useState("");
+  const [tutorLoading, setTutorLoading] = useState(false);
+  const [tutorConcluded, setTutorConcluded] = useState(false);
 
   const chunksRef = useRef<HTMLDivElement | null>(null);
 
@@ -240,6 +250,42 @@ export default function DocPage() {
       const el = document.getElementById(`chunk-${chunkId}`);
       el?.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 250);
+  }
+
+  async function openTutorForSkill(skillId: string) {
+    setTutorSkillId(skillId);
+    setTutorTurns([]);
+    setTutorConcluded(false);
+    setTutorOpen(true);
+    setTutorLoading(true);
+    try {
+      const docIds = docId ? [docId] : undefined;
+      const res = await studentBff.tutorSessionStart(skillId, docIds);
+      setTutorSessionId(res.session_id);
+    } catch (e) {
+      logger.error("tutor session start failed", e);
+      setTutorOpen(false);
+    } finally {
+      setTutorLoading(false);
+    }
+  }
+
+  async function sendTutorMessage() {
+    const text = tutorInput.trim();
+    if (!text || !tutorSessionId || tutorLoading || tutorConcluded) return;
+    setTutorInput("");
+    setTutorTurns((prev) => [...prev, { role: "user", content: text }]);
+    setTutorLoading(true);
+    try {
+      const res = await studentBff.tutorSessionMessage(tutorSessionId, text);
+      setTutorTurns((prev) => [...prev, { role: "assistant", content: res.reply }]);
+      if (res.concluded) setTutorConcluded(true);
+    } catch (e) {
+      logger.error("tutor message failed", e);
+      setTutorTurns((prev) => [...prev, { role: "assistant", content: "Sorry, something went wrong. Please try again." }]);
+    } finally {
+      setTutorLoading(false);
+    }
   }
 
   // 获取文档信息
@@ -407,20 +453,40 @@ export default function DocPage() {
     if (!docId || !roleId) return;
     setPlanning(true);
     try {
-      const r = await fetch(`${apiBase}/actions/recommend`, {
-        method: "POST",
-        headers: authHeaders,
-        body: JSON.stringify({ doc_id: docId, role_id: roleId }),
-      });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+      const data = await studentBff.recommendActions(docId, roleId);
       setPlan(data);
-    } catch (e: any) {
-      setPlanErr(String(e.message || e));
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const noDoc = /consent|no document|upload first|no consented/i.test(msg);
+      setPlanErr(noDoc ? (t("doc.uploadFirstHint") || "Please upload at least one document first.") : msg);
     } finally {
       setPlanning(false);
     }
   }
+
+  async function markActionDone(card: { skill_id?: string; gap_type?: string }) {
+    const skill_id = card.skill_id;
+    const gap_type = card.gap_type;
+    if (!skill_id || !gap_type || !plan) return;
+    try {
+      await studentBff.postActionProgress({ skill_id, gap_type, role_id: roleId ?? undefined, doc_id: docId, status: "completed" });
+      setPlan({
+        ...plan,
+        actions: (plan.actions || []).map((a: Record<string, unknown>) =>
+          a.skill_id === skill_id && a.gap_type === gap_type ? { ...a, progress_status: "completed", completed_at: new Date().toISOString() } : a
+        ),
+      });
+      setLastMarkedSkillId(skill_id);
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    if (!lastMarkedSkillId) return;
+    const t = setTimeout(() => setLastMarkedSkillId(null), 5000);
+    return () => clearTimeout(t);
+  }, [lastMarkedSkillId]);
 
   return (
     <div className="page">
@@ -1011,48 +1077,179 @@ export default function DocPage() {
                           L{it.observed_level} / {t('doc.target')}L{it.target_level}
                         </span>
                       </div>
-                      <StatusPill 
-                        text={it.status === "meet" ? t("doc.met") : it.status === "needs_strengthening" ? t("doc.needsImprovement") : t("doc.lackEvidence")} 
-                        kind={it.status === "meet" ? "success" : it.status === "needs_strengthening" ? "warning" : "error"} 
-                      />
+                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                        <StatusPill 
+                          text={it.status === "meet" ? t("doc.met") : it.status === "needs_strengthening" ? t("doc.needsImprovement") : t("doc.lackEvidence")} 
+                          kind={it.status === "meet" ? "success" : it.status === "needs_strengthening" ? "warning" : "error"} 
+                        />
+                        {it.status === "missing_proof" && (
+                          <button
+                            type="button"
+                            onClick={() => openTutorForSkill(it.skill_id)}
+                            className="btn btn-sm"
+                            style={{ whiteSpace: "nowrap", fontSize: "0.75rem" }}
+                          >
+                            {t("skills.tutorChat")}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {planErr && <div style={{ color: "var(--error)", marginBottom: "1rem" }}>{planErr}</div>}
-            {plan && plan.action_cards && plan.action_cards.length > 0 && (
+            {planErr && (
+              <div style={{ color: "var(--error)", marginBottom: "1rem" }}>
+                {planErr}
+                {/upload first|upload at least|请先上传/i.test(planErr) && (
+                  <span style={{ marginLeft: "0.5rem" }}>
+                    <Link href="/dashboard/upload" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+                      {t("doc.uploadEvidence")}
+                    </Link>
+                  </span>
+                )}
+              </div>
+            )}
+            {plan && plan.actions && plan.actions.length > 0 && (
               <div>
                 <h4 style={{ fontSize: "0.9375rem", marginBottom: "0.75rem" }}>{t("doc.actionTitle")}</h4>
                 <div style={{ display: "grid", gap: "0.75rem" }}>
-                  {plan.action_cards.map((card: any, idx: number) => (
-                    <div 
-                      key={idx}
-                      style={{ 
-                        padding: "1rem", 
-                        background: "linear-gradient(135deg, var(--coral-50), var(--coral-light))",
-                        borderRadius: "12px",
-                        border: "1px solid var(--coral-light)"
-                      }}
-                    >
-                      <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>{card.title}</div>
-                      {card.what_to_do && (
-                        <p style={{ fontSize: "0.875rem", color: "var(--gray-600)", marginBottom: "0.5rem" }}>
-                          {card.what_to_do}
-                        </p>
-                      )}
-                      {card.artifact && (
-                        <div style={{ fontSize: "0.8125rem", color: "var(--gray-500)" }}>
-                          <strong>{t("doc.output")}</strong> {card.artifact}
+                  {(plan.actions as Array<Record<string, unknown>>).map((card: Record<string, unknown>, idx: number) => {
+                    const completed = card.progress_status === "completed";
+                    return (
+                      <div 
+                        key={idx}
+                        style={{ 
+                          padding: "1rem", 
+                          background: completed ? "var(--gray-50)" : "linear-gradient(135deg, var(--coral-50), var(--coral-light))",
+                          borderRadius: "12px",
+                          border: `1px solid ${completed ? "var(--gray-200)" : "var(--coral-light)"}`
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.5rem" }}>
+                          <span style={{ fontWeight: 600 }}>{String(card.title ?? "")}</span>
+                          {completed ? (
+                            <span style={{ fontSize: "0.8125rem", color: "var(--success)" }}>Done</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              onClick={() => markActionDone(card as { skill_id?: string; gap_type?: string })}
+                            >
+                              Mark as done
+                            </button>
+                          )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {card.what_to_do && (
+                          <p style={{ fontSize: "0.875rem", color: "var(--gray-600)", marginBottom: "0.5rem" }}>
+                            {String(card.what_to_do)}
+                          </p>
+                        )}
+                        {card.artifact && (
+                          <div style={{ fontSize: "0.8125rem", color: "var(--gray-500)" }}>
+                            <strong>{t("doc.output")}</strong> {String(card.artifact)}
+                          </div>
+                        )}
+                        {completed && card.skill_id === lastMarkedSkillId && (
+                          <p style={{ marginTop: "0.75rem", fontSize: "0.8125rem", color: "var(--primary)" }}>
+                            {t("doc.actionDoneHint")}{" "}
+                            <Link href="/dashboard/upload" style={{ color: "var(--primary)", textDecoration: "underline" }}>
+                              {t("doc.uploadEvidence")}
+                            </Link>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
           </Card>
+
+          {/* AI Tutor 对话弹窗 */}
+          {tutorOpen && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 1000,
+                background: "rgba(0,0,0,0.4)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "1rem",
+              }}
+              onClick={(e) => e.target === e.currentTarget && !tutorLoading && setTutorOpen(false)}
+            >
+              <div
+                style={{
+                  background: "var(--gray-50)",
+                  borderRadius: "12px",
+                  maxWidth: "480px",
+                  width: "100%",
+                  maxHeight: "80vh",
+                  display: "flex",
+                  flexDirection: "column",
+                  boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ padding: "1rem", borderBottom: "1px solid var(--gray-200)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontWeight: 600 }}>{t("skills.tutorTitle")} — {skillLabel(tutorSkillId)}</span>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setTutorOpen(false)} disabled={tutorLoading}>
+                    {t("skills.tutorClose")}
+                  </button>
+                </div>
+                <div style={{ flex: 1, overflow: "auto", padding: "1rem", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {tutorTurns.length === 0 && !tutorLoading && (
+                    <p style={{ fontSize: "0.875rem", color: "var(--gray-500)" }}>{t("skills.tutorPlaceholder")}</p>
+                  )}
+                  {tutorTurns.map((turn, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        alignSelf: turn.role === "user" ? "flex-end" : "flex-start",
+                        maxWidth: "85%",
+                        padding: "0.75rem 1rem",
+                        borderRadius: "12px",
+                        background: turn.role === "user" ? "var(--peach)" : "white",
+                        border: "1px solid var(--gray-200)",
+                        fontSize: "0.875rem",
+                        whiteSpace: "pre-wrap",
+                      }}
+                    >
+                      {turn.content}
+                    </div>
+                  ))}
+                  {tutorConcluded && (
+                    <p style={{ fontSize: "0.8125rem", color: "var(--sage)", fontWeight: 500 }}>{t("skills.tutorConcluded")}</p>
+                  )}
+                </div>
+                <div style={{ padding: "1rem", borderTop: "1px solid var(--gray-200)" }}>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <input
+                      type="text"
+                      value={tutorInput}
+                      onChange={(e) => setTutorInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendTutorMessage()}
+                      placeholder={t("skills.tutorPlaceholder")}
+                      disabled={tutorLoading || tutorConcluded}
+                      style={{ flex: 1, padding: "0.5rem 0.75rem", borderRadius: "8px", border: "1px solid var(--gray-200)" }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={sendTutorMessage}
+                      disabled={!tutorInput.trim() || tutorLoading || tutorConcluded}
+                    >
+                      {tutorLoading ? "…" : t("skills.tutorSend")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 文档内容片段 */}
           <Card 

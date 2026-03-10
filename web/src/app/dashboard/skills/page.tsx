@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
@@ -53,12 +54,15 @@ const LABEL_STYLE: Record<string, { color: string; bg: string; icon: string }> =
 export default function SkillsProfilePage() {
   const { t, language } = useLanguage();
   const locale = getDateLocale(language);
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get('highlight') ?? '';
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const highlightedRef = useRef<HTMLDivElement | null>(null);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -80,6 +84,20 @@ export default function SkillsProfilePage() {
   };
 
   useEffect(() => { fetchProfile(); }, []);
+
+  useEffect(() => {
+    if (!highlightId || !profile?.skills?.length) return;
+    setExpanded((prev) => new Set([...prev, highlightId]));
+    const el = document.getElementById(`skill-${highlightId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (el as HTMLElement).style.setProperty('box-shadow', '0 0 0 3px var(--primary)');
+      const t = setTimeout(() => {
+        (el as HTMLElement).style.removeProperty('box-shadow');
+      }, 2500);
+      return () => clearTimeout(t);
+    }
+  }, [highlightId, profile?.skills?.length]);
 
   const toggleExpanded = (skillId: string) => {
     setExpanded(prev => {
@@ -226,10 +244,16 @@ export default function SkillsProfilePage() {
                 const hasEvidence = skill.evidence_items.length > 0;
 
                 return (
-                  <div key={skill.skill_id} className="card" style={{
-                    border: `1.5px solid ${isExpanded ? 'var(--primary)' : 'var(--gray-100)'}`,
-                    transition: 'border-color 0.2s',
-                  }}>
+                  <div
+                    id={`skill-${skill.skill_id}`}
+                    key={skill.skill_id}
+                    className="card"
+                    ref={highlightId === skill.skill_id ? (r) => { highlightedRef.current = r; } : undefined}
+                    style={{
+                      border: `1.5px solid ${isExpanded ? 'var(--primary)' : 'var(--gray-100)'}`,
+                      transition: 'border-color 0.2s, box-shadow 0.2s',
+                    }}
+                  >
                     {/* Skill header */}
                     <div
                       style={{

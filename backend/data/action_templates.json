@@ -174,5 +174,69 @@
     "what_to_do": "Add critical evaluation of sources, comparison of methodologies, or reflection on research limitations.",
     "artifact": "Extended research analysis with critical evaluation",
     "how_verified": "Evidence shows evaluation of source quality and methodological choices."
+  },
+  {
+    "skill_id": "HKU.SKILL.PYTHON.v1",
+    "gap_type": "missing_proof",
+    "title": "Add Python programming evidence",
+    "what_to_do": "Include a Python script or notebook you wrote: (1) what it does, (2) how you ran or tested it, (3) one design choice you made.",
+    "artifact": "Python code (file or repo link) + short readme or comments",
+    "how_verified": "Evidence shows runnable Python code and clear purpose."
+  },
+  {
+    "skill_id": "HKU.SKILL.PYTHON.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen Python evidence",
+    "what_to_do": "Add a second Python example (e.g. data processing, API use, or tests) or document how you debugged or improved existing code.",
+    "artifact": "Additional code sample or change log with before/after",
+    "how_verified": "Evidence shows multiple uses of Python or documented refinement."
+  },
+  {
+    "skill_id": "HKU.SKILL.R.v1",
+    "gap_type": "missing_proof",
+    "title": "Add R programming evidence",
+    "what_to_do": "Include an R script or R Markdown you wrote: (1) data source and goal, (2) key steps (e.g. tidy, visualize, model), (3) one finding or output.",
+    "artifact": "R script or .Rmd (file or repo link) + short description",
+    "how_verified": "Evidence shows R code and a clear analysis or visualization."
+  },
+  {
+    "skill_id": "HKU.SKILL.R.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen R evidence",
+    "what_to_do": "Add a second R project (e.g. Shiny app, package use, or reproducible report) or document how you validated or improved your analysis.",
+    "artifact": "Additional R artifact or one-page methodology note",
+    "how_verified": "Evidence shows broader or more reproducible R use."
+  },
+  {
+    "skill_id": "HKU.SKILL.SQL.v1",
+    "gap_type": "missing_proof",
+    "title": "Add SQL and database evidence",
+    "what_to_do": "Include a sample of SQL you wrote: (1) purpose (e.g. report, extract, check), (2) tables used, (3) one non-trivial part (e.g. JOIN, filter, aggregate).",
+    "artifact": "SQL file or snippet + one-sentence context",
+    "how_verified": "Evidence shows executable SQL and clear intent."
+  },
+  {
+    "skill_id": "HKU.SKILL.SQL.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen SQL evidence",
+    "what_to_do": "Add a second example (e.g. multi-table query, subquery, or schema change) or a short note on how you optimized or validated a query.",
+    "artifact": "Additional SQL or one-page design/optimization note",
+    "how_verified": "Evidence shows more advanced or validated SQL use."
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_VIS.v1",
+    "gap_type": "missing_proof",
+    "title": "Add data visualization evidence",
+    "what_to_do": "Include a chart or dashboard you created: (1) data source and question, (2) tool used (e.g. Excel, Tableau, Python, R), (3) one design choice (e.g. chart type, color).",
+    "artifact": "Screenshot or link to visualization + short caption",
+    "how_verified": "Evidence shows a clear visual and purpose."
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_VIS.v1",
+    "gap_type": "needs_strengthening",
+    "title": "Strengthen data visualization evidence",
+    "what_to_do": "Add a second visualization (e.g. different audience or tool) or a short note on how you improved clarity or accessibility.",
+    "artifact": "Additional visual or one-page design rationale",
+    "how_verified": "Evidence shows multiple or improved visualizations."
   }
 ]

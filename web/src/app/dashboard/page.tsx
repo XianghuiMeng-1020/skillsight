@@ -7,10 +7,12 @@ import Sidebar from '@/components/Sidebar';
 import { AchievementNotification } from '@/components/Achievements';
 import { LearningPathCard } from '@/components/LearningPath';
 import { ShareButton } from '@/components/ShareCard';
+import { AgentChat } from '@/components/AgentChat';
 
 const AchievementsPanel = dynamic(() => import('@/components/Achievements').then(m => ({ default: m.AchievementsPanel })), { ssr: false });
+import { useToast } from '@/components/Toast';
 import { useAchievements } from '@/lib/hooks';
-import { studentBff, getToken } from '@/lib/bffClient';
+import { studentBff, getToken, type ProfileResponse } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 
 interface Document {
@@ -27,6 +29,105 @@ interface Skill {
   status: 'verified' | 'pending' | 'missing';
 }
 
+function PrepareSummaryButton() {
+  const { t } = useLanguage();
+  const { addToast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const fetchSummary = async () => {
+    setLoading(true);
+    setError(null);
+    setSummary(null);
+    try {
+      const data = await studentBff.getCareerSummary();
+      const text = data.summary || '';
+      setSummary(text);
+      if (text) {
+        navigator.clipboard.writeText(text);
+        addToast('success', t('dashboard.summaryCopied'));
+      }
+    } catch {
+      setError(t('common.error') || 'Failed to load');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const copyAndClose = () => {
+    if (summary) {
+      navigator.clipboard.writeText(summary);
+    }
+    setSummary(null);
+  };
+  const downloadTxt = () => {
+    if (!summary) return;
+    const blob = new Blob([summary], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'skillsight-advisor-summary.txt';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  return (
+    <>
+      <button
+        type="button"
+        className="btn btn-secondary btn-sm"
+        onClick={fetchSummary}
+        disabled={loading}
+      >
+        {loading ? '...' : t('dashboard.prepareSummary')}
+      </button>
+      {summary && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 1000,
+            background: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={copyAndClose}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              maxWidth: '520px',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              padding: '1.5rem',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <strong>{t('dashboard.summaryForAdvisor')}</strong>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={copyAndClose}>×</button>
+            </div>
+            <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8125rem', color: 'var(--gray-700)' }}>{summary}</pre>
+            <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <button type="button" className="btn btn-primary btn-sm" onClick={copyAndClose}>
+                {t('dashboard.copyAndClose')}
+              </button>
+              <button type="button" className="btn btn-secondary btn-sm" onClick={downloadTxt}>
+                {t('dashboard.downloadTxt')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {error && (
+        <span style={{ fontSize: '0.75rem', color: 'var(--error)' }}>{error}</span>
+      )}
+    </>
+  );
+}
+
 export default function StudentDashboard() {
   const { t } = useLanguage();
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -36,6 +137,8 @@ export default function StudentDashboard() {
   const [showFirstTimeHint, setShowFirstTimeHint] = useState(false);
   const [showAchievements, setShowAchievements] = useState(false);
   const [jobsMatchedCount, setJobsMatchedCount] = useState(0);
+  const [showResumeReviewAgent, setShowResumeReviewAgent] = useState(false);
+  const [leaderboard, setLeaderboard] = useState<{ my_rank: number | null; my_points: number; top: Array<{ rank: number; points: number }> } | null>(null);
 
   const { achievements, totalPoints, recentUnlock, dismissRecentUnlock } = useAchievements();
 
@@ -48,28 +151,31 @@ export default function StudentDashboard() {
         setSkills([]);
         return;
       }
-      const [docsData, skillsData] = await Promise.all([
+      const [docsData, profileData] = await Promise.all([
         studentBff.getDocuments(5).catch(() => ({ items: [] })),
-        studentBff.getSkills(10).catch(() => ({ items: [] })),
+        studentBff.getProfile().catch(() => null),
       ]);
       setDocuments((docsData.items || []) as Document[]);
       studentBff.getJobMatches().then((res) => {
         setJobsMatchedCount(res.count);
       }).catch(() => setJobsMatchedCount(0));
-      // Transform skills data with deterministic status based on skill_id hash
-      const skillsWithStatus: Skill[] = ((skillsData.items || []) as Array<Record<string, unknown>>).slice(0, 6).map((s) => {
-        // Use a simple hash of skill_id to generate consistent level (0-3)
-        const skillId = typeof s.skill_id === 'string' ? s.skill_id : '';
-        const canonicalName = typeof s.canonical_name === 'string' ? s.canonical_name : 'Unknown Skill';
-        const hash = skillId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const level = (hash % 4);
-        // Determine status based on level for consistency
-        const status: Skill['status'] = level >= 2 ? 'verified' : level === 1 ? 'pending' : 'missing';
+      studentBff.getLeaderboard(10).then(setLeaderboard).catch(() => setLeaderboard(null));
+      // Build skills from real profile: map label to status and level
+      const profile = profileData as ProfileResponse | null;
+      const profileSkills = profile?.skills ?? [];
+      const skillsWithStatus: Skill[] = profileSkills.slice(0, 6).map((s) => {
+        const label = (s.label || 'not_assessed').toLowerCase();
+        const status: Skill['status'] =
+          label === 'demonstrated' || label === 'mentioned' ? 'verified'
+            : label === 'not_enough_information' ? 'pending'
+            : 'missing';
+        const levelFromLabel = label === 'demonstrated' ? 2 : label === 'mentioned' ? 1 : 0;
+        const level = typeof s.level === 'number' && s.level >= 0 && s.level <= 3 ? s.level : levelFromLabel;
         return {
-          skill_id: skillId,
-          canonical_name: canonicalName,
+          skill_id: s.skill_id,
+          canonical_name: s.canonical_name || 'Unknown Skill',
           level,
-          status
+          status,
         };
       });
       setSkills(skillsWithStatus);
@@ -138,6 +244,9 @@ export default function StudentDashboard() {
           <div>
             <h1 className="page-title">{t('dashboard.welcome')}, {userName}! 👋</h1>
             <p className="page-subtitle">{t('dashboard.subtitle')}</p>
+            <p style={{ marginTop: '0.25rem', fontSize: '0.8125rem', color: 'var(--gray-500)', maxWidth: '42rem' }}>
+              {t('dashboard.visionPitch')}
+            </p>
           </div>
           <div className="page-actions" style={{ display: 'flex', gap: '0.75rem' }}>
             <button
@@ -207,6 +316,52 @@ export default function StudentDashboard() {
             </div>
           </div>
 
+          {/* AI Agent greeting card */}
+          <div
+            className="card"
+            style={{
+              marginBottom: '1.5rem',
+              background: 'linear-gradient(135deg, rgba(152,184,168,0.12), rgba(201,221,227,0.08))',
+              border: '1px solid var(--sage-light, #98B8A8)',
+            }}
+          >
+            <div className="card-content" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  width: 56,
+                  height: 56,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, var(--sage), var(--sage-dark))',
+                  color: 'white',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.75rem',
+                  flexShrink: 0,
+                }}
+              >
+                🤖
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: '1rem', fontWeight: 500, color: 'var(--gray-900)' }}>
+                  {t('dashboard.agentGreeting')}
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
+                <Link href="/dashboard/assessments" className="btn btn-primary btn-sm">
+                  {t('dashboard.startAssessment')}
+                </Link>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowResumeReviewAgent(true)}
+                >
+                  {t('dashboard.reviewResume')}
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* Quick Actions */}
           <h2 style={{ marginBottom: '1rem' }}>{t('dashboard.quickActions')}</h2>
           <div className="action-grid" style={{ marginBottom: '2rem' }}>
@@ -225,6 +380,70 @@ export default function StudentDashboard() {
               <div className="action-title">{t('dashboard.findJobs')}</div>
               <div className="action-desc">{t('dashboard.seeReadiness')}</div>
             </Link>
+          </div>
+
+          {/* Leaderboard + Career Support */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' }}>
+            <div className="card" style={{ border: '1px solid var(--gray-200)' }}>
+              <div className="card-header">
+                <h3 className="card-title">🏆 {t('dashboard.leaderboardTitle')}</h3>
+              </div>
+              <div className="card-content">
+                <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>
+                  {t('dashboard.leaderboardDesc')}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontWeight: 600, fontSize: '1.125rem' }}>
+                    {t('dashboard.yourRank')}: <span style={{ color: 'var(--primary)' }}>{leaderboard?.my_rank ?? '—'}</span>
+                    {leaderboard?.my_points != null && (
+                      <span style={{ fontSize: '0.875rem', color: 'var(--gray-500)', marginLeft: '0.5rem' }}>({leaderboard.my_points} pts)</span>
+                    )}
+                  </span>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--gray-500)' }}>{t('dashboard.topContributors')}:</span>
+                </div>
+                {leaderboard?.top && leaderboard.top.length > 0 ? (
+                  <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem', fontSize: '0.875rem', color: 'var(--gray-600)' }}>
+                    {leaderboard.top.slice(0, 5).map((entry) => (
+                      <li key={entry.rank}>No. {entry.rank}: {entry.points} pts</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <>
+                    <p style={{ marginTop: '0.75rem', fontSize: '0.75rem', color: 'var(--gray-400)' }}>
+                      {t('dashboard.leaderboardPlaceholder')}
+                    </p>
+                    <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: 'var(--gray-500)' }}>
+                      {t('dashboard.leaderboardCta')}{' '}
+                      <Link href="/dashboard/assessments" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{t('dashboard.takeAssessment')}</Link>
+                      {' · '}
+                      <Link href="/dashboard/upload" style={{ color: 'var(--primary)', textDecoration: 'underline' }}>{t('dashboard.uploadEvidence')}</Link>
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+            <div className="card" style={{ border: '1px solid var(--sage-light, #98B8A8)', background: 'rgba(152,184,168,0.04)' }}>
+              <div className="card-header">
+                <h3 className="card-title">👤 {t('dashboard.careerSupport')}</h3>
+              </div>
+              <div className="card-content">
+                <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>
+                  {t('dashboard.careerCentreDesc')}
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  <a
+                    href="https://www.careers.hku.hk/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary btn-sm"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    {t('dashboard.careerCentreCta')} →
+                  </a>
+                  <PrepareSummaryButton />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Two Column Layout */}
@@ -314,22 +533,31 @@ export default function StudentDashboard() {
               <div className="card-content" style={{ padding: '0.5rem 1rem' }}>
                 {skills.length > 0 ? (
                   skills.slice(0, 4).map((skill) => (
-                    <div key={skill.skill_id} className="skill-card" style={{ marginBottom: '0.5rem' }}>
-                      <div className="skill-header">
-                        <span className="skill-name">{skill.canonical_name}</span>
-                        {getStatusBadge(skill.status)}
+                    <Link
+                      key={skill.skill_id}
+                      href={`/dashboard/skills?highlight=${encodeURIComponent(skill.skill_id)}`}
+                      style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
+                    >
+                      <div className="skill-card" style={{ marginBottom: '0.5rem', cursor: 'pointer' }}>
+                        <div className="skill-header">
+                          <span className="skill-name">{skill.canonical_name}</span>
+                          {getStatusBadge(skill.status)}
+                        </div>
+                        <div className="progress" style={{ marginTop: '0.5rem' }}>
+                          <div 
+                            className={`progress-bar ${skill.status === 'verified' ? 'success' : skill.status === 'pending' ? 'warning' : 'error'}`}
+                            style={{ width: `${(skill.level / 3) * 100}%` }}
+                          ></div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+                          <span>{t('dashboard.level')} {skill.level}/3</span>
+                          <span>{skill.status === 'verified' ? `5 ${t('dashboard.evidenceItems')}` : skill.status === 'pending' ? `2 ${t('dashboard.itemsUnderReview')}` : t('dashboard.noEvidence')}</span>
+                        </div>
+                        <div style={{ marginTop: '0.375rem', fontSize: '0.7rem', color: 'var(--primary)' }}>
+                          {t('dashboard.viewEvidence')}
+                        </div>
                       </div>
-                      <div className="progress" style={{ marginTop: '0.5rem' }}>
-                        <div 
-                          className={`progress-bar ${skill.status === 'verified' ? 'success' : skill.status === 'pending' ? 'warning' : 'error'}`}
-                          style={{ width: `${(skill.level / 3) * 100}%` }}
-                        ></div>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-                        <span>{t('dashboard.level')} {skill.level}/3</span>
-                        <span>{skill.status === 'verified' ? `5 ${t('dashboard.evidenceItems')}` : skill.status === 'pending' ? `2 ${t('dashboard.itemsUnderReview')}` : t('dashboard.noEvidence')}</span>
-                      </div>
-                    </div>
+                    </Link>
                   ))
                 ) : (
                   <div className="empty-state" style={{ padding: '2rem' }}>
@@ -480,6 +708,16 @@ export default function StudentDashboard() {
         achievement={recentUnlock} 
         onDismiss={dismissRecentUnlock} 
       />
+
+      {/* Resume review AI agent modal (pass doc_ids so RAG has evidence) */}
+      {showResumeReviewAgent && (
+        <AgentChat
+          mode="resume_review"
+          skillId="HKU.SKILL.COMMUNICATION.v1"
+          docIds={documents.map((d) => d.doc_id)}
+          onClose={() => setShowResumeReviewAgent(false)}
+        />
+      )}
     </div>
   );
 }

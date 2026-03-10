@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useRef, DragEvent } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { useToast } from '@/components/Toast';
 import { studentBff, getToken } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 
@@ -31,6 +32,7 @@ const ACCEPTED_FILE_TYPES = [
 
 export default function UploadPage() {
   const { t } = useLanguage();
+  const { addToast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [consent, setConsent] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -111,6 +113,28 @@ export default function UploadPage() {
       setResults(uploadResults);
       setFiles([]);
       setConsent(false);
+
+      // Trigger auto-assess after a short delay so embed/chunks are ready (Gap 13)
+      const docIds = uploadResults.map((r) => r.doc_id).filter(Boolean);
+      if (docIds.length > 0) {
+        const delayMs = 5000;
+        setTimeout(async () => {
+          let totalProcessed = 0;
+          for (const docId of docIds) {
+            try {
+              const res = await studentBff.autoAssessDocument(docId);
+              totalProcessed += res?.skills_processed ?? 0;
+            } catch {
+              // ignore per-doc failure
+            }
+          }
+          if (totalProcessed > 0) {
+            addToast('success', t('upload.autoAssessDone')?.replace('{n}', String(totalProcessed)) ?? `Auto-assessed ${totalProcessed} skills.`);
+          } else {
+            addToast('info', t('upload.autoAssessNoUpdate') ?? 'Auto-assess did not update skills. Confirm documents are parsed or assess manually on the Skills page.');
+          }
+        }, delayMs);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('upload.failed'));
     } finally {
@@ -165,6 +189,9 @@ export default function UploadPage() {
               <div className="alert-content">
                 <div className="alert-title">{t('upload.success')}</div>
                 <p>{results.length} {t('upload.filesProcessedSuccess')}</p>
+                <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: 'var(--gray-600)' }}>
+                  {t('upload.autoAssessHint')}
+                </p>
                 <ul style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
                   {results.map((r, i) => (
                     <li key={i}>&quot;{r.filename}&quot; - {r.chunks_created} {t('upload.sectionsExtracted')}</li>

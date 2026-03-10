@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
-import { studentBff, getToken } from '@/lib/bffClient';
+import { studentBff, getToken, type ExportStatementResponse } from '@/lib/bffClient';
 
 interface EvidenceItem {
   chunk_id: string;
@@ -21,24 +21,10 @@ interface SkillEntry {
   evidence_items: EvidenceItem[];
 }
 
-interface Statement {
-  total_skills_assessed: number;
-  demonstrated_skills: number;
-  total_evidence_items: number;
-  documents: { doc_id: string; filename: string; status: string; scope?: string }[];
-  skills: SkillEntry[];
-}
-
-interface ExportData {
-  subject_id: string;
-  generated_at: string;
-  statement: Statement;
-}
-
 export default function ExportPage() {
   const { t, language } = useLanguage();
   const locale = getDateLocale(language);
-  const [data, setData] = useState<ExportData | null>(null);
+  const [data, setData] = useState<ExportStatementResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const printRef = useRef<HTMLDivElement>(null);
@@ -51,7 +37,7 @@ export default function ExportPage() {
       return;
     }
     studentBff.exportStatement()
-      .then(setData as (d: unknown) => void)
+      .then(setData)
       .catch(e => setError(e instanceof Error ? e.message : t('export.failedToLoad')))
       .finally(() => setLoading(false));
   }, []);
@@ -95,6 +81,27 @@ export default function ExportPage() {
         </button>
       </div>
 
+      {data && !loading && !error && (
+        <>
+        <div className="no-print" style={{ maxWidth: '800px', margin: '0 auto', padding: '0.75rem 1.5rem', fontSize: '0.8125rem', color: 'var(--gray-600)' }}>
+          {t('export.certificateNote')}
+          {data.verification_token && (
+            <p style={{ marginTop: '0.5rem' }}>
+              {t('export.verifyLabel')}:{' '}
+              <a
+                href={`${process.env.NEXT_PUBLIC_API_URL || ''}/bff/student/export/verify?token=${encodeURIComponent(data.verification_token)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ wordBreak: 'break-all', color: 'var(--primary)' }}
+              >
+                {t('export.verifyLink')}
+              </a>
+            </p>
+          )}
+        </div>
+        </>
+      )}
+
       {loading && (
         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--gray-500)' }}>
           <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
@@ -130,9 +137,10 @@ export default function ExportPage() {
             <div style={{ fontSize: '0.75rem', color: '#888', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
               SkillSight · HKU Skills-to-Jobs Transparency System
             </div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.5rem', color: '#1a1a1a' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.25rem', color: '#1a1a1a' }}>
               {t('export.skillsStatement')}
             </h1>
+            <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.5rem' }}>{t('share.certificate')}</div>
             <div style={{ fontSize: '0.9rem', color: '#555' }}>
               <span>{t('export.studentId')}<strong>{data.subject_id}</strong></span>
               <span style={{ margin: '0 1rem' }}>·</span>
@@ -277,6 +285,11 @@ export default function ExportPage() {
               All claims are traceable to audited evidence chunks with timestamps.
               Generated: {new Date(data.generated_at).toISOString()}
             </p>
+            {data.verification_token && (
+              <p style={{ marginTop: '0.5rem', wordBreak: 'break-all' }}>
+                {t('export.verifyThisStatement')}: {typeof window !== 'undefined' ? `${window.location.origin}/export/verify?token=${encodeURIComponent(data.verification_token)}` : `[${t('export.verifyLink')}]`}
+              </p>
+            )}
             <p style={{ marginTop: '0.5rem' }}>
               © {new Date().getFullYear()} SkillSight · HKU Skills-to-Jobs Transparency System ·
               Audit ID available on request.
