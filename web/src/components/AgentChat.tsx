@@ -20,6 +20,8 @@ export interface AgentChatProps {
 }
 
 const CAREER_URL = 'https://careers.hku.hk';
+const MAX_TURNS_ASSESSMENT = 10;
+const MAX_INPUT_LENGTH_ASSESSMENT = 500;
 
 type Turn = { role: 'user' | 'assistant'; content: string; ts?: number };
 
@@ -102,6 +104,9 @@ export function AgentChat({
     }
   }, [input, sessionId, loading, concluded, onComplete, t]);
 
+  const userTurnCount = turns.filter((x) => x.role === 'user').length;
+  const turnLimitReached = mode === 'assessment' && userTurnCount >= MAX_TURNS_ASSESSMENT && !concluded;
+
   const displayTitle =
     title ||
     (mode === 'resume_review'
@@ -114,6 +119,11 @@ export function AgentChat({
         <span className={styles.titleRow}>
           <span className={`${styles.avatar} ${styles.avatarAgent}`}>🤖</span>
           {displayTitle}
+          {mode === 'assessment' && sessionId && (
+            <span className={styles.turnBadge} aria-label={`Turn ${userTurnCount} of ${MAX_TURNS_ASSESSMENT}`}>
+              {userTurnCount}/{MAX_TURNS_ASSESSMENT}
+            </span>
+          )}
         </span>
         <button
           type="button"
@@ -178,21 +188,37 @@ export function AgentChat({
             </a>
           </div>
           <div className={styles.inputArea}>
+            {turnLimitReached && (
+              <p className={styles.turnLimitHint}>
+                {t('skills.tutorTurnLimit') as string}
+              </p>
+            )}
             <div className={styles.inputRow}>
               <input
                 type="text"
                 className={styles.input}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) =>
+                  setInput(
+                    mode === 'assessment'
+                      ? e.target.value.slice(0, MAX_INPUT_LENGTH_ASSESSMENT)
+                      : e.target.value
+                  )
+                }
                 onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                placeholder={t('skills.tutorPlaceholder') as string}
-                disabled={loading || concluded}
+                placeholder={
+                  mode === 'assessment'
+                    ? ((t('skills.tutorPlaceholderAssessment') as string) || 'Reply about the assessment (brief)...')
+                    : (t('skills.tutorPlaceholder') as string)
+                }
+                disabled={loading || concluded || turnLimitReached}
+                maxLength={mode === 'assessment' ? MAX_INPUT_LENGTH_ASSESSMENT : undefined}
               />
               <button
                 type="button"
                 className={styles.sendBtn}
                 onClick={sendMessage}
-                disabled={!input.trim() || loading || concluded}
+                disabled={!input.trim() || loading || concluded || turnLimitReached}
                 aria-label="Send"
               >
                 {loading ? '…' : '➤'}

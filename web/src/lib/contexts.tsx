@@ -314,6 +314,8 @@ export const translations: Translations = {
   'skills.tutorChat': { zh: '与 AI Tutor 对话', 'zh-TW': '與 AI Tutor 對話', en: 'Chat with AI Tutor' },
   'skills.tutorTitle': { zh: 'AI Tutor 补证对话', 'zh-TW': 'AI Tutor 補證對話', en: 'AI Tutor Evidence Chat' },
   'skills.tutorPlaceholder': { zh: '输入你的经历或说明…', 'zh-TW': '輸入你的經歷或說明…', en: 'Describe your experience…' },
+  'skills.tutorPlaceholderAssessment': { zh: '简要回复与评估相关的内容…', 'zh-TW': '簡要回覆與評估相關的內容…', en: 'Reply about the assessment (brief)…' },
+  'skills.tutorTurnLimit': { zh: '已达对话轮数上限，等待评估结果。', 'zh-TW': '已達對話輪數上限，等待評估結果。', en: 'Turn limit reached. Waiting for assessment.' },
   'skills.tutorSend': { zh: '发送', 'zh-TW': '傳送', en: 'Send' },
   'skills.tutorClose': { zh: '关闭', 'zh-TW': '關閉', en: 'Close' },
   'skills.tutorConcluded': { zh: '已根据对话更新技能评估', 'zh-TW': '已根據對話更新技能評估', en: 'Assessment updated from this chat' },

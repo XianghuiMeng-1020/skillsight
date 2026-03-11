@@ -22,7 +22,10 @@ def _load_system_prompt(mode: str = "assessment") -> str:
     if mode == "resume_review":
         p = PROMPTS_DIR / "resume_review_system_v1.txt"
     else:
-        p = PROMPTS_DIR / "tutor_dialogue_system_v1.txt"
+        # Prefer assessment-focused prompt (no small talk, 10-turn limit)
+        p = PROMPTS_DIR / "assessment_agent_system_v1.txt"
+        if not p.exists():
+            p = PROMPTS_DIR / "tutor_dialogue_system_v1.txt"
     if p.exists():
         return p.read_text(encoding="utf-8")
     if mode == "resume_review":
@@ -174,8 +177,15 @@ def get_messages_for_llm(
         {"role": "user", "content": first_user},
     ]
     turns = get_turns(db, session_id)
+    user_turn_count = sum(1 for t in turns if t.get("role") == "user")
     for t in turns:
         messages.append({"role": t["role"], "content": (t["content"] or "").strip()})
+    # Force conclusion after 10 user messages (assessment-focused mode)
+    if mode == "assessment" and user_turn_count >= 10:
+        messages.append({
+            "role": "user",
+            "content": "Maximum turns reached. Please output your ASSESSMENT now as ASSESSMENT: {\"level\": ..., \"evidence_chunk_ids\": [...], \"why\": \"...\"}",
+        })
     return messages
 
 

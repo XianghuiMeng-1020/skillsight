@@ -274,3 +274,19 @@
   margin-bottom: 0.75rem;
   line-height: 1.5;
 }
+
+.turnBadge {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--gray-500);
+  background: var(--gray-100);
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  margin-left: 0.5rem;
+}
+
+.turnLimitHint {
+  font-size: 0.8125rem;
+  color: var(--warning, #a16207);
+  margin: 0 0 0.5rem;
+}

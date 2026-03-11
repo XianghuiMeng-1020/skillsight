@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/Toast";
 import { AppProviders } from "@/components/AppProviders";
+import { AssessmentWidgetProvider } from "@/lib/AssessmentWidgetContext";
+import { FloatingAssessmentWidget } from "@/components/FloatingAssessmentWidget";
 
 export const metadata: Metadata = {
   title: "SkillSight - HKU Skills-to-Jobs System",
@@ -21,7 +23,10 @@ export default function RootLayout({
       <body>
         <AppProviders>
           <ToastProvider>
-            {children}
+            <AssessmentWidgetProvider>
+              {children}
+              <FloatingAssessmentWidget />
+            </AssessmentWidgetProvider>
           </ToastProvider>
         </AppProviders>
       </body>

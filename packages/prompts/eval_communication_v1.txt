@@ -1,0 +1,14 @@
+You are an assessor for a spoken communication exercise. Evaluate the response and output ONE JSON object only (no markdown, no extra text).
+
+INPUT:
+Topic: {topic}
+Expected duration (seconds): {expected_duration}
+Actual duration (seconds): {duration}
+Transcript (word count: {word_count}): {transcript}
+
+TASK: Score clarity, relevance to topic, structure, and delivery. Consider speaking pace and content depth.
+
+OUTPUT JSON (exact keys):
+{"overall_score": number 0-100, "level": 0|1|2|3, "level_label": "Novice"|"Developing"|"Intermediate"|"Advanced", "feedback": "2-4 sentences", "metrics": {"word_count": number, "words_per_minute": number, "duration_score": number, "content_score": number, "pace_score": number}}
+
+Return JSON only.

@@ -36,6 +36,65 @@ DEFAULT_RUBRIC_VERSION = os.getenv("ASSESSMENT_RUBRIC_VERSION", "rubric-v1")
 REPAIR_MAX_ATTEMPTS = max(1, int(os.getenv("ASSESSMENT_REPAIR_MAX_ATTEMPTS", "5")))
 _log = logging.getLogger(__name__)
 
+def _get_llm_generate():
+    """Return (model, prompt, temperature, timeout_s) -> str or None if unavailable."""
+    provider = (os.getenv("LLM_PROVIDER") or "openai").strip().lower()
+    if provider == "ollama":
+        try:
+            from backend.app.ollama_client import ollama_generate
+            return ollama_generate
+        except ImportError:
+            return None
+    try:
+        from backend.app.openai_client import openai_generate
+        return openai_generate
+    except ImportError:
+        return None
+
+EVAL_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+MAX_INPUT_CHARS = 2000
+
+def _llm_evaluate(prompt_name: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
+    """Load prompt template, format with kwargs, call LLM, parse JSON. Returns None on any failure."""
+    import pathlib
+    prompts_dir = pathlib.Path(__file__).resolve().parents[2].parent.parent / "packages" / "prompts"
+    path = prompts_dir / prompt_name
+    if not path.exists():
+        return None
+    template = path.read_text(encoding="utf-8")
+    # Replace placeholders (do content keys last so user content cannot inject placeholder names)
+    content_keys = {"transcript", "content", "code", "analysis", "response", "outline", "question", "dataset_summary", "visualization", "case_description", "topic"}
+    order_key = lambda kv: (1 if kv[0] in content_keys else 0, kv[0])
+    prompt_text = template
+    for k, v in sorted(kwargs.items(), key=order_key):
+        if isinstance(v, str) and len(v) > MAX_INPUT_CHARS:
+            v = v[:MAX_INPUT_CHARS] + "..."
+        else:
+            v = v if v is not None else ""
+        prompt_text = prompt_text.replace("{" + k + "}", str(v))
+    generate = _get_llm_generate()
+    if not generate:
+        return None
+    try:
+        raw = generate(EVAL_MODEL, prompt_text, temperature=0.2, timeout_s=60)
+    except Exception as e:
+        _log.warning("LLM evaluate failed for %s: %s", prompt_name, e)
+        return None
+    if not raw or not raw.strip():
+        return None
+    # Strip markdown code block if present
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```\w*\n?", "", raw)
+        raw = re.sub(r"\n?```\s*$", "", raw)
+    try:
+        out = json.loads(raw)
+        if not isinstance(out, dict):
+            return None
+        return out
+    except json.JSONDecodeError:
+        return None
+
 
 def _now_utc():
     return datetime.now(timezone.utc)
@@ -820,21 +879,15 @@ def submit_communication_response(
     return response_payload
 
 
-def _evaluate_communication(
+def _evaluate_communication_heuristic(
     transcript: str,
     topic: str,
     duration: float,
     expected_duration: float,
 ) -> Dict[str, Any]:
-    """
-    Evaluate communication response.
-    In production, this would use an LLM for evaluation.
-    """
-    # Basic metrics
+    """Heuristic-only evaluation (fallback when LLM unavailable or fails)."""
     word_count = len(transcript.split())
     words_per_minute = (word_count / duration) * 60 if duration > 0 else 0
-    
-    # Duration score (penalize too short or too long)
     duration_ratio = duration / expected_duration
     if 0.8 <= duration_ratio <= 1.1:
         duration_score = 100
@@ -844,39 +897,27 @@ def _evaluate_communication(
         duration_score = 80
     else:
         duration_score = 50
-    
-    # Content length score
     if word_count >= 100:
         content_score = 90
     elif word_count >= 50:
         content_score = 70
     else:
         content_score = 50
-    
-    # Speaking pace score (ideal: 120-150 WPM)
     if 120 <= words_per_minute <= 150:
         pace_score = 100
     elif 100 <= words_per_minute < 120 or 150 < words_per_minute <= 180:
         pace_score = 80
     else:
         pace_score = 60
-    
     overall_score = (duration_score * 0.2 + content_score * 0.5 + pace_score * 0.3)
-    
-    # Determine level
     if overall_score >= 85:
-        level = 3
-        label = "Advanced"
+        level, label = 3, "Advanced"
     elif overall_score >= 70:
-        level = 2
-        label = "Intermediate"
+        level, label = 2, "Intermediate"
     elif overall_score >= 50:
-        level = 1
-        label = "Developing"
+        level, label = 1, "Developing"
     else:
-        level = 0
-        label = "Novice"
-    
+        level, label = 0, "Novice"
     return {
         "overall_score": round(overall_score, 1),
         "level": level,
@@ -891,6 +932,43 @@ def _evaluate_communication(
         },
         "feedback": _generate_communication_feedback(overall_score, word_count, words_per_minute),
     }
+
+
+def _evaluate_communication(
+    transcript: str,
+    topic: str,
+    duration: float,
+    expected_duration: float,
+) -> Dict[str, Any]:
+    """Evaluate communication response. Tries LLM first, falls back to heuristic."""
+    word_count = len(transcript.split())
+    llm_out = _llm_evaluate(
+        "eval_communication_v1.txt",
+        topic=topic or "",
+        expected_duration=int(expected_duration),
+        duration=round(duration, 1),
+        word_count=word_count,
+        transcript=(transcript or "")[:MAX_INPUT_CHARS],
+    )
+    if llm_out and isinstance(llm_out.get("overall_score"), (int, float)) and 0 <= llm_out.get("level", -1) <= 3:
+        feedback = llm_out.get("feedback")
+        if isinstance(feedback, list):
+            feedback = " ".join(str(x) for x in feedback)
+        if not isinstance(feedback, str):
+            feedback = str(feedback) if feedback else ""
+        metrics = llm_out.get("metrics") or {}
+        if "words_per_minute" not in metrics and duration > 0:
+            metrics["words_per_minute"] = round((word_count / duration) * 60, 1)
+        if "duration_seconds" not in metrics:
+            metrics["duration_seconds"] = round(duration, 1)
+        return {
+            "overall_score": round(float(llm_out["overall_score"]), 1),
+            "level": int(llm_out.get("level", 0)),
+            "level_label": str(llm_out.get("level_label") or "Developing"),
+            "metrics": {**{"word_count": word_count}, **metrics},
+            "feedback": feedback or "Assessment complete.",
+        }
+    return _evaluate_communication_heuristic(transcript, topic, duration, expected_duration)
 
 
 def _generate_communication_feedback(score: float, word_count: int, wpm: float) -> str:
@@ -1223,9 +1301,7 @@ def _safe_exec_python(code: str, test_input: str, timeout_s: int = 5) -> Dict[st
 
 def _evaluate_code(code: str, problem: Dict, language: str) -> Dict[str, Any]:
     """
-    Evaluate submitted code. For Python, actually runs code against test cases
-    in a subprocess with a 5-second timeout. Other languages fall back to
-    static analysis.
+    Evaluate submitted code. Runs tests first, then tries LLM for score/feedback; falls back to heuristic.
     """
     test_cases = problem.get("test_cases", [])
     passed = 0
@@ -1303,7 +1379,7 @@ def _evaluate_code(code: str, problem: Dict, language: str) -> Dict[str, Any]:
     else:
         level, label = 0, "Novice"
 
-    return {
+    heuristic_result = {
         "score": min(score, 100),
         "level": level,
         "level_label": label,
@@ -1312,6 +1388,31 @@ def _evaluate_code(code: str, problem: Dict, language: str) -> Dict[str, Any]:
         "tests_total": len(test_cases),
         "feedback": feedback,
     }
+
+    llm_out = _llm_evaluate(
+        "eval_programming_v1.txt",
+        problem_title=problem.get("title") or "Coding",
+        problem_description=(problem.get("description") or "")[:800],
+        tests_passed=passed,
+        tests_total=len(test_cases),
+        code=(code or "")[:MAX_INPUT_CHARS],
+    )
+    if llm_out and isinstance(llm_out.get("score"), (int, float)) and 0 <= llm_out.get("level", -1) <= 3:
+        fb = llm_out.get("feedback")
+        if isinstance(fb, list):
+            feedback = [str(x) for x in fb]
+        else:
+            feedback = [str(fb)] if fb else feedback
+        return {
+            "score": min(100, round(float(llm_out["score"]), 1)),
+            "level": int(llm_out.get("level", level)),
+            "level_label": str(llm_out.get("level_label") or label),
+            "test_results": results,
+            "tests_passed": passed,
+            "tests_total": len(test_cases),
+            "feedback": feedback,
+        }
+    return heuristic_result
 
 
 # ====================
@@ -1587,37 +1688,28 @@ def submit_writing_response(
     return response_payload
 
 
-def _evaluate_writing(
+def _evaluate_writing_heuristic(
     content: str,
     min_words: int,
     max_words: int,
     keystroke_data: Optional[Dict] = None,
 ) -> Dict[str, Any]:
-    """
-    Evaluate written response.
-    In production, this would use an LLM + grammar checking API.
-    """
+    """Heuristic-only writing evaluation (fallback)."""
     word_count = len(content.split())
     sentence_count = len([s for s in content.split('.') if s.strip()])
     paragraph_count = len([p for p in content.split('\n\n') if p.strip()])
-    
-    # Word count score
     if min_words <= word_count <= max_words:
         length_score = 100
     elif word_count < min_words:
         length_score = max(50, (word_count / min_words) * 100)
     else:
         length_score = max(70, 100 - ((word_count - max_words) / 50) * 10)
-    
-    # Structure score (basic)
     if paragraph_count >= 3:
         structure_score = 90
     elif paragraph_count >= 2:
         structure_score = 70
     else:
         structure_score = 50
-    
-    # Sentence variety (average words per sentence)
     avg_sentence_length = word_count / max(sentence_count, 1)
     if 15 <= avg_sentence_length <= 25:
         variety_score = 90
@@ -1625,45 +1717,26 @@ def _evaluate_writing(
         variety_score = 70
     else:
         variety_score = 50
-    
-    # Authenticity check (basic - would be more sophisticated in production)
     authenticity_score = 100
     authenticity_flags = []
-    
     if keystroke_data:
-        # Check for suspicious patterns
-        typing_speed = keystroke_data.get("chars_per_minute", 0)
-        if typing_speed > 500:  # Unrealistic typing speed
+        if keystroke_data.get("chars_per_minute", 0) > 500:
             authenticity_score = 50
             authenticity_flags.append("Unusually fast typing detected")
-        
-        paste_events = keystroke_data.get("paste_count", 0)
-        if paste_events > 2:
+        if keystroke_data.get("paste_count", 0) > 2:
             authenticity_score = min(authenticity_score, 60)
-            authenticity_flags.append(f"{paste_events} paste events detected")
-    
-    # Overall score
+            authenticity_flags.append("Paste events detected")
     overall_score = (
-        length_score * 0.25 +
-        structure_score * 0.25 +
-        variety_score * 0.25 +
-        authenticity_score * 0.25
+        length_score * 0.25 + structure_score * 0.25 + variety_score * 0.25 + authenticity_score * 0.25
     )
-    
-    # Determine level
     if overall_score >= 85:
-        level = 3
-        label = "Advanced"
+        level, label = 3, "Advanced"
     elif overall_score >= 70:
-        level = 2
-        label = "Intermediate"
+        level, label = 2, "Intermediate"
     elif overall_score >= 50:
-        level = 1
-        label = "Developing"
+        level, label = 1, "Developing"
     else:
-        level = 0
-        label = "Novice"
-    
+        level, label = 0, "Novice"
     return {
         "overall_score": round(overall_score, 1),
         "level": level,
@@ -1680,10 +1753,44 @@ def _evaluate_writing(
         },
         "authenticity_flags": authenticity_flags,
         "feedback": _generate_writing_feedback(
-            word_count, min_words, max_words, 
-            paragraph_count, avg_sentence_length
+            word_count, min_words, max_words, paragraph_count, avg_sentence_length
         ),
     }
+
+
+def _evaluate_writing(
+    content: str,
+    min_words: int,
+    max_words: int,
+    keystroke_data: Optional[Dict] = None,
+) -> Dict[str, Any]:
+    """Evaluate written response. Tries LLM first, falls back to heuristic."""
+    word_count = len(content.split())
+    llm_out = _llm_evaluate(
+        "eval_writing_v1.txt",
+        min_words=min_words,
+        max_words=max_words,
+        word_count=word_count,
+        content=(content or "")[:MAX_INPUT_CHARS],
+    )
+    if llm_out and isinstance(llm_out.get("overall_score"), (int, float)) and 0 <= llm_out.get("level", -1) <= 3:
+        fb = llm_out.get("feedback")
+        if isinstance(fb, list):
+            feedback_list = [str(x) for x in fb]
+        else:
+            feedback_list = [str(fb)] if fb else []
+        metrics = llm_out.get("metrics") or {}
+        if "word_count" not in metrics:
+            metrics["word_count"] = word_count
+        return {
+            "overall_score": round(float(llm_out["overall_score"]), 1),
+            "level": int(llm_out.get("level", 0)),
+            "level_label": str(llm_out.get("level_label") or "Developing"),
+            "metrics": metrics,
+            "authenticity_flags": [],
+            "feedback": feedback_list,
+        }
+    return _evaluate_writing_heuristic(content, min_words, max_words, keystroke_data)
 
 
 def _generate_writing_feedback(
@@ -1712,6 +1819,490 @@ def _generate_writing_feedback(
         feedback.append("Some sentences are quite long. Consider breaking them up for clarity.")
     
     return feedback
+
+
+# ====================
+# Data Analysis Assessment
+# ====================
+DATA_ANALYSIS_DATASETS = [
+    {
+        "id": "sales_q1",
+        "title": "Q1 Regional Sales",
+        "summary": "Table: region, product, units_sold, revenue. 5 regions, 3 products. Revenue in USD.",
+        "columns": ["region", "product", "units_sold", "revenue"],
+        "rows": [
+            ["North", "A", 120, 24000],
+            ["North", "B", 85, 17000],
+            ["North", "C", 90, 27000],
+            ["South", "A", 95, 19000],
+            ["South", "B", 110, 22000],
+            ["South", "C", 70, 21000],
+            ["East", "A", 130, 26000],
+            ["East", "B", 75, 15000],
+            ["East", "C", 100, 30000],
+            ["West", "A", 80, 16000],
+            ["West", "B", 120, 24000],
+            ["West", "C", 60, 18000],
+        ],
+        "question": "Which region had the highest total revenue? What would you recommend to improve the lowest-performing product in the weakest region?",
+        "time_limit_minutes": 25,
+    },
+    {
+        "id": "survey_scores",
+        "title": "Student Survey Scores",
+        "summary": "Table: course_id, satisfaction_avg, completion_rate_pct, n_responses. 6 courses.",
+        "columns": ["course_id", "satisfaction_avg", "completion_rate_pct", "n_responses"],
+        "rows": [
+            ["CS101", 4.2, 88, 120],
+            ["CS102", 3.8, 72, 95],
+            ["DS201", 4.5, 92, 80],
+            ["DS202", 4.0, 85, 110],
+            ["MGMT301", 3.5, 68, 75],
+            ["MGMT302", 4.1, 90, 88],
+        ],
+        "question": "Identify the course with the lowest completion rate and suggest two data-driven improvements. Which visualization would best show the relationship between satisfaction and completion?",
+        "time_limit_minutes": 25,
+    },
+]
+
+
+class DataAnalysisSessionRequest(BaseModel):
+    user_id: str
+    skill_id: str = "HKU.SKILL.DATA_ANALYSIS.v1"
+
+
+class DataAnalysisSubmitRequest(BaseModel):
+    session_id: str
+    analysis: str = Field(..., description="Student's written analysis and insights")
+    visualization: str = Field(default="", description="Recommended chart type, e.g. bar, line, scatter, pie")
+
+
+@router.post("/data_analysis/start")
+def start_data_analysis_session(
+    req: DataAnalysisSessionRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Start a data analysis assessment session with an embedded dataset."""
+    ensure_assessment_tables(db)
+    dataset = random.choice(DATA_ANALYSIS_DATASETS)
+    session_id = str(uuid.uuid4())
+    config = {
+        "dataset_id": dataset["id"],
+        "time_limit_minutes": dataset["time_limit_minutes"],
+    }
+    started_at = _now_utc()
+    deadline = started_at + timedelta(minutes=dataset["time_limit_minutes"])
+    db.execute(
+        text("""
+            INSERT INTO assessment_sessions (session_id, user_id, assessment_type, skill_id, status, config, started_at, created_at)
+            VALUES (:session_id, :user_id, 'data_analysis', :skill_id, 'in_progress', :config, :now, :now)
+        """),
+        {
+            "session_id": session_id,
+            "user_id": req.user_id,
+            "skill_id": req.skill_id,
+            "config": json.dumps(config),
+            "now": started_at,
+        },
+    )
+    db.commit()
+    return {
+        "session_id": session_id,
+        "dataset": {
+            "id": dataset["id"],
+            "title": dataset["title"],
+            "summary": dataset["summary"],
+            "columns": dataset["columns"],
+            "rows": dataset["rows"],
+            "question": dataset["question"],
+        },
+        "time_limit_minutes": dataset["time_limit_minutes"],
+        "started_at": started_at.isoformat(),
+        "deadline": deadline.isoformat(),
+    }
+
+
+@router.post("/data_analysis/submit")
+def submit_data_analysis(
+    req: DataAnalysisSubmitRequest,
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
+    model_version: Optional[str] = Header(default=None, alias="X-Model-Version"),
+    rubric_version: Optional[str] = Header(default=None, alias="X-Rubric-Version"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Submit data analysis response for evaluation."""
+    payload_hash = _payload_hash(req.model_dump(mode="json"))
+    cached = _load_idempotency_hit(
+        db, session_id=req.session_id, endpoint="data_analysis_submit",
+        idempotency_key=idempotency_key, payload_hash=payload_hash,
+    )
+    if cached is not None:
+        return {**cached, "idempotent_replay": True}
+    versions = _assessment_versions(model_version, rubric_version)
+    session = db.execute(
+        text("SELECT * FROM assessment_sessions WHERE session_id = :session_id"),
+        {"session_id": req.session_id},
+    ).mappings().first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session["status"] == "completed":
+        raise HTTPException(status_code=400, detail="Session already completed")
+    config = json.loads(session["config"]) if isinstance(session["config"], str) else session["config"]
+    dataset_id = config.get("dataset_id")
+    dataset = next((d for d in DATA_ANALYSIS_DATASETS if d["id"] == dataset_id), None)
+    if not dataset:
+        raise HTTPException(status_code=500, detail="Dataset not found")
+    evaluation = _evaluate_data_analysis(
+        dataset_summary=dataset["summary"],
+        question=dataset["question"],
+        analysis=req.analysis,
+        visualization=req.visualization,
+    )
+    attempt_id = str(uuid.uuid4())
+    db.execute(
+        text("""
+            INSERT INTO assessment_attempts
+            (attempt_id, session_id, attempt_number, prompt_data, response_data, evaluation, score, submitted_at, created_at)
+            VALUES (:attempt_id, :session_id, 1, :prompt_data, :response_data, :evaluation, :score, :now, :now)
+        """),
+        {
+            "attempt_id": attempt_id,
+            "session_id": req.session_id,
+            "prompt_data": json.dumps({"dataset_id": dataset_id}),
+            "response_data": json.dumps({"analysis": req.analysis, "visualization": req.visualization}),
+            "evaluation": json.dumps(evaluation),
+            "score": evaluation.get("overall_score", 0),
+            "now": _now_utc(),
+        },
+    )
+    db.execute(
+        text("UPDATE assessment_sessions SET status = 'completed', completed_at = :now WHERE session_id = :session_id"),
+        {"session_id": req.session_id, "now": _now_utc()},
+    )
+    try:
+        skill_update = _persist_skill_outcome(
+            db,
+            user_id=str(session["user_id"]),
+            skill_id=str(session["skill_id"] or "HKU.SKILL.DATA_ANALYSIS.v1"),
+            assessment_type="data_analysis",
+            response_text=req.analysis,
+            evaluation=evaluation,
+            session_id=str(req.session_id),
+            attempt_id=attempt_id,
+        )
+    except Exception as e:
+        skill_update = _enqueue_repair_job(
+            db, session_id=str(req.session_id), attempt_id=attempt_id,
+            user_id=str(session["user_id"]), skill_id=str(session["skill_id"] or "HKU.SKILL.DATA_ANALYSIS.v1"),
+            assessment_type="data_analysis", response_text=req.analysis, evaluation=evaluation,
+            error_message=f"{type(e).__name__}: {e}",
+        )
+    _record_drift_sample(
+        db, session_id=str(req.session_id), attempt_id=attempt_id,
+        user_id=str(session["user_id"]), skill_id=str(session["skill_id"] or "HKU.SKILL.DATA_ANALYSIS.v1"),
+        assessment_type="data_analysis", response_text=req.analysis, evaluation=evaluation,
+        model_version=versions["model_version"], rubric_version=versions["rubric_version"],
+    )
+    response_payload = {
+        "attempt_id": attempt_id,
+        "evaluation": evaluation,
+        "skill_update": skill_update,
+        "model_version": versions["model_version"],
+        "rubric_version": versions["rubric_version"],
+        "idempotent_replay": False,
+    }
+    _store_idempotency_hit(db, session_id=req.session_id, endpoint="data_analysis_submit",
+                           idempotency_key=idempotency_key, payload_hash=payload_hash, response_payload=response_payload)
+    db.commit()
+    return response_payload
+
+
+def _evaluate_data_analysis(
+    dataset_summary: str,
+    question: str,
+    analysis: str,
+    visualization: str,
+) -> Dict[str, Any]:
+    """Evaluate data analysis response. LLM with heuristic fallback."""
+    llm_out = _llm_evaluate(
+        "eval_data_analysis_v1.txt",
+        dataset_summary=(dataset_summary or "")[:500],
+        question=(question or "")[:500],
+        analysis=(analysis or "")[:MAX_INPUT_CHARS],
+        visualization=(visualization or "none")[:200],
+    )
+    if llm_out and isinstance(llm_out.get("overall_score"), (int, float)) and 0 <= llm_out.get("level", -1) <= 3:
+        feedback = llm_out.get("feedback")
+        return {
+            "overall_score": round(float(llm_out["overall_score"]), 1),
+            "level": int(llm_out.get("level", 0)),
+            "level_label": str(llm_out.get("level_label") or "Developing"),
+            "metrics": llm_out.get("metrics") or {},
+            "feedback": feedback if isinstance(feedback, str) else " ".join(str(x) for x in (feedback or [])),
+        }
+    # Heuristic fallback
+    word_count = len((analysis or "").split())
+    score = min(100, 40 + min(50, word_count // 5) + (20 if (visualization or "").strip() else 0))
+    level = 3 if score >= 85 else 2 if score >= 70 else 1 if score >= 50 else 0
+    label = "Advanced" if level == 3 else "Intermediate" if level == 2 else "Developing" if level == 1 else "Novice"
+    return {
+        "overall_score": round(score, 1),
+        "level": level,
+        "level_label": label,
+        "metrics": {"insight_score": score, "visualization_score": 80 if visualization else 50},
+        "feedback": "Assessment complete. Consider adding a clear visualization recommendation.",
+    }
+
+
+# ====================
+# Problem Solving / Case Study Assessment
+# ====================
+PROBLEM_SOLVING_CASES = [
+    {
+        "id": "supply_chain",
+        "title": "Supply Chain Disruption",
+        "description": "A mid-sized retailer relies on a single supplier for 40% of its best-selling product. The supplier announces a 3-month shutdown due to a natural disaster. Inventory will run out in 6 weeks. How would you approach this problem? Provide: (1) Problem definition, (2) Analysis of options, (3) Recommended solution, (4) How you would evaluate success.",
+        "time_limit_minutes": 25,
+    },
+    {
+        "id": "team_conflict",
+        "title": "Team Conflict",
+        "description": "Two senior developers on your project disagree on the technical architecture. One prefers microservices; the other a monolith. Deadlines are in 8 weeks. Outline your approach: (1) How you would frame the problem, (2) What information you would gather, (3) How you would decide or facilitate a decision, (4) How you would prevent similar conflicts.",
+        "time_limit_minutes": 25,
+    },
+    {
+        "id": "declining_engagement",
+        "title": "Declining User Engagement",
+        "description": "A mobile app's daily active users have dropped 25% over the last quarter. Revenue is flat. Describe your problem-solving process: (1) How you would define and scope the problem, (2) What data or evidence you would analyze, (3) Two possible solutions with pros/cons, (4) How you would measure impact.",
+        "time_limit_minutes": 25,
+    },
+]
+
+
+class ProblemSolvingSessionRequest(BaseModel):
+    user_id: str
+    skill_id: str = "HKU.SKILL.CRITICAL_THINKING.v1"
+
+
+class ProblemSolvingSubmitRequest(BaseModel):
+    session_id: str
+    response: str = Field(..., description="Structured analysis: problem definition, analysis, solution, evaluation")
+
+
+@router.post("/problem_solving/start")
+def start_problem_solving_session(
+    req: ProblemSolvingSessionRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Start a problem-solving / case study assessment."""
+    ensure_assessment_tables(db)
+    case = random.choice(PROBLEM_SOLVING_CASES)
+    session_id = str(uuid.uuid4())
+    config = {"case_id": case["id"], "time_limit_minutes": case["time_limit_minutes"]}
+    started_at = _now_utc()
+    deadline = started_at + timedelta(minutes=case["time_limit_minutes"])
+    db.execute(
+        text("""
+            INSERT INTO assessment_sessions (session_id, user_id, assessment_type, skill_id, status, config, started_at, created_at)
+            VALUES (:session_id, :user_id, 'problem_solving', :skill_id, 'in_progress', :config, :now, :now)
+        """),
+        {"session_id": session_id, "user_id": req.user_id, "skill_id": req.skill_id, "config": json.dumps(config), "now": started_at},
+    )
+    db.commit()
+    return {
+        "session_id": session_id,
+        "case": {"id": case["id"], "title": case["title"], "description": case["description"]},
+        "time_limit_minutes": case["time_limit_minutes"],
+        "started_at": started_at.isoformat(),
+        "deadline": deadline.isoformat(),
+    }
+
+
+@router.post("/problem_solving/submit")
+def submit_problem_solving(
+    req: ProblemSolvingSubmitRequest,
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
+    model_version: Optional[str] = Header(default=None, alias="X-Model-Version"),
+    rubric_version: Optional[str] = Header(default=None, alias="X-Rubric-Version"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Submit problem-solving response for evaluation."""
+    payload_hash = _payload_hash(req.model_dump(mode="json"))
+    cached = _load_idempotency_hit(db, session_id=req.session_id, endpoint="problem_solving_submit", idempotency_key=idempotency_key, payload_hash=payload_hash)
+    if cached is not None:
+        return {**cached, "idempotent_replay": True}
+    versions = _assessment_versions(model_version, rubric_version)
+    session = db.execute(text("SELECT * FROM assessment_sessions WHERE session_id = :session_id"), {"session_id": req.session_id}).mappings().first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session["status"] == "completed":
+        raise HTTPException(status_code=400, detail="Session already completed")
+    config = json.loads(session["config"]) if isinstance(session["config"], str) else session["config"]
+    case_id = config.get("case_id")
+    case = next((c for c in PROBLEM_SOLVING_CASES if c["id"] == case_id), None)
+    if not case:
+        raise HTTPException(status_code=500, detail="Case not found")
+    evaluation = _evaluate_problem_solving(case_description=case["description"], response=req.response)
+    attempt_id = str(uuid.uuid4())
+    db.execute(
+        text("""
+            INSERT INTO assessment_attempts (attempt_id, session_id, attempt_number, prompt_data, response_data, evaluation, score, submitted_at, created_at)
+            VALUES (:attempt_id, :session_id, 1, :prompt_data, :response_data, :evaluation, :score, :now, :now)
+        """),
+        {"attempt_id": attempt_id, "session_id": req.session_id, "prompt_data": json.dumps({"case_id": case_id}), "response_data": json.dumps({"response": req.response}), "evaluation": json.dumps(evaluation), "score": evaluation.get("overall_score", 0), "now": _now_utc()},
+    )
+    db.execute(text("UPDATE assessment_sessions SET status = 'completed', completed_at = :now WHERE session_id = :session_id"), {"session_id": req.session_id, "now": _now_utc()})
+    try:
+        skill_update = _persist_skill_outcome(db, user_id=str(session["user_id"]), skill_id=str(session["skill_id"] or "HKU.SKILL.CRITICAL_THINKING.v1"), assessment_type="problem_solving", response_text=req.response, evaluation=evaluation, session_id=str(req.session_id), attempt_id=attempt_id)
+    except Exception as e:
+        skill_update = _enqueue_repair_job(db, session_id=str(req.session_id), attempt_id=attempt_id, user_id=str(session["user_id"]), skill_id=str(session["skill_id"] or "HKU.SKILL.CRITICAL_THINKING.v1"), assessment_type="problem_solving", response_text=req.response, evaluation=evaluation, error_message=f"{type(e).__name__}: {e}")
+    _record_drift_sample(db, session_id=str(req.session_id), attempt_id=attempt_id, user_id=str(session["user_id"]), skill_id=str(session["skill_id"] or "HKU.SKILL.CRITICAL_THINKING.v1"), assessment_type="problem_solving", response_text=req.response, evaluation=evaluation, model_version=versions["model_version"], rubric_version=versions["rubric_version"])
+    response_payload = {"attempt_id": attempt_id, "evaluation": evaluation, "skill_update": skill_update, "model_version": versions["model_version"], "rubric_version": versions["rubric_version"], "idempotent_replay": False}
+    _store_idempotency_hit(db, session_id=req.session_id, endpoint="problem_solving_submit", idempotency_key=idempotency_key, payload_hash=payload_hash, response_payload=response_payload)
+    db.commit()
+    return response_payload
+
+
+def _evaluate_problem_solving(case_description: str, response: str) -> Dict[str, Any]:
+    """Evaluate problem-solving response. LLM with heuristic fallback."""
+    llm_out = _llm_evaluate(
+        "eval_problem_solving_v1.txt",
+        case_description=(case_description or "")[:1500],
+        response=(response or "")[:MAX_INPUT_CHARS],
+    )
+    if llm_out and isinstance(llm_out.get("overall_score"), (int, float)) and 0 <= llm_out.get("level", -1) <= 3:
+        feedback = llm_out.get("feedback")
+        return {
+            "overall_score": round(float(llm_out["overall_score"]), 1),
+            "level": int(llm_out.get("level", 0)),
+            "level_label": str(llm_out.get("level_label") or "Developing"),
+            "metrics": llm_out.get("metrics") or {},
+            "feedback": feedback if isinstance(feedback, str) else " ".join(str(x) for x in (feedback or [])),
+        }
+    word_count = len((response or "").split())
+    score = min(100, 30 + min(60, word_count // 4))
+    level = 3 if score >= 85 else 2 if score >= 70 else 1 if score >= 50 else 0
+    label = "Advanced" if level == 3 else "Intermediate" if level == 2 else "Developing" if level == 1 else "Novice"
+    return {"overall_score": round(score, 1), "level": level, "level_label": label, "metrics": {}, "feedback": "Assessment complete."}
+
+
+# ====================
+# Presentation / Pitch Assessment
+# ====================
+PRESENTATION_TOPICS = [
+    {"id": "product_pitch", "title": "Product Pitch", "topic": "Pitch a product or service idea to a potential investor. Structure: hook, problem, solution, market, ask. 8-10 minutes.", "time_limit_minutes": 10},
+    {"id": "project_retro", "title": "Project Retrospective", "topic": "Present a short retrospective of a project (real or hypothetical): what went well, what didn't, and what you would do differently. 8-10 minutes.", "time_limit_minutes": 10},
+    {"id": "persuasive_talk", "title": "Persuasive Talk", "topic": "Convince your audience of a specific policy or practice change (e.g. remote work, sustainability). Use clear structure and evidence. 8-10 minutes.", "time_limit_minutes": 10},
+]
+
+
+class PresentationSessionRequest(BaseModel):
+    user_id: str
+    skill_id: str = "HKU.SKILL.COMMUNICATION.v1"
+
+
+class PresentationSubmitRequest(BaseModel):
+    session_id: str
+    transcript: str = Field(..., description="Speech transcript from recording")
+    outline: str = Field(default="", description="Presentation outline (intro, main points, conclusion)")
+    audio_duration_seconds: float = Field(default=0, description="Recording duration")
+
+
+@router.post("/presentation/start")
+def start_presentation_session(
+    req: PresentationSessionRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Start a presentation / pitch assessment."""
+    ensure_assessment_tables(db)
+    topic = random.choice(PRESENTATION_TOPICS)
+    session_id = str(uuid.uuid4())
+    config = {"topic_id": topic["id"], "time_limit_minutes": topic["time_limit_minutes"]}
+    started_at = _now_utc()
+    deadline = started_at + timedelta(minutes=topic["time_limit_minutes"])
+    db.execute(
+        text("""
+            INSERT INTO assessment_sessions (session_id, user_id, assessment_type, skill_id, status, config, started_at, created_at)
+            VALUES (:session_id, :user_id, 'presentation', :skill_id, 'in_progress', :config, :now, :now)
+        """),
+        {"session_id": session_id, "user_id": req.user_id, "skill_id": req.skill_id, "config": json.dumps(config), "now": started_at},
+    )
+    db.commit()
+    return {
+        "session_id": session_id,
+        "topic": {"id": topic["id"], "title": topic["title"], "topic": topic["topic"]},
+        "time_limit_minutes": topic["time_limit_minutes"],
+        "started_at": started_at.isoformat(),
+        "deadline": deadline.isoformat(),
+    }
+
+
+@router.post("/presentation/submit")
+def submit_presentation(
+    req: PresentationSubmitRequest,
+    idempotency_key: Optional[str] = Header(default=None, alias="Idempotency-Key"),
+    model_version: Optional[str] = Header(default=None, alias="X-Model-Version"),
+    rubric_version: Optional[str] = Header(default=None, alias="X-Rubric-Version"),
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Submit presentation (transcript + outline) for evaluation."""
+    payload_hash = _payload_hash(req.model_dump(mode="json"))
+    cached = _load_idempotency_hit(db, session_id=req.session_id, endpoint="presentation_submit", idempotency_key=idempotency_key, payload_hash=payload_hash)
+    if cached is not None:
+        return {**cached, "idempotent_replay": True}
+    versions = _assessment_versions(model_version, rubric_version)
+    session = db.execute(text("SELECT * FROM assessment_sessions WHERE session_id = :session_id"), {"session_id": req.session_id}).mappings().first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session["status"] == "completed":
+        raise HTTPException(status_code=400, detail="Session already completed")
+    config = json.loads(session["config"]) if isinstance(session["config"], str) else session["config"]
+    topic_id = config.get("topic_id")
+    topic_obj = next((t for t in PRESENTATION_TOPICS if t["id"] == topic_id), None)
+    topic_text = topic_obj["topic"] if topic_obj else ""
+    evaluation = _evaluate_presentation(topic=topic_text, outline=req.outline, transcript=req.transcript)
+    attempt_id = str(uuid.uuid4())
+    db.execute(
+        text("""
+            INSERT INTO assessment_attempts (attempt_id, session_id, attempt_number, prompt_data, response_data, evaluation, score, submitted_at, created_at)
+            VALUES (:attempt_id, :session_id, 1, :prompt_data, :response_data, :evaluation, :score, :now, :now)
+        """),
+        {"attempt_id": attempt_id, "session_id": req.session_id, "prompt_data": json.dumps({"topic_id": topic_id}), "response_data": json.dumps({"transcript": req.transcript, "outline": req.outline, "audio_duration_seconds": req.audio_duration_seconds}), "evaluation": json.dumps(evaluation), "score": evaluation.get("overall_score", 0), "now": _now_utc()},
+    )
+    db.execute(text("UPDATE assessment_sessions SET status = 'completed', completed_at = :now WHERE session_id = :session_id"), {"session_id": req.session_id, "now": _now_utc()})
+    try:
+        skill_update = _persist_skill_outcome(db, user_id=str(session["user_id"]), skill_id=str(session["skill_id"] or "HKU.SKILL.COMMUNICATION.v1"), assessment_type="presentation", response_text=req.transcript + "\n\nOutline:\n" + req.outline, evaluation=evaluation, session_id=str(req.session_id), attempt_id=attempt_id)
+    except Exception as e:
+        skill_update = _enqueue_repair_job(db, session_id=str(req.session_id), attempt_id=attempt_id, user_id=str(session["user_id"]), skill_id=str(session["skill_id"] or "HKU.SKILL.COMMUNICATION.v1"), assessment_type="presentation", response_text=req.transcript, evaluation=evaluation, error_message=f"{type(e).__name__}: {e}")
+    _record_drift_sample(db, session_id=str(req.session_id), attempt_id=attempt_id, user_id=str(session["user_id"]), skill_id=str(session["skill_id"] or "HKU.SKILL.COMMUNICATION.v1"), assessment_type="presentation", response_text=req.transcript, evaluation=evaluation, model_version=versions["model_version"], rubric_version=versions["rubric_version"])
+    response_payload = {"attempt_id": attempt_id, "evaluation": evaluation, "skill_update": skill_update, "model_version": versions["model_version"], "rubric_version": versions["rubric_version"], "idempotent_replay": False}
+    _store_idempotency_hit(db, session_id=req.session_id, endpoint="presentation_submit", idempotency_key=idempotency_key, payload_hash=payload_hash, response_payload=response_payload)
+    db.commit()
+    return response_payload
+
+
+def _evaluate_presentation(topic: str, outline: str, transcript: str) -> Dict[str, Any]:
+    """Evaluate presentation. LLM with heuristic fallback."""
+    llm_out = _llm_evaluate(
+        "eval_presentation_v1.txt",
+        topic=(topic or "")[:500],
+        outline=(outline or "")[:1500],
+        transcript=(transcript or "")[:MAX_INPUT_CHARS],
+    )
+    if llm_out and isinstance(llm_out.get("overall_score"), (int, float)) and 0 <= llm_out.get("level", -1) <= 3:
+        feedback = llm_out.get("feedback")
+        return {
+            "overall_score": round(float(llm_out["overall_score"]), 1),
+            "level": int(llm_out.get("level", 0)),
+            "level_label": str(llm_out.get("level_label") or "Developing"),
+            "metrics": llm_out.get("metrics") or {},
+            "feedback": feedback if isinstance(feedback, str) else " ".join(str(x) for x in (feedback or [])),
+        }
+    word_count = len((transcript or "").split())
+    score = min(100, 40 + min(50, word_count // 3) + (15 if (outline or "").strip() else 0))
+    level = 3 if score >= 85 else 2 if score >= 70 else 1 if score >= 50 else 0
+    label = "Advanced" if level == 3 else "Intermediate" if level == 2 else "Developing" if level == 1 else "Novice"
+    return {"overall_score": round(score, 1), "level": level, "level_label": label, "metrics": {}, "feedback": "Assessment complete."}
 
 
 # ====================

@@ -1485,6 +1485,13 @@ a:hover {
 
 .assessment-card:hover {
   box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.assessment-card.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-50), var(--shadow-md);
+  transform: translateY(-2px);
 }
 
 .assessment-header {
@@ -1761,6 +1768,35 @@ a:hover {
 .code-editor-dot.red { background: #ff5f56; }
 .code-editor-dot.yellow { background: #ffbd2e; }
 .code-editor-dot.green { background: #27ca40; }
+
+/* Code editor dark theme (assessment programming) */
+.code-editor-dark {
+  background: var(--gray-900);
+  color: var(--gray-100);
+  border: 1px solid var(--gray-700);
+  font-family: ui-monospace, monospace;
+  padding: 1rem;
+  border-radius: var(--radius);
+  min-height: 250px;
+  resize: vertical;
+}
+.code-editor-dark::placeholder {
+  color: var(--gray-500);
+}
+.code-editor-dark:focus {
+  outline: none;
+  border-color: var(--sage);
+  box-shadow: 0 0 0 2px var(--sage-50);
+}
+
+/* Result score circle animation */
+.score-circle-animated {
+  animation: scoreCircleReveal 0.6s ease-out;
+}
+@keyframes scoreCircleReveal {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
 
 /* Feedback Card */
 .feedback-card {

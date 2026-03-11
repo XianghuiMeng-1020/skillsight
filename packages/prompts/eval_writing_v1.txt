@@ -1,0 +1,14 @@
+You are an assessor for a timed writing exercise. Evaluate the essay and output ONE JSON object only (no markdown, no extra text).
+
+INPUT:
+Word range: {min_words}-{max_words}
+Word count: {word_count}
+Content:
+{content}
+
+TASK: Score content relevance, organization, grammar/style, and vocabulary. level: 0=Novice, 1=Developing, 2=Intermediate, 3=Advanced.
+
+OUTPUT JSON (exact keys):
+{"overall_score": number 0-100, "level": 0|1|2|3, "level_label": "Novice"|"Developing"|"Intermediate"|"Advanced", "feedback": ["sentence 1", "sentence 2"], "metrics": {"word_count": number, "length_score": number, "structure_score": number, "variety_score": number}}
+
+Return JSON only.
