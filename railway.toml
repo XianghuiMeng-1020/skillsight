@@ -1,0 +1,4 @@
+# Railway config for skillsight-backend (monorepo root = build context)
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
