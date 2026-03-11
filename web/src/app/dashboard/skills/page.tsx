@@ -76,7 +76,9 @@ export default function SkillsProfilePage() {
       const data = await studentBff.getProfile();
       setProfile(data as ProfileData);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load profile');
+      const msg = e instanceof Error ? e.message : 'Failed to load profile';
+      const isNetworkError = typeof msg === 'string' && (msg === 'Failed to fetch' || msg.includes('fetch') || msg.includes('Network'));
+      setError(isNetworkError ? (t('skills.networkErrorHint') as string) || msg : msg);
       setProfile(null);
     } finally {
       setLoading(false);
@@ -219,12 +221,15 @@ export default function SkillsProfilePage() {
           ) : error ? (
             <div className="alert alert-error">
               <span>⚠</span>
-              <div>
+              <div style={{ flex: 1 }}>
                 <strong>{t('skills.loadFailed')}</strong>
                 <p style={{ marginTop: '0.25rem', fontSize: '0.875rem' }}>{error}</p>
                 <p style={{ marginTop: '0.5rem', fontSize: '0.813rem' }}>
                   {t('skills.loadFailedMsg')}
                 </p>
+                <button type="button" className="btn btn-secondary btn-sm" style={{ marginTop: '0.75rem' }} onClick={fetchProfile}>
+                  {t('skills.retry')}
+                </button>
               </div>
             </div>
           ) : filtered.length === 0 ? (

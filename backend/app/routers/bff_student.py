@@ -733,9 +733,11 @@ async def bff_student_profile(
 
         prof_row = db.execute(
             text("""
-                SELECT level FROM skill_proficiency
-                WHERE user_id = :sub AND skill_id = :sid
-                ORDER BY created_at DESC LIMIT 1
+                SELECT sp.level FROM skill_proficiency sp
+                JOIN consents c ON c.doc_id = sp.doc_id::text
+                  AND c.user_id = :sub AND c.status = 'granted'
+                WHERE sp.skill_id = :sid
+                ORDER BY sp.created_at DESC LIMIT 1
             """),
             {"sub": subject, "sid": skill_id},
         ).mappings().first()

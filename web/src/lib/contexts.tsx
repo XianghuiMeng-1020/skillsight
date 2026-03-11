@@ -331,6 +331,8 @@ export const translations: Translations = {
   'skills.loadingSlowHint': { zh: '正在连接服务器，首次加载可能需要 10–20 秒，请稍候。', 'zh-TW': '正在連接伺服器，首次載入可能需要 10–20 秒，請稍候。', en: 'Connecting to server; first load may take 10–20 seconds.' },
   'skills.loadFailed': { zh: '加载失败', 'zh-TW': '載入失敗', en: 'Load Failed' },
   'skills.loadFailedMsg': { zh: '请确认已上传文档并登录，然后重试。', 'zh-TW': '請確認已上傳文件並登入，然後重試。', en: 'Please confirm you have uploaded documents and are logged in, then try again.' },
+  'skills.networkErrorHint': { zh: '无法连接服务器（请确认后端已启动且 NEXT_PUBLIC_API_URL 正确）。', 'zh-TW': '無法連接伺服器（請確認後端已啟動且 NEXT_PUBLIC_API_URL 正確）。', en: 'Cannot reach the server. Ensure the backend is running and NEXT_PUBLIC_API_URL is correct.' },
+  'skills.retry': { zh: '重试', 'zh-TW': '重試', en: 'Retry' },
   'skills.noMatch': { zh: '暂无匹配技能', 'zh-TW': '暫無匹配技能', en: 'No matching skills' },
   'skills.uploadFirst': { zh: '请先', 'zh-TW': '請先', en: 'Please' },
   'skills.uploadDoc': { zh: '上传文档', 'zh-TW': '上傳文件', en: 'upload a document' },
