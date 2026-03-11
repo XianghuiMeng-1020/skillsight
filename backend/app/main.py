@@ -289,7 +289,8 @@ def _redis_health() -> dict:
         import redis
         host = _os.getenv("REDIS_HOST", "localhost")
         port = int(_os.getenv("REDIS_PORT", "6379"))
-        r = redis.Redis(host=host, port=port, db=0, socket_connect_timeout=2)
+        password = _os.getenv("REDIS_PASSWORD") or _os.getenv("REDIS_PASSWORD_ENV")
+        r = redis.Redis(host=host, port=port, password=password, db=0, socket_connect_timeout=2)
         r.ping()
         return {"ok": True}
     except Exception as e:

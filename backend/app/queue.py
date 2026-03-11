@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD") or os.getenv("REDIS_PASSWORD_ENV")  # noqa: S105
 QUEUE_NAME = "skillsight"
 
 _redis_conn = None
@@ -30,6 +31,7 @@ def _get_redis():
         _redis_conn = Redis(
             host=REDIS_HOST,
             port=REDIS_PORT,
+            password=REDIS_PASSWORD,
             db=0,
             socket_connect_timeout=5,
             socket_keepalive=True,

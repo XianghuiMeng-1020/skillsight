@@ -41,8 +41,9 @@ def _get_redis_pool() -> "redis.ConnectionPool":
                 import redis as _redis_mod
                 host = os.getenv("REDIS_HOST", "localhost")
                 port = int(os.getenv("REDIS_PORT", "6379"))
+                password = os.getenv("REDIS_PASSWORD") or os.getenv("REDIS_PASSWORD_ENV")
                 _redis_pool = _redis_mod.ConnectionPool(
-                    host=host, port=port, db=0,
+                    host=host, port=port, password=password, db=0,
                     socket_connect_timeout=1,
                     max_connections=20,
                 )
