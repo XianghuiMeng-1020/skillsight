@@ -1055,7 +1055,7 @@ export function useAchievements() {
     });
   }, []);
 
-  const checkAssessmentAchievements = useCallback((type: 'communication' | 'programming' | 'writing', score: number) => {
+  const checkAssessmentAchievements = useCallback((type: 'communication' | 'programming' | 'writing' | 'data_analysis' | 'problem_solving' | 'presentation', score: number) => {
     // 首次评估
     updateProgress('first_assessment', 1);
     

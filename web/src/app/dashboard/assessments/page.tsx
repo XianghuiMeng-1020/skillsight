@@ -27,7 +27,7 @@ const ASSESSMENT_TYPE_TO_SKILL: Record<AssessmentType, string> = {
 
 interface Session {
   session_id: string;
-  topic?: string;
+  topic?: string | { id: string; title: string; topic: string };
   problem?: { title: string; description: string; function_signature?: string };
   prompt?: { title: string; prompt: string };
   dataset?: {
@@ -39,7 +39,6 @@ interface Session {
     question: string;
   };
   case?: { id: string; title: string; description: string };
-  topic?: { id: string; title: string; topic: string };
   time_limit_minutes?: number;
   duration_seconds?: number;
   anti_copy_token?: string;
@@ -489,9 +488,7 @@ export default function AssessmentsPage() {
                       </ul>
                     </div>
                     <div className="assessment-footer">
-                      {assessment.comingSoon ? (
-                        <span className="badge badge-secondary">{t('assessmentsList.comingSoon')}</span>
-                      ) : activeTab === assessment.id ? (
+                      {activeTab === assessment.id ? (
                         <span className="badge badge-primary">{t('assessmentsList.selected')}</span>
                       ) : (
                         <span style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>{t('assessmentsList.clickToSelect')}</span>
@@ -540,7 +537,7 @@ export default function AssessmentsPage() {
                     <button
                       className="btn btn-secondary"
                       onClick={startSession}
-                      disabled={loading || !!assessments.find((a) => a.id === activeTab)?.comingSoon}
+                      disabled={loading}
                     >
                       {loading ? (
                         <>
@@ -568,11 +565,7 @@ export default function AssessmentsPage() {
                       🤖 {t('assess.aiAgentMode')}
                     </button>
                   </div>
-                  {assessments.find((a) => a.id === activeTab)?.comingSoon && (
-                    <p style={{ marginTop: '0.75rem', color: 'var(--gray-500)', textAlign: 'center' }}>
-                      {t('assessmentsList.comingSoonHint')} {t('assess.aiAgentMode')} is available for all types.
-                    </p>
-                  )}
+                  
                 </div>
               </div>
 
@@ -612,7 +605,7 @@ export default function AssessmentsPage() {
               </div>
               <div className="card-content">
                 {/* Communication Session */}
-                {activeTab === 'communication' && session.topic && (
+                {activeTab === 'communication' && session.topic && typeof session.topic === 'string' && (
                   <>
                     <div style={{ 
                       background: 'var(--primary-50)', 
@@ -907,7 +900,7 @@ export default function AssessmentsPage() {
                 )}
 
                 {/* Presentation Session */}
-                {activeTab === 'presentation' && session.topic && (
+                {activeTab === 'presentation' && session.topic && typeof session.topic === 'object' && (
                   <>
                     <div style={{ background: 'var(--primary-50)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', marginBottom: '1rem' }}>
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>🎤 {session.topic.title}</div>
