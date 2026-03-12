@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { studentBff } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 import { logger } from '@/lib/logger';
@@ -38,6 +38,15 @@ function UserAvatar({ language }: { language: string }) {
   return <span className={`${styles.avatar} ${styles.avatarUser}`}>{letter}</span>;
 }
 
+function SendIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M22 2L11 13" />
+      <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+    </svg>
+  );
+}
+
 export function AgentChat({
   mode,
   skillId = 'HKU.SKILL.COMMUNICATION.v1',
@@ -56,6 +65,15 @@ export function AgentChat({
   const [concluded, setConcluded] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [sessionStarted, setSessionStarted] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [turns, loading, scrollToBottom]);
 
   const startSession = useCallback(async () => {
     setStartError(null);
@@ -63,11 +81,17 @@ export function AgentChat({
     try {
       const res = await studentBff.tutorSessionStart(skillId, docIds, mode);
       setSessionId(res.session_id);
-      const greeting = (t('agent.greeting') as string) || '';
+      let greeting = (t('agent.greeting') as string) || '';
+      if (mode === 'assessment') {
+        const turnLimitLine = (t('agent.turnLimitGreeting') as string) || '';
+        if (turnLimitLine) greeting = `${greeting}\n\n${turnLimitLine}`;
+      }
       setTurns([{ role: 'assistant', content: greeting, ts: Date.now() }]);
     } catch (e) {
       logger.error('AgentChat session start failed', e);
-      setStartError(e instanceof Error ? e.message : 'Failed to start session');
+      const raw = e instanceof Error ? e.message : String(e);
+      const isNetwork = /failed to fetch|network error|cors|load failed/i.test(raw) || raw === 'Failed to fetch';
+      setStartError(isNetwork ? (t('agent.sessionStartFailed') as string) : (raw || (t('agent.sessionStartFailed') as string)));
     } finally {
       setLoading(false);
     }
@@ -119,6 +143,9 @@ export function AgentChat({
         <span className={styles.titleRow}>
           <span className={`${styles.avatar} ${styles.avatarAgent}`}>🤖</span>
           {displayTitle}
+          {loading && !sessionId && !startError && (
+            <span className={styles.headerSpinner} aria-hidden />
+          )}
           {mode === 'assessment' && sessionId && (
             <span className={styles.turnBadge} aria-label={`Turn ${userTurnCount} of ${MAX_TURNS_ASSESSMENT}`}>
               {userTurnCount}/{MAX_TURNS_ASSESSMENT}
@@ -127,16 +154,18 @@ export function AgentChat({
         </span>
         <button
           type="button"
-          className="btn btn-ghost btn-sm"
+          className={styles.headerCloseBtn}
           onClick={onClose}
           disabled={loading}
-          aria-label="Close"
+          aria-label={t('skills.tutorClose') as string}
         >
-          {t('skills.tutorClose') as string}
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
-      <div className={`${styles.messages} ${embedded ? styles.messagesEmbedded : ''}`}>
+      <div className={`${styles.messages} ${embedded ? styles.messagesEmbedded : ''}`} role="log" aria-live="polite">
         {!sessionId && !startError && (
           <div className={styles.startBlock}>
             {loading ? (
@@ -149,10 +178,10 @@ export function AgentChat({
         )}
 
         {startError && (
-          <div className={`alert alert-error ${styles.errorBlock}`}>
-            {startError}
-            <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setStartError(null); setSessionStarted(false); }}>
-              Retry
+          <div className={styles.errorBlock} role="alert">
+            <span>{startError}</span>
+            <button type="button" className={styles.retryBtn} onClick={() => { setStartError(null); setSessionStarted(false); }} aria-label={t('agent.retry') as string}>
+              {t('agent.retry') as string}
             </button>
           </div>
         )}
@@ -174,6 +203,19 @@ export function AgentChat({
             {turn.role === 'user' && <UserAvatar language={language} />}
           </div>
         ))}
+
+        {loading && turns.some((x) => x.role === 'user') && (
+          <div className={styles.typingWrap}>
+            <span className={`${styles.avatar} ${styles.avatarAgent}`}>🤖</span>
+            <div className={styles.typingBubble}>
+              <span className={styles.typingDot} aria-hidden />
+              <span className={styles.typingDot} aria-hidden />
+              <span className={styles.typingDot} aria-hidden />
+            </div>
+          </div>
+        )}
+
+        <div ref={messagesEndRef} aria-hidden />
 
         {concluded && mode === 'assessment' && (
           <p className={styles.concluded}>{t('skills.tutorConcluded') as string}</p>
@@ -219,11 +261,16 @@ export function AgentChat({
                 className={styles.sendBtn}
                 onClick={sendMessage}
                 disabled={!input.trim() || loading || concluded || turnLimitReached}
-                aria-label="Send"
+                aria-label={t('skills.tutorSend') as string}
               >
-                {loading ? '…' : '➤'}
+                {loading ? <span className={styles.spinner} /> : <SendIcon />}
               </button>
             </div>
+            {mode === 'assessment' && (input.length > 0 || turnLimitReached) && (
+              <div className={styles.charCount} aria-live="polite">
+                {input.length}/{MAX_INPUT_LENGTH_ASSESSMENT}
+              </div>
+            )}
           </div>
         </>
       )}

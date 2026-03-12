@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AgentChat } from '@/components/AgentChat';
 import { useAssessmentWidget } from '@/lib/AssessmentWidgetContext';
@@ -74,16 +75,26 @@ export function FloatingAssessmentWidget() {
               </button>
             </div>
           ) : showChat ? (
-            <AgentChat
-              key={skillId}
-              mode="assessment"
-              skillId={skillId}
-              skillName={skillName}
-              title={title}
-              onClose={handleClose}
-              onComplete={handleComplete}
-              embedded
-            />
+            <div className={styles.chatWrapper}>
+              {!hasContext && (
+                <div className={styles.contextHint}>
+                  <p>{t('agent.noContextHint') as string}</p>
+                  <Link href="/dashboard/assessments" className={styles.contextHintLink}>
+                    {t('agent.noContextLink') as string}
+                  </Link>
+                </div>
+              )}
+              <AgentChat
+                key={skillId}
+                mode="assessment"
+                skillId={skillId}
+                skillName={skillName}
+                title={title}
+                onClose={handleClose}
+                onComplete={handleComplete}
+                embedded
+              />
+            </div>
           ) : null}
         </div>
       </div>

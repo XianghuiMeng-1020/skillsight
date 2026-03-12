@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
@@ -127,6 +128,7 @@ export default function AssessmentsPage() {
     if (!assessmentWidget) return;
     assessmentWidget.setOnAssessmentComplete((assessment) => {
       setAgentAssessmentResult({ level: assessment?.level ?? 0, why: assessment?.why });
+      addToast('success', t('assessmentsList.assessmentUpdated'));
       fetchRecentUpdates();
     });
     return () => assessmentWidget.setOnAssessmentComplete(undefined);
@@ -394,13 +396,17 @@ export default function AssessmentsPage() {
                     <div style={{ fontSize: '0.875rem', opacity: 0.8 }}>{t('common.level')}</div>
                   </div>
                 </div>
-                <button 
-                  className="btn btn-secondary btn-sm" 
-                  style={{ marginTop: '1rem' }}
-                  onClick={resetAssessment}
-                >
-                  {t('assessmentsList.tryAnother')}
-                </button>
+                <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Link href="/dashboard/skills" style={{ color: 'var(--primary)', fontWeight: 500 }}>
+                    {t('assessmentsList.viewSkillProfile')}
+                  </Link>
+                  <button 
+                    className="btn btn-secondary btn-sm" 
+                    onClick={resetAssessment}
+                  >
+                    {t('assessmentsList.tryAnother')}
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -578,9 +584,14 @@ export default function AssessmentsPage() {
                       Level: {agentAssessmentResult.level} (0=novice, 1=developing, 2=proficient, 3=advanced).
                       {agentAssessmentResult.why && ` ${agentAssessmentResult.why}`}
                     </p>
-                    <button className="btn btn-secondary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => setAgentAssessmentResult(null)}>
-                      {t('common.close')}
-                    </button>
+                    <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <Link href="/dashboard/skills" style={{ color: 'var(--primary)', fontWeight: 500 }}>
+                        {t('assessmentsList.viewSkillProfile')}
+                      </Link>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setAgentAssessmentResult(null)}>
+                        {t('common.close')}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
