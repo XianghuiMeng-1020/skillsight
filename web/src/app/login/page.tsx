@@ -200,6 +200,7 @@ export default function LoginPage() {
         right: '20px',
         opacity: 0.9,
         zIndex: 50,
+        pointerEvents: 'none',
       }}>
         <img 
           src="/hku-115.svg" 

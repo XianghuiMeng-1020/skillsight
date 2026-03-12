@@ -250,6 +250,11 @@ export default function AssessPage() {
       setUiHint(t('assessmentsList.actionDebounced'));
       return;
     }
+    const tab = tabs.find((item) => item.id === activeTab);
+    if (tab?.comingSoon) {
+      setStartError(t('assessmentsList.comingSoonHint') as string);
+      return;
+    }
     lastActionAtRef.current = Date.now();
     setLoading(true);
     setResult(null);
@@ -259,7 +264,7 @@ export default function AssessPage() {
       let endpoint = '';
       let body = {};
       const userId = getCurrentUserId();
-      
+
       switch (activeTab) {
         case 'communication':
           endpoint = '/interactive/communication/start';
@@ -276,7 +281,7 @@ export default function AssessPage() {
         default:
           throw new Error(t('assessmentsList.comingSoonHint'));
       }
-      
+
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
@@ -285,16 +290,16 @@ export default function AssessPage() {
         },
         body: JSON.stringify(body),
       });
-      
+
       if (!response.ok) throw new Error(t('assess.startFailed'));
-      
+
       const data = await response.json();
       setSession(data);
       idempotencyKeyRef.current = null;
     } catch {
       const msg = t('assess.startFailedMsg') as string;
       setStartError(msg);
-      alert(msg);
+      // B5: 不再使用 alert，仅用页面内 startError 展示
     } finally {
       setLoading(false);
     }
@@ -393,12 +398,22 @@ export default function AssessPage() {
     }
   };
   
-  // 运行代码测试
+  // 运行代码测试（B8: 超时后恢复按钮并展示错误）
+  const RUN_TEST_TIMEOUT_MS = 25000;
   const runCodeTests = async () => {
     if (!code.trim()) return;
-    
-    const result = await codeExecutor.executeCode(code, 'python');
-    setCodeOutput(result.output || result.error || t('assess.noOutput'));
+    try {
+      const result = await Promise.race([
+        codeExecutor.executeCode(code, 'python'),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(t('assess.runTimeout') as string || 'Run timed out')), RUN_TEST_TIMEOUT_MS)
+        ),
+      ]);
+      setCodeOutput(result.output || result.error || t('assess.noOutput'));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setCodeOutput(msg);
+    }
   };
 
   const resetAssessment = () => {
@@ -1167,7 +1182,7 @@ export default function AssessPage() {
                         </div>
                         
                         <textarea
-                          style={{ 
+                          style={{
                             width: '100%',
                             fontFamily: 'JetBrains Mono, Fira Code, monospace',
                             minHeight: '280px',
@@ -1181,7 +1196,17 @@ export default function AssessPage() {
                             lineHeight: 1.6,
                             outline: 'none'
                           }}
-                          placeholder={`def solution(nums, target):\n    # ${t('assess.codePlaceholder')}\n    pass`}
+                          placeholder={(() => {
+                            // B7: 占位符与题目一致，避免 Two Sum 风格误导（如 Palindrome Number）
+                            const desc = (session?.problem?.description || '').toLowerCase();
+                            if (desc.includes('integer x') || desc.includes(' x ') || desc.includes('x,')) {
+                              return `def solution(x):\n    # ${t('assess.codePlaceholder')}\n    pass`;
+                            }
+                            if (desc.includes('nums') && desc.includes('target')) {
+                              return `def solution(nums, target):\n    # ${t('assess.codePlaceholder')}\n    pass`;
+                            }
+                            return `def solution(*args):\n    # ${t('assess.codePlaceholder')}\n    pass`;
+                          })()}
                           value={code}
                           onChange={(e) => setCode(e.target.value)}
                         />
@@ -1771,21 +1796,25 @@ export default function AssessPage() {
         <p>© 2026 SkillSight · HKU Skills-to-Jobs Transparency System</p>
       </footer>
       
-      {/* HKU 115 Anniversary Watermark */}
-      <div style={{
-        position: 'fixed',
-        bottom: '20px',
-        right: '20px',
-        opacity: 0.9,
-        zIndex: 50,
-      }}>
-        <img 
-          src="/hku-115.svg" 
+      {/* HKU 115 Anniversary Watermark - pointer-events: none 避免遮挡页面按钮 */}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          opacity: 0.9,
+          zIndex: 50,
+          pointerEvents: 'none',
+        }}
+        aria-hidden="true"
+      >
+        <img
+          src="/hku-115.svg"
           alt="HKU 115th Anniversary"
           style={{
             maxWidth: '140px',
             height: 'auto',
-            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))'
+            filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))',
           }}
         />
       </div>

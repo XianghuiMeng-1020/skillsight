@@ -148,6 +148,7 @@ export const translations: Translations = {
   'assess.lines': { zh: '行', 'zh-TW': '行', en: 'lines' },
   'assess.running': { zh: '运行中...', 'zh-TW': '執行中...', en: 'Running...' },
   'assess.runTests': { zh: '运行测试', 'zh-TW': '執行測試', en: 'Run Tests' },
+  'assess.runTimeout': { zh: '运行超时，请稍后重试', 'zh-TW': '執行逾時，請稍後重試', en: 'Run timed out, please try again' },
   'assess.writingInstructions': { zh: '系统将给你一个写作主题，你需要在 30 分钟内完成 300-500 字的文章。系统会检测复制粘贴行为，请手动输入。', 'zh-TW': '系統將給你一個寫作主題，你需要在 30 分鐘內完成 300-500 字的文章。系統會檢測複製貼上行為，請手動輸入。', en: 'You will receive a writing topic and have 30 minutes to compose a 300-500 word essay. Copy-paste is detected; please type manually.' },
   'assess.programmingTitle': { zh: '编程能力评估', 'zh-TW': '程式設計能力評估', en: 'Programming Assessment' },
   'assess.programmingDesc': { zh: '选择难度等级，系统将生成一道算法题目。', 'zh-TW': '選擇難度等級，系統將生成一道演算法題目。', en: 'Choose a difficulty level and the system will generate an algorithm problem.' },
@@ -729,6 +730,7 @@ export const translations: Translations = {
   'admin.jobs': { zh: '后台任务', 'zh-TW': '後台任務', en: 'Background Jobs' },
   'error.somethingWrong': { zh: '出错了', 'zh-TW': '出錯了', en: 'Something went wrong' },
   'error.tryAgain': { zh: '重试', 'zh-TW': '重試', en: 'Try again' },
+  'dashboard.errorFallback': { zh: '仪表盘加载失败，请重试或返回首页', 'zh-TW': '儀表盤載入失敗，請重試或返回首頁', en: 'Dashboard failed to load. Try again or go home.' },
   'error.backToDashboard': { zh: '返回仪表盘', 'zh-TW': '返回儀表板', en: 'Back to Dashboard' },
 
   // 隐私设置页
