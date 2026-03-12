@@ -196,14 +196,19 @@ def _startup_check():
 import os as _os
 import re as _re
 
-_CORS_ORIGINS_RAW = [
+# Always allow known SkillSight frontends so production (e.g. Railway) env override doesn't block Pages.
+_CORS_KNOWN_FRONTENDS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://skillsight-230.pages.dev",
+    "https://skillsight.pages.dev",
+]
+_env_origins = [
     o.strip()
-    for o in _os.getenv(
-        "CORS_ALLOWED_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000,https://skillsight-230.pages.dev,https://skillsight.pages.dev",
-    ).split(",")
+    for o in _os.getenv("CORS_ALLOWED_ORIGINS", "").strip().split(",")
     if o.strip()
 ]
+_CORS_ORIGINS_RAW = list(dict.fromkeys(_env_origins + _CORS_KNOWN_FRONTENDS)) if _env_origins else _CORS_KNOWN_FRONTENDS
 _CORS_PATTERNS = [
     _re.compile(r"^https://[a-z0-9-]+\.skillsight-\d+\.pages\.dev$"),
     _re.compile(r"^https://skillsight-\d+\.pages\.dev$"),
