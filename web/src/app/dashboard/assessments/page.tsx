@@ -202,8 +202,10 @@ export default function AssessmentsPage() {
       const data = await response.json();
       setSession(data);
       idempotencyKeyRef.current = null;
-    } catch {
-      addToast('error', t('assessmentsList.couldNotStart'));
+    } catch (e) {
+      const raw = e instanceof Error ? e.message : String(e);
+      const isNetwork = /failed to fetch|network error|cors|load failed/i.test(raw) || raw === 'Failed to fetch';
+      addToast('error', isNetwork ? t('assessmentsList.networkError') : t('assessmentsList.couldNotStart'));
     } finally {
       setLoading(false);
     }
@@ -321,7 +323,11 @@ export default function AssessmentsPage() {
       fetchRecentUpdates();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      addToast('error', msg && msg.length < 120 ? msg : (t('assessmentsList.submissionFailed') || 'Assessment service temporarily unavailable. Please try again.'));
+      const isNetwork = /failed to fetch|network error|cors|load failed/i.test(msg) || msg === 'Failed to fetch';
+      const displayMsg = isNetwork
+        ? t('assessmentsList.networkError')
+        : (msg && msg.length < 120 ? msg : (t('assessmentsList.submissionFailed') || 'Assessment service temporarily unavailable. Please try again.'));
+      addToast('error', displayMsg);
     } finally {
       setSubmitting(false);
     }

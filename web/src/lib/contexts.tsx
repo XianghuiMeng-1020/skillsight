@@ -526,6 +526,7 @@ export const translations: Translations = {
   'assessmentsList.yourEssay': { zh: '你的文章', 'zh-TW': '你的文章', en: 'Your Essay' },
   'assessmentsList.submitEssay': { zh: '📤 提交文章', 'zh-TW': '📤 提交文章', en: '📤 Submit Essay' },
   'assessmentsList.couldNotStart': { zh: '无法启动评估，请检查后端是否运行。', 'zh-TW': '無法啟動評估，請檢查後端是否運行。', en: 'Could not start assessment. Please check if the backend is running.' },
+  'assessmentsList.networkError': { zh: '无法连接评估服务，请检查网络后重试。', 'zh-TW': '無法連接評估服務，請檢查網路後重試。', en: 'Could not connect to the assessment service. Please check your network and try again.' },
   'assessmentsList.submissionFailed': { zh: '提交失败', 'zh-TW': '提交失敗', en: 'Submission failed' },
   'assessmentsList.time1_2': { zh: '1-2 分钟', 'zh-TW': '1-2 分鐘', en: '1-2 minutes' },
   'assessmentsList.time15_30': { zh: '15-30 分钟', 'zh-TW': '15-30 分鐘', en: '15-30 minutes' },
