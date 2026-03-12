@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { API_BASE_URL } from '@/lib/api';
+import { getToken } from '@/lib/bffClient';
 import { logger } from '@/lib/logger';
 
 // ==========================================
@@ -795,9 +796,15 @@ export function useWhisperTranscriber() {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
 
-      // 调用后端 Whisper API
+      const headers: Record<string, string> = {};
+      const token = getToken();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${API_BASE_URL}/ai/transcribe`, {
         method: 'POST',
+        headers,
         body: formData,
       });
 
