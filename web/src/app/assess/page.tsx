@@ -172,6 +172,7 @@ export default function AssessPage() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [timer, setTimer] = useState(0);
   const [uiHint, setUiHint] = useState<string | null>(null);
+  const [startError, setStartError] = useState<string | null>(null);
   const lastActionAtRef = useRef(0);
   const idempotencyKeyRef = useRef<string | null>(null);
   
@@ -248,7 +249,7 @@ export default function AssessPage() {
     setLoading(true);
     setResult(null);
     setUiHint(null);
-    
+    setStartError(null);
     try {
       let endpoint = '';
       let body = {};
@@ -286,7 +287,9 @@ export default function AssessPage() {
       setSession(data);
       idempotencyKeyRef.current = null;
     } catch {
-      alert(t('assess.startFailedMsg'));
+      const msg = t('assess.startFailedMsg') as string;
+      setStartError(msg);
+      alert(msg);
     } finally {
       setLoading(false);
     }
@@ -819,6 +822,11 @@ export default function AssessPage() {
                       </>
                     )}
                   </button>
+                  {startError && (
+                    <p role="alert" style={{ color: 'var(--error, #b91c1c)', marginTop: '0.75rem', fontSize: '0.9rem' }}>
+                      {startError}
+                    </p>
+                  )}
                   {tabs.find((item) => item.id === activeTab)?.comingSoon && (
                     <p style={{ color: '#78716C', marginTop: '0.75rem' }}>
                       {t('assessmentsList.comingSoonHint')}

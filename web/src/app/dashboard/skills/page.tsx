@@ -70,6 +70,7 @@ export default function SkillsProfilePage() {
     try {
       if (!getToken()) {
         setProfile(null);
+        setError(t('skills.loginRequired') as string);
         setLoading(false);
         return;
       }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { AgentChat } from '@/components/AgentChat';
 import { useAssessmentWidget } from '@/lib/AssessmentWidgetContext';
 import { useLanguage } from '@/lib/contexts';
@@ -11,6 +12,7 @@ const DEFAULT_SKILL_ID = 'HKU.SKILL.COMMUNICATION.v1';
 export function FloatingAssessmentWidget() {
   const ctx = useAssessmentWidget();
   const { t } = useLanguage();
+  const pathname = usePathname();
   const [hasBeenOpened, setHasBeenOpened] = useState(false);
 
   const handleOpen = useCallback(() => {
@@ -32,6 +34,7 @@ export function FloatingAssessmentWidget() {
 
   if (!ctx) return null;
 
+  const isLoginPage = pathname === '/login';
   const skillId = ctx.skillId || DEFAULT_SKILL_ID;
   const skillName = ctx.skillName ?? undefined;
   const title =
@@ -41,6 +44,7 @@ export function FloatingAssessmentWidget() {
 
   const hasContext = ctx.assessmentType != null && ctx.skillId != null;
   const showChat = hasBeenOpened && (hasContext || true);
+  const showLoginPrompt = isLoginPage && ctx.isOpen;
 
   return (
     <>
@@ -62,7 +66,14 @@ export function FloatingAssessmentWidget() {
         aria-hidden={!ctx.isOpen}
       >
         <div className={styles.panelInner}>
-          {showChat && (
+          {showLoginPrompt ? (
+            <div className={styles.loginPrompt}>
+              <p>{t('assistant.loginRequired')}</p>
+              <button type="button" className={styles.loginPromptBtn} onClick={handleClose}>
+                {t('assistant.goLogin')}
+              </button>
+            </div>
+          ) : showChat ? (
             <AgentChat
               key={skillId}
               mode="assessment"
@@ -73,7 +84,7 @@ export function FloatingAssessmentWidget() {
               onComplete={handleComplete}
               embedded
             />
-          )}
+          ) : null}
         </div>
       </div>
     </>

@@ -200,7 +200,7 @@ _CORS_ORIGINS_RAW = [
     o.strip()
     for o in _os.getenv(
         "CORS_ALLOWED_ORIGINS",
-        "http://localhost:3000,http://127.0.0.1:3000",
+        "http://localhost:3000,http://127.0.0.1:3000,https://skillsight-230.pages.dev,https://skillsight.pages.dev",
     ).split(",")
     if o.strip()
 ]

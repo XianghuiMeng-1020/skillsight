@@ -60,7 +60,9 @@ export default function LoginPage() {
       window.dispatchEvent(new Event('skillsight-login'));
       router.push(role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+      const msg = err instanceof Error ? err.message : '';
+      const isNetwork = msg === 'Failed to fetch' || msg?.toLowerCase().includes('fetch') || msg?.toLowerCase().includes('network');
+      setError(isNetwork ? (t('login.failedNetwork') as string) : (msg || (t('common.error') as string)));
       setLoading(false);
     }
   };
