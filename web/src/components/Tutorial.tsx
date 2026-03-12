@@ -66,6 +66,13 @@ export function TutorialOverlay() {
     []
   );
 
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) skipTutorial();
+    },
+    [skipTutorial]
+  );
+
   if (!showTutorial) return null;
 
   const step = tutorialSteps[currentStep];
@@ -96,13 +103,6 @@ export function TutorialOverlay() {
     }
     nextStep();
   };
-
-  const handleOverlayClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) skipTutorial();
-    },
-    [skipTutorial]
-  );
 
   return (
     <div

@@ -392,7 +392,7 @@ export default function AssessPage() {
       checkAssessmentAchievements(activeTab, score);
       
     } catch {
-      alert(t('assess.submitFailed'));
+      setStartError(t('assess.submitFailed') as string);
     } finally {
       setSubmitting(false);
     }
