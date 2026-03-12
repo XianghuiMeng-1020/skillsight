@@ -173,6 +173,7 @@ export default function AssessPage() {
   const [timer, setTimer] = useState(0);
   const [uiHint, setUiHint] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
+  const [showLoginHint, setShowLoginHint] = useState(false);
   const lastActionAtRef = useRef(0);
   const idempotencyKeyRef = useRef<string | null>(null);
   
@@ -239,6 +240,10 @@ export default function AssessPage() {
       return 'demo_user';
     }
   };
+
+  useEffect(() => {
+    setShowLoginHint(!getToken());
+  }, []);
 
   const startSession = async () => {
     if (Date.now() - lastActionAtRef.current < 800) {
@@ -464,7 +469,36 @@ export default function AssessPage() {
             <p style={{ color: '#78716C', fontSize: '1rem' }}>
               {t('assess.subtitle')}
             </p>
+            <p style={{ color: '#A8A29E', fontSize: '0.875rem', marginTop: '0.5rem' }}>
+              {t('assess.ctaHint') as string}
+            </p>
           </div>
+
+          {/* Login hint when not logged in */}
+          {showLoginHint && (
+            <div
+              role="alert"
+              style={{
+                marginBottom: '1.5rem',
+                padding: '0.875rem 1.25rem',
+                background: 'linear-gradient(135deg, rgba(249,206,156,0.15), rgba(225,129,130,0.08))',
+                border: '1px solid rgba(225,129,130,0.25)',
+                borderRadius: '12px',
+                fontSize: '0.9375rem',
+                color: '#44403C',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+              }}
+            >
+              <span>{t('assess.loginHint') as string}</span>
+              <Link href="/login" style={{ fontWeight: 600, color: 'var(--coral)', textDecoration: 'underline' }}>
+                {t('assess.pleaseLogin') as string} →
+              </Link>
+            </div>
+          )}
 
           {/* Result Display - Enhanced */}
           {result && (

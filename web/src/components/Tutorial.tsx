@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { useTutorial, useLanguage } from '@/lib/contexts';
 
 export function TutorialOverlay() {
@@ -17,6 +17,18 @@ export function TutorialOverlay() {
   } = useTutorial();
   const { t, language, setLanguage } = useLanguage();
   const [localName, setLocalName] = useState(tutorialName);
+
+  useEffect(() => {
+    if (!showTutorial) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        skipTutorial();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showTutorial, skipTutorial]);
 
   const tutorialSteps = useMemo(
     () => [
@@ -85,28 +97,72 @@ export function TutorialOverlay() {
     nextStep();
   };
 
+  const handleOverlayClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.target === e.currentTarget) skipTutorial();
+    },
+    [skipTutorial]
+  );
+
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0, 0, 0, 0.7)',
-      backdropFilter: 'blur(4px)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999,
-      animation: 'fadeIn 0.3s ease'
-    }}>
-      <div style={{
-        background: 'var(--white)',
-        borderRadius: 'var(--radius-xl)',
-        padding: '2.5rem',
-        maxWidth: '480px',
-        width: '90%',
-        boxShadow: 'var(--shadow-lg)',
-        position: 'relative',
-        animation: 'slideUp 0.3s ease'
-      }}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="tutorial-title"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.7)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 9999,
+        animation: 'fadeIn 0.3s ease',
+      }}
+      onClick={handleOverlayClick}
+    >
+      <div
+        style={{
+          background: 'var(--white)',
+          borderRadius: 'var(--radius-xl)',
+          maxWidth: '480px',
+          width: '90%',
+          maxHeight: 'calc(100vh - 2rem)',
+          display: 'flex',
+          flexDirection: 'column',
+          boxShadow: 'var(--shadow-lg)',
+          position: 'relative',
+          animation: 'slideUp 0.3s ease',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close × button */}
+        <button
+          type="button"
+          onClick={skipTutorial}
+          aria-label={t('tutorial.skip')}
+          style={{
+            position: 'absolute',
+            top: '1rem',
+            right: '1rem',
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            border: 'none',
+            background: 'var(--gray-100)',
+            color: 'var(--gray-600)',
+            fontSize: '1.25rem',
+            lineHeight: 1,
+            cursor: 'pointer',
+            zIndex: 1,
+          }}
+        >
+          ×
+        </button>
+
+        {/* Scrollable content */}
+        <div style={{ padding: '2.5rem 2.5rem 0', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
         {/* Progress Dots */}
         <div style={{
           display: 'flex',
@@ -149,12 +205,15 @@ export function TutorialOverlay() {
         </div>
 
         {/* Content */}
-        <h2 style={{
-          textAlign: 'center',
-          marginBottom: '1rem',
-          fontSize: '1.5rem',
-          color: 'var(--gray-900)'
-        }}>
+        <h2
+          id="tutorial-title"
+          style={{
+            textAlign: 'center',
+            marginBottom: '1rem',
+            fontSize: '1.5rem',
+            color: 'var(--gray-900)',
+          }}
+        >
           {step.icon} {t(step.titleKey)}
         </h2>
 
@@ -224,13 +283,21 @@ export function TutorialOverlay() {
             {t('tutorial.routeFlow')}
           </div>
         )}
+        </div>
 
-        {/* Navigation */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
+        {/* Sticky footer: always visible (Skip / Prev / Next) */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '1rem 2.5rem 2.5rem',
+            flexShrink: 0,
+            borderTop: '1px solid var(--gray-100)',
+            background: 'var(--white)',
+            borderRadius: '0 0 var(--radius-xl) var(--radius-xl)',
+          }}
+        >
           <button
             onClick={skipTutorial}
             style={{
@@ -239,7 +306,7 @@ export function TutorialOverlay() {
               border: 'none',
               color: 'var(--gray-500)',
               cursor: 'pointer',
-              fontSize: '0.875rem'
+              fontSize: '0.875rem',
             }}
           >
             {t('tutorial.skip')}
@@ -254,7 +321,6 @@ export function TutorialOverlay() {
                 {t('tutorial.prev')}
               </button>
             )}
-            
             <button
               onClick={handleNext}
               className="btn btn-primary"

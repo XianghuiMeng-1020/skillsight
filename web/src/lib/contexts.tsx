@@ -208,6 +208,9 @@ export const translations: Translations = {
   'assess.assessmentSuffix': { zh: '评估', 'zh-TW': '評估', en: ' Assessment' },
   'assess.startFailed': { zh: '启动失败', 'zh-TW': '啟動失敗', en: 'Start Failed' },
   'assess.startFailedMsg': { zh: '暂时无法开始评估，请稍后再试或联系支持。', 'zh-TW': '暫時無法開始評估，請稍後再試或聯絡支援。', en: 'Assessment could not be started. Please try again later or contact support.' },
+  'assess.loginHint': { zh: '登录后可保存评估结果并同步到技能档案。', 'zh-TW': '登入後可儲存評估結果並同步至技能檔案。', en: 'Log in to save results and sync to your skill profile.' },
+  'assess.pleaseLogin': { zh: '请先登录', 'zh-TW': '請先登入', en: 'Please log in' },
+  'assess.ctaHint': { zh: '选择下方评估类型，点击「开始评估」即可开始', 'zh-TW': '選擇下方評估類型，點擊「開始評估」即可開始', en: 'Choose a type below and click Start Assessment to begin' },
   'assess.transcribeFailed': { zh: '录音转录失败，请重试。', 'zh-TW': '錄音轉錄失敗，請重試。', en: 'Transcription failed, please try again.' },
   'assess.noAudio': { zh: '未检测到录音内容。', 'zh-TW': '未偵測到錄音內容。', en: 'No audio content detected.' },
   'assess.submitFailed': { zh: '提交失败', 'zh-TW': '提交失敗', en: 'Submission Failed' },
@@ -993,7 +996,8 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     const user = localStorage.getItem('user');
     const savedName = localStorage.getItem('skillsight-onboarding-name');
     if (savedName) setTutorialNameState(savedName);
-    if (!hasSeenTutorial && user) {
+    const isDashboardOrHome = pathname === '/dashboard' || pathname === '/';
+    if (!hasSeenTutorial && user && isDashboardOrHome) {
       timer = setTimeout(() => setShowTutorial(true), 800);
     }
     return () => {
