@@ -45,16 +45,23 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
     setApplying(templateId);
     try {
       const res = await studentBff.resumeReviewApplyTemplate(reviewId, templateId);
-      const blob = base64ToBlob(res.content_base64, res.mime_type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      let blob: Blob;
+      try {
+        blob = base64ToBlob(res.content_base64, res.mime_type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      } catch {
+        addToast('error', t('common.error') || 'Invalid download data.');
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = res.filename || 'resume.docx';
       a.click();
       URL.revokeObjectURL(url);
-      addToast('success', t('resume.exportSuccess') || 'Exported successfully.');
+      addToast('success', t('resume.exportSuccess'));
     } catch (e) {
-      addToast('error', (e as Error).message);
+      const msg = e instanceof Error ? e.message : String(e);
+      addToast('error', msg);
     } finally {
       setApplying(null);
     }
@@ -115,40 +122,56 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
         <p style={{ color: 'var(--gray-500)' }}>{t('resume.noTemplates') || 'No templates available.'}</p>
       )}
 
-      {previewId && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0,0,0,0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-          }}
-          onClick={() => setPreviewId(null)}
-          role="dialog"
-          aria-modal="true"
-        >
+      {previewId && (() => {
+        const tmpl = templates.find((t) => t.template_id === previewId);
+        const previewUrl = tmpl?.preview_url;
+        return (
           <div
             style={{
-              background: 'var(--white)',
-              padding: '1.5rem',
-              borderRadius: 'var(--radius-lg)',
-              maxWidth: '90%',
-              maxHeight: '80%',
-              overflow: 'auto',
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 50,
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={() => setPreviewId(null)}
+            onKeyDown={(e) => e.key === 'Escape' && setPreviewId(null)}
+            role="dialog"
+            aria-modal="true"
+            aria-label={t('resume.preview')}
           >
-            <p style={{ margin: 0, color: 'var(--gray-600)' }}>{t('resume.preview')}</p>
-            <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>{t('resume.previewNotAvailable') || 'Preview not available for this template.'}</p>
-            <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: '1rem' }} onClick={() => setPreviewId(null)}>
-              {t('common.close') || 'Close'}
-            </button>
+            <div
+              style={{
+                background: 'var(--white)',
+                padding: '1.5rem',
+                borderRadius: 'var(--radius-lg)',
+                maxWidth: '90%',
+                maxHeight: '80%',
+                overflow: 'auto',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p style={{ margin: 0, color: 'var(--gray-600)' }}>{t('resume.preview')}</p>
+              {previewUrl ? (
+                <div style={{ marginTop: '0.5rem' }}>
+                  {previewUrl.match(/\.(png|jpe?g|gif|webp)$/i) ? (
+                    <img src={previewUrl} alt={tmpl?.name ?? 'Preview'} style={{ maxWidth: '100%', height: 'auto' }} />
+                  ) : (
+                    <iframe title={tmpl?.name ?? 'Preview'} src={previewUrl} style={{ width: '100%', minHeight: '400px', border: 'none' }} />
+                  )}
+                </div>
+              ) : (
+                <p style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>{t('resume.previewNotAvailable')}</p>
+              )}
+              <button type="button" className="btn btn-ghost btn-sm" style={{ marginTop: '1rem' }} onClick={() => setPreviewId(null)}>
+                {t('common.close')}
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </>
   );
 }

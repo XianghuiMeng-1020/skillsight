@@ -11,10 +11,10 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -87,17 +87,17 @@ def _get_review_for_user(db: Session, review_id: str, user_id: str) -> Optional[
 # ─── Request/Response models ────────────────────────────────────────────────────
 
 class StartRequest(BaseModel):
-    doc_id: str
-    target_role_id: Optional[str] = None
+    doc_id: str = Field(..., max_length=256)
+    target_role_id: Optional[str] = Field(None, max_length=256)
 
 
 class PatchSuggestionRequest(BaseModel):
-    status: str  # accepted | rejected | edited
-    student_edit: Optional[str] = None
+    status: Literal["accepted", "rejected", "edited"]
+    student_edit: Optional[str] = Field(None, max_length=50000)
 
 
 class ApplyTemplateRequest(BaseModel):
-    template_id: str
+    template_id: str = Field(..., max_length=256)
 
 
 # ─── POST /resume-review/start ───────────────────────────────────────────────────
@@ -155,6 +155,11 @@ def resume_review_score(
     review = _get_review_for_user(db, review_id, subject_id)
     if not review:
         raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+    if review.get("status") != "scoring":
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_state", "message": "Scoring already done or invalid step. Start a new review."},
+        )
     doc_id = review["doc_id"]
     _check_consent(db, doc_id, subject_id)
     resume_text = get_resume_text_from_doc(db, doc_id)
@@ -263,6 +268,21 @@ def resume_review_suggest(
     review = _get_review_for_user(db, review_id, subject_id)
     if not review:
         raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+    if review.get("status") != "reviewed":
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_state", "message": "Run scoring first."},
+        )
+    # Prevent duplicate suggestion runs
+    existing = db.execute(
+        text("SELECT 1 FROM resume_suggestions WHERE review_id = :rid LIMIT 1"),
+        {"rid": review_id},
+    ).scalar()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "suggestions_already_generated", "message": "Suggestions already generated for this review."},
+        )
     initial_scores = review.get("initial_scores")
     if isinstance(initial_scores, str):
         try:
@@ -391,9 +411,7 @@ def resume_review_patch_suggestion(
     review = _get_review_for_user(db, review_id, subject_id)
     if not review:
         raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
-    status = (payload.status or "").strip().lower()
-    if status not in ("accepted", "rejected", "edited"):
-        raise HTTPException(status_code=400, detail={"error": "invalid_status", "message": "status must be accepted, rejected, or edited"})
+    status = payload.status
     row = db.execute(
         text("""
             SELECT suggestion_id, status FROM resume_suggestions
@@ -404,7 +422,11 @@ def resume_review_patch_suggestion(
     ).mappings().first()
     if not row:
         raise HTTPException(status_code=404, detail={"error": "suggestion_not_found", "message": "Suggestion not found"})
-    prev_status = (row["status"] or "").strip().lower()
+    # Lock review row to avoid race on counter updates
+    db.execute(
+        text("SELECT review_id FROM resume_reviews WHERE review_id = :rid AND user_id = :uid FOR UPDATE"),
+        {"rid": review_id, "uid": subject_id},
+    ).fetchall()
     db.execute(
         text("""
             UPDATE resume_suggestions SET status = :status, student_edit = :student_edit WHERE suggestion_id = :sid AND review_id = :rid
@@ -416,18 +438,16 @@ def resume_review_patch_suggestion(
             "student_edit": payload.student_edit if status == "edited" else None,
         },
     )
-    # Update review accepted_count / rejected_count
-    if prev_status in ("accepted", "edited") and status not in ("accepted", "edited"):
-        if prev_status == "accepted":
-            db.execute(text("UPDATE resume_reviews SET accepted_count = GREATEST(0, COALESCE(accepted_count,0) - 1) WHERE review_id = :rid AND user_id = :uid"), {"rid": review_id, "uid": subject_id})
-        elif prev_status == "edited":
-            db.execute(text("UPDATE resume_reviews SET accepted_count = GREATEST(0, COALESCE(accepted_count,0) - 1) WHERE review_id = :rid AND user_id = :uid"), {"rid": review_id, "uid": subject_id})
-    if prev_status == "rejected" and status != "rejected":
-        db.execute(text("UPDATE resume_reviews SET rejected_count = GREATEST(0, COALESCE(rejected_count,0) - 1) WHERE review_id = :rid AND user_id = :uid"), {"rid": review_id, "uid": subject_id})
-    if status in ("accepted", "edited"):
-        db.execute(text("UPDATE resume_reviews SET accepted_count = COALESCE(accepted_count,0) + 1 WHERE review_id = :rid AND user_id = :uid"), {"rid": review_id, "uid": subject_id})
-    if status == "rejected":
-        db.execute(text("UPDATE resume_reviews SET rejected_count = COALESCE(rejected_count,0) + 1 WHERE review_id = :rid AND user_id = :uid"), {"rid": review_id, "uid": subject_id})
+    # Recompute counts in one shot to avoid race conditions
+    db.execute(
+        text("""
+            UPDATE resume_reviews
+            SET accepted_count = (SELECT COUNT(*) FROM resume_suggestions WHERE review_id = :rid AND status IN ('accepted', 'edited')),
+                rejected_count = (SELECT COUNT(*) FROM resume_suggestions WHERE review_id = :rid AND status = 'rejected')
+            WHERE review_id = :rid AND user_id = :uid
+        """),
+        {"rid": review_id, "uid": subject_id},
+    )
     db.commit()
     log_audit(
         engine,
@@ -454,6 +474,11 @@ def resume_review_rescore(
     review = _get_review_for_user(db, review_id, subject_id)
     if not review:
         raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+    if review.get("status") not in ("reviewed", "enhanced"):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_state", "message": "Accept some suggestions first, then rescore."},
+        )
     doc_id = review["doc_id"]
     base_text = get_resume_text_from_doc(db, doc_id)
     if not base_text or len(base_text.strip()) < 50:
@@ -551,6 +576,11 @@ def resume_review_apply_template(
     review = _get_review_for_user(db, review_id, subject_id)
     if not review:
         raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+    if review.get("status") not in ("reviewed", "enhanced", "completed"):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_state", "message": "Complete scoring and suggestions before applying a template."},
+        )
     doc_id = review["doc_id"]
     base_text = get_resume_text_from_doc(db, doc_id)
     if not base_text or len(base_text.strip()) < 50:
@@ -600,9 +630,3 @@ def resume_review_apply_template(
         detail={"template_id": payload.template_id},
     )
     return {"filename": filename, "content_base64": b64, "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
-
-
-</think>
-Fixing the router: using a single prefix and adding the templates and list routes.
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-StrReplace

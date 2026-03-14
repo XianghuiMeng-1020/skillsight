@@ -1670,6 +1670,8 @@ def bff_student_resume_reviews(
         d = dict(r)
         if d.get("review_id"):
             d["review_id"] = str(d["review_id"])
+        if d.get("created_at") is not None:
+            d["created_at"] = d["created_at"].isoformat() if hasattr(d["created_at"], "isoformat") else d["created_at"]
         reviews.append(d)
     return {"reviews": reviews, "total": total}
 

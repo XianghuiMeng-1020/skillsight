@@ -604,7 +604,7 @@ export const studentBff = {
       total_initial?: number;
       total_final?: number | null;
       final_scores?: Record<string, { score: number; comment: string }> | null;
-    }>(`/bff/student/resume-review/${reviewId}/score`, { method: 'POST' }),
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/score`, { method: 'POST' }),
 
   resumeReviewGetScore: (reviewId: string) =>
     bffRequest<{
@@ -612,7 +612,7 @@ export const studentBff = {
       final_scores: Record<string, { score: number; comment: string }> | null;
       total_initial: number | null;
       total_final: number | null;
-    }>(`/bff/student/resume-review/${reviewId}/score`),
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/score`),
 
   resumeReviewSuggest: (reviewId: string) =>
     bffRequest<{
@@ -626,7 +626,7 @@ export const studentBff = {
         priority: string;
         status: string;
       }>;
-    }>(`/bff/student/resume-review/${reviewId}/suggest`, { method: 'POST' }),
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/suggest`, { method: 'POST' }),
 
   resumeReviewGetSuggestions: (reviewId: string, priority?: string) =>
     bffRequest<{
@@ -641,11 +641,11 @@ export const studentBff = {
         status: string;
         student_edit?: string;
       }>;
-    }>(`/bff/student/resume-review/${reviewId}/suggestions${priority ? `?priority=${encodeURIComponent(priority)}` : ''}`),
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/suggestions${priority ? `?priority=${encodeURIComponent(priority)}` : ''}`),
 
   resumeReviewPatchSuggestion: (reviewId: string, suggestionId: string, status: string, studentEdit?: string) =>
     bffRequest<{ suggestion_id: string; status: string }>(
-      `/bff/student/resume-review/${reviewId}/suggestion/${suggestionId}`,
+      `/bff/student/resume-review/${encodeURIComponent(reviewId)}/suggestion/${encodeURIComponent(suggestionId)}`,
       { method: 'PATCH', body: { status, student_edit: studentEdit } }
     ),
 
@@ -655,7 +655,7 @@ export const studentBff = {
       total_final: number;
       total_initial: number;
       improvements: Record<string, number>;
-    }>(`/bff/student/resume-review/${reviewId}/rescore`, { method: 'POST' }),
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/rescore`, { method: 'POST' }),
 
   getResumeTemplates: (roleId?: string, industry?: string) => {
     const params = new URLSearchParams();
@@ -676,7 +676,7 @@ export const studentBff = {
 
   resumeReviewApplyTemplate: (reviewId: string, templateId: string) =>
     bffRequest<{ filename: string; content_base64: string; mime_type: string }>(
-      `/bff/student/resume-review/${reviewId}/apply-template`,
+      `/bff/student/resume-review/${encodeURIComponent(reviewId)}/apply-template`,
       { method: 'POST', body: { template_id: templateId } }
     ),
 

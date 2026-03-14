@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
 import { studentBff } from '@/lib/bffClient';
@@ -34,19 +34,29 @@ export function SuggestionPanel({ reviewId, onContinue, onSuggestionsLoaded }: S
   const [editId, setEditId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
   const [patching, setPatching] = useState<string | null>(null);
+  const editModalRef = useRef<HTMLDivElement>(null);
+  const onSuggestionsLoadedRef = useRef(onSuggestionsLoaded);
+  onSuggestionsLoadedRef.current = onSuggestionsLoaded;
 
-  const loadSuggestions = async () => {
+  useEffect(() => {
+    if (editId && editModalRef.current) {
+      const firstFocusable = editModalRef.current.querySelector<HTMLElement>('textarea, button');
+      firstFocusable?.focus();
+    }
+  }, [editId]);
+
+  const loadSuggestions = useCallback(async () => {
     try {
       const res = await studentBff.resumeReviewGetSuggestions(reviewId);
       const list = res.suggestions || [];
       setSuggestions(list);
-      if (list.length > 0) onSuggestionsLoaded?.();
+      if (list.length > 0) onSuggestionsLoadedRef.current?.();
     } catch {
       setSuggestions([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [reviewId]);
 
   useEffect(() => {
     const run = async () => {
@@ -60,13 +70,13 @@ export function SuggestionPanel({ reviewId, onContinue, onSuggestionsLoaded }: S
             await studentBff.resumeReviewSuggest(reviewId);
             await loadSuggestions();
           } catch (e) {
-            addToast('error', (e as Error).message || t('resume.generating'));
+            addToast('error', e instanceof Error ? e.message : t('resume.generating'));
           } finally {
             setGenerating(false);
           }
         } else {
           setSuggestions(list);
-          onSuggestionsLoaded?.();
+          onSuggestionsLoadedRef.current?.();
         }
       } catch {
         setSuggestions([]);
@@ -75,7 +85,7 @@ export function SuggestionPanel({ reviewId, onContinue, onSuggestionsLoaded }: S
       }
     };
     run();
-  }, [reviewId]);
+  }, [reviewId, loadSuggestions]);
 
   const handleStatus = async (suggestionId: string, status: string, studentEdit?: string) => {
     setPatching(suggestionId);
@@ -150,16 +160,7 @@ export function SuggestionPanel({ reviewId, onContinue, onSuggestionsLoaded }: S
               <div className={styles.beforeBlock}>{s.original_text || '—'}</div>
               <p style={{ margin: 0, fontSize: '0.8125rem', fontWeight: 600 }}>{t('resume.after')}</p>
               <div className={styles.afterBlock}>
-                {editId === s.suggestion_id ? (
-                  <textarea
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    rows={4}
-                    style={{ width: '100%', padding: '0.5rem', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)' }}
-                  />
-                ) : (
-                  s.student_edit || s.suggested_text || '—'
-                )}
+                {s.student_edit || s.suggested_text || '—'}
               </div>
               {s.explanation && (
                 <p style={{ margin: '0.5rem 0 0', fontSize: '0.875rem', color: 'var(--gray-600)', fontStyle: 'italic' }}>
@@ -177,20 +178,9 @@ export function SuggestionPanel({ reviewId, onContinue, onSuggestionsLoaded }: S
                     >
                       {t('resume.accept')}
                     </button>
-                    {editId === s.suggestion_id ? (
-                      <button
-                        type="button"
-                        className="btn btn-secondary btn-sm"
-                        onClick={() => handleStatus(s.suggestion_id, 'edited', editText)}
-                        disabled={patching === s.suggestion_id}
-                      >
-                        {t('resume.saveEdit')}
-                      </button>
-                    ) : (
-                      <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>
-                        {t('resume.edit')}
-                      </button>
-                    )}
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => openEdit(s)}>
+                      {t('resume.edit')}
+                    </button>
                     <button
                       type="button"
                       className="btn btn-ghost btn-sm"
@@ -233,21 +223,37 @@ export function SuggestionPanel({ reviewId, onContinue, onSuggestionsLoaded }: S
       </div>
 
       {editId && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div style={{ background: 'var(--white)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', maxWidth: '90%', maxHeight: '80%', overflow: 'auto' }}>
-            <h3>{t('resume.editSuggestion')}</h3>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="resume-edit-suggestion-title"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setEditId(null);
+            }
+          }}
+        >
+          <div
+            ref={editModalRef}
+            style={{ background: 'var(--white)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', maxWidth: '90%', maxHeight: '80%', overflow: 'auto' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 id="resume-edit-suggestion-title">{t('resume.editSuggestion')}</h3>
             <textarea
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               rows={6}
               style={{ width: '100%', marginTop: '0.5rem', padding: '0.5rem' }}
+              aria-label={t('resume.editSuggestion')}
             />
             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
               <button type="button" className="btn btn-primary" onClick={() => editId && handleStatus(editId, 'edited', editText)}>
                 {t('resume.saveEdit')}
               </button>
               <button type="button" className="btn btn-ghost" onClick={() => setEditId(null)}>
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

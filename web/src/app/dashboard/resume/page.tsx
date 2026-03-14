@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
@@ -11,6 +11,7 @@ import { RubricScoreCard } from './RubricScoreCard';
 import { SuggestionPanel } from './SuggestionPanel';
 import { ScoreComparison } from './ScoreComparison';
 import { TemplateGallery } from './TemplateGallery';
+import { ResumeStepErrorBoundary } from './ResumeStepErrorBoundary';
 import styles from './resume.module.css';
 
 const STEPS = [
@@ -21,7 +22,7 @@ const STEPS = [
   { key: 'step5Title', keyDesc: 'step5Desc' },
 ] as const;
 
-export default function ResumePage() {
+function ResumePageContent() {
   const { t } = useLanguage();
   const searchParams = useSearchParams();
   const [step, setStep] = useState(1);
@@ -75,6 +76,21 @@ export default function ResumePage() {
 
   const handleContinueToTemplates = () => setStep(5);
 
+  const handleBack = () => {
+    const next = Math.max(1, step - 1);
+    setStep(next);
+    if (next === 1) {
+      setReviewId(null);
+      setDocId(null);
+      setTargetRoleId(undefined);
+      setInitialScores(null);
+      setFinalScores(null);
+      setTotalInitial(null);
+      setTotalFinal(null);
+      setSuggestionsLoaded(false);
+    }
+  };
+
   return (
     <div className={styles.layout}>
       <Sidebar />
@@ -103,45 +119,47 @@ export default function ResumePage() {
         </header>
 
         <div className={styles.stepContent}>
-          {step === 1 && (
-            <ResumeUploader
-              onStart={handleStartReview}
-              existingReviewId={reviewId}
-            />
-          )}
-          {step === 2 && reviewId && (
-            <RubricScoreCard
-              reviewId={reviewId}
-              onDone={handleScoreDone}
-            />
-          )}
-          {step === 3 && reviewId && (
-            <SuggestionPanel
-              reviewId={reviewId}
-              onContinue={handleContinueToComparison}
-              onSuggestionsLoaded={handleSuggestionsDone}
-            />
-          )}
-          {step === 4 && reviewId && initialScores && (
-            <ScoreComparison
-              reviewId={reviewId}
-              initialScores={initialScores}
-              totalInitial={totalInitial ?? 0}
-              onDone={handleRescoreDone}
-              onContinue={handleContinueToTemplates}
-            />
-          )}
-          {step === 5 && reviewId && (
-            <TemplateGallery reviewId={reviewId} />
-          )}
+          <ResumeStepErrorBoundary retryLabel={t('common.retry')}>
+            {step === 1 && (
+              <ResumeUploader
+                onStart={handleStartReview}
+                existingReviewId={reviewId}
+              />
+            )}
+            {step === 2 && reviewId && (
+              <RubricScoreCard
+                reviewId={reviewId}
+                onDone={handleScoreDone}
+              />
+            )}
+            {step === 3 && reviewId && (
+              <SuggestionPanel
+                reviewId={reviewId}
+                onContinue={handleContinueToComparison}
+                onSuggestionsLoaded={handleSuggestionsDone}
+              />
+            )}
+            {step === 4 && reviewId && initialScores && (
+              <ScoreComparison
+                reviewId={reviewId}
+                initialScores={initialScores}
+                totalInitial={totalInitial ?? 0}
+                onDone={handleRescoreDone}
+                onContinue={handleContinueToTemplates}
+              />
+            )}
+            {step === 5 && reviewId && (
+              <TemplateGallery reviewId={reviewId} />
+            )}
+          </ResumeStepErrorBoundary>
         </div>
 
-        {step > 1 && step < 5 && (
+        {step > 1 && (
           <div className={styles.backLink}>
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              onClick={() => setStep(s => Math.max(1, s - 1))}
+              onClick={handleBack}
             >
               ← {t('common.back') || 'Back'}
             </button>
@@ -157,5 +175,21 @@ export default function ResumePage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function ResumePage() {
+  const { t } = useLanguage();
+  return (
+    <Suspense fallback={
+      <div className={styles.layout}>
+        <Sidebar />
+        <main className={styles.main}>
+          <p>{t('common.loading')}</p>
+        </main>
+      </div>
+    }>
+      <ResumePageContent />
+    </Suspense>
   );
 }

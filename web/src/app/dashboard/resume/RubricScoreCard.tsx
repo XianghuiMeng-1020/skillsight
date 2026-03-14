@@ -38,6 +38,7 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
   const [scores, setScores] = useState<Record<string, { score: number; comment: string }> | null>(null);
   const [total, setTotal] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
 
   useEffect(() => {
     const run = async () => {
@@ -59,8 +60,7 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
       }
     };
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only trigger score once per reviewId
-  }, [reviewId]);
+  }, [reviewId, retryTrigger]);
 
   if (loading || scoring) {
     return (
@@ -76,7 +76,10 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
     return (
       <>
         <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step2Title')}</h2>
-        <p style={{ color: 'var(--error)' }}>{error || t('common.error')}</p>
+        <p style={{ color: 'var(--error)', marginBottom: '0.5rem' }}>{error || t('common.error')}</p>
+        <button type="button" className="btn btn-primary btn-sm" onClick={() => setRetryTrigger((n) => n + 1)}>
+          {t('common.retry')}
+        </button>
       </>
     );
   }
@@ -97,7 +100,7 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
       <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>{t('resume.step2Desc')}</p>
 
       <div className={styles.scoreRing}>
-        <ResponsiveContainer width="100%" height={140}>
+        <ResponsiveContainer width="100%" height={250}>
           <RechartsRadarChart data={radarData} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
             <PolarGrid />
             <PolarAngleAxis

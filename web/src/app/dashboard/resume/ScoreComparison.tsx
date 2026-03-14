@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   Radar,
   RadarChart as RechartsRadarChart,
@@ -47,6 +47,8 @@ export function ScoreComparison({
   const [finalScores, setFinalScores] = useState<Record<string, { score: number; comment: string }> | null>(null);
   const [totalFinal, setTotalFinal] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     const run = async () => {
@@ -57,10 +59,10 @@ export function ScoreComparison({
         setFinalScores(res.final_scores ?? null);
         setTotalFinal(res.total_final ?? null);
         if (res.final_scores && res.total_final != null) {
-          onDone(res.final_scores, res.total_final);
+          onDoneRef.current(res.final_scores, res.total_final);
         }
       } catch (e: unknown) {
-        const err = e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : 'Rescore failed';
+        const err = e instanceof Error ? e.message : (e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : 'Rescore failed');
         setError(err);
         addToast('error', err);
       } finally {
@@ -68,7 +70,6 @@ export function ScoreComparison({
       }
     };
     run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per reviewId
   }, [reviewId]);
 
   if (loading) {
@@ -156,9 +157,11 @@ export function ScoreComparison({
         </div>
       </div>
 
-      {improved && (
-        <p style={{ color: 'var(--success)', fontWeight: 600, marginBottom: '1rem' }}>
-          {t('resume.improvement')?.replace('{n}', String(delta)) ?? `+${delta} points`}
+      {delta !== 0 && (
+        <p style={{ color: improved ? 'var(--success)' : 'var(--gray-600)', fontWeight: 600, marginBottom: '1rem' }}>
+          {improved
+            ? (t('resume.improvement')?.replace('{n}', String(delta)) ?? `+${delta} points`)
+            : (t('resume.scoreChange') ?? `Score change: ${delta} points`)}
         </p>
       )}
 
@@ -175,14 +178,14 @@ export function ScoreComparison({
                   {init} → <strong style={{ color: fin >= init ? 'var(--success)' : 'var(--gray-700)' }}>{fin}</strong>
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <div className={styles.dimensionBar} style={{ flex: 1 }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }} role="group" aria-label={`${dimLabel}: ${t('resume.beforeScore')} ${init}, ${t('resume.afterScore')} ${fin}`}>
+                <div className={styles.dimensionBar} style={{ flex: 1 }} role="progressbar" aria-valuenow={init} aria-valuemin={0} aria-valuemax={100} aria-label={`${dimLabel} ${t('resume.beforeScore')}`}>
                   <div
                     className={styles.dimensionBarFill}
                     style={{ width: `${init}%`, background: 'var(--gray-300)' }}
                   />
                 </div>
-                <div className={styles.dimensionBar} style={{ flex: 1 }}>
+                <div className={styles.dimensionBar} style={{ flex: 1 }} role="progressbar" aria-valuenow={fin} aria-valuemin={0} aria-valuemax={100} aria-label={`${dimLabel} ${t('resume.afterScore')}`}>
                   <div
                     className={styles.dimensionBarFill}
                     style={{ width: `${fin}%`, background: 'var(--primary)' }}

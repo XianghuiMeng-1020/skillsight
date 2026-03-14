@@ -65,6 +65,14 @@
   filter: brightness(1.05);
 }
 
+.stepDot:focus-visible,
+.docItem:focus-visible,
+.priorityTab:focus-visible,
+.templateCard:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .stepContent {
   background: var(--white);
   border-radius: var(--radius-lg);
@@ -120,13 +128,14 @@
 
 .docItemSelected {
   background: var(--primary-50);
-  border-left: 4px solid var(--primary);
+  box-shadow: inset 4px 0 0 var(--primary);
 }
 
 /* Score card */
 .scoreRing {
-  width: 140px;
-  height: 140px;
+  width: 100%;
+  min-width: 300px;
+  height: 250px;
   margin: 0 auto 1rem;
 }
 
@@ -155,6 +164,12 @@
   height: 100%;
   border-radius: 4px;
   transition: width 0.4s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dimensionBarFill {
+    transition: none;
+  }
 }
 
 /* Suggestions */

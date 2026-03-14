@@ -19,15 +19,26 @@ TEMPLATES_BASE = Path(__file__).resolve().parents[2] / "data" / "templates"
 
 
 def _get_template_path(template_file: Optional[str]) -> Path:
-    """Resolve template file path; template_file is relative to data/templates or a filename."""
+    """Resolve template file path; template_file is relative to data/templates or a filename.
+    Rejects path traversal (e.g. ../) to prevent reading files outside templates dir.
+    """
     if not template_file or not template_file.strip():
         raise FileNotFoundError("template_not_found")
     name = template_file.strip().lstrip("/")
-    path = TEMPLATES_BASE / name
+    base_resolved = TEMPLATES_BASE.resolve()
+    path = (TEMPLATES_BASE / name).resolve()
     if not path.exists():
-        path = TEMPLATES_BASE / (name + ".docx" if not name.lower().endswith(".docx") else name)
+        path = (TEMPLATES_BASE / (name + ".docx" if not name.lower().endswith(".docx") else name)).resolve()
     if not path.exists() or not path.is_file():
         raise FileNotFoundError("template_not_found")
+    # Prevent path traversal: path must be under TEMPLATES_BASE
+    try:
+        if not path.is_relative_to(base_resolved):
+            raise FileNotFoundError("template_not_found")
+    except AttributeError:
+        # Python < 3.9: path must equal base or have base as parent
+        if path != base_resolved and base_resolved not in path.parents:
+            raise FileNotFoundError("template_not_found")
     return path
 
 

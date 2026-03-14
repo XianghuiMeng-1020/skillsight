@@ -158,18 +158,21 @@ export default function Sidebar() {
           <div className="nav-section-title">
             {isAdmin ? t('admin.administration') : t('nav.mainMenu')}
           </div>
-          {navItems.map((item) => (
+          {navItems.map((item) => {
+            const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') && item.href !== '/dashboard' && item.href !== '/admin');
+            return (
             <Link
               key={item.href}
               href={item.href}
-              className={`nav-item ${pathname === item.href ? 'active' : ''}`}
+              className={`nav-item ${isActive ? 'active' : ''}`}
               title={item.hintKey ? t(item.hintKey) : ''}
               onClick={isMobile ? closeMobile : undefined}
             >
               <span className="nav-item-icon">{item.icon}</span>
               <span>{t(item.labelKey)}</span>
             </Link>
-          ))}
+            );
+          })}
         </div>
 
         <div className="nav-section">

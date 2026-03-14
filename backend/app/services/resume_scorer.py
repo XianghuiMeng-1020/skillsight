@@ -4,6 +4,7 @@ call LLM, return structured scores and weighted total.
 """
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -135,16 +136,18 @@ def get_target_role_description(db: Session, target_role_id: Optional[str]) -> s
     return title
 
 
+@functools.lru_cache(maxsize=1)
 def load_rubric() -> Dict[str, Any]:
-    """Load resume rubric JSON from packages/prompts."""
+    """Load resume rubric JSON from packages/prompts (cached)."""
     path = PROMPTS_DIR / "resume_rubric_v1.json"
     if not path.exists():
         raise FileNotFoundError(f"Rubric not found: {path}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+@functools.lru_cache(maxsize=1)
 def load_scoring_prompt() -> str:
-    """Load scoring system prompt template."""
+    """Load scoring system prompt template (cached)."""
     path = PROMPTS_DIR / "resume_scoring_v1.txt"
     if not path.exists():
         raise FileNotFoundError(f"Scoring prompt not found: {path}")
@@ -267,8 +270,8 @@ def score_resume(
 
     try:
         scores = _validate_scores(scores)
-    except ValueError:
-        raise ValueError("llm_parse_error")
+    except ValueError as e:
+        raise ValueError("llm_parse_error") from e
     total = _compute_weighted_total(scores, rubric)
 
     return {
