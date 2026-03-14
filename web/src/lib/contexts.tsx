@@ -325,6 +325,8 @@ export const translations: Translations = {
   'resume.orSelectExisting': { zh: '或选择已有文档', 'zh-TW': '或選擇已有文件', en: 'Or select existing document' },
   'resume.noDocuments': { zh: '暂无文档，请先上传简历', 'zh-TW': '暫無文件，請先上傳履歷', en: 'No documents yet. Upload a resume first.' },
   'resume.selectTargetRole': { zh: '选择目标岗位', 'zh-TW': '選擇目標職位', en: 'Select target role' },
+  'resume.noTargetRoles': { zh: '暂无目标岗位', 'zh-TW': '暫無目標職位', en: 'No target roles available' },
+  'resume.optional': { zh: '—（可选）', 'zh-TW': '—（可選）', en: '— (optional)' },
   'resume.uploadFileTypeError': { zh: '请上传 PDF 或 DOCX 文件', 'zh-TW': '請上傳 PDF 或 DOCX 檔案', en: 'Please upload a PDF or DOCX file.' },
   'resume.uploadFileSizeError': { zh: '文件大小不能超过 10MB', 'zh-TW': '檔案大小不能超過 10MB', en: 'File must be under 10MB.' },
   'resume.selectDoc': { zh: '选择已有文档', 'zh-TW': '選擇已有文件', en: 'Select existing document' },

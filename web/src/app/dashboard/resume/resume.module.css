@@ -10,7 +10,9 @@
   flex: 1;
   padding: 1.5rem 2rem;
   max-width: 960px;
-  margin: 0 auto;
+  margin-left: 240px; /* Sidebar width */
+  margin-right: auto;
+  min-width: 0;
 }
 
 .header {
@@ -265,6 +267,7 @@
 
 @media (max-width: 768px) {
   .main {
+    margin-left: 0;
     padding: 1rem;
   }
   .stepNav {
@@ -272,5 +275,11 @@
   }
   .templateGrid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .main {
+    margin-left: 200px; /* Narrower sidebar */
   }
 }

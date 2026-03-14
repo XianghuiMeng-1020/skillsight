@@ -208,17 +208,23 @@ export function ResumeUploader({ onStart, existingReviewId }: ResumeUploaderProp
         <label htmlFor="resume-target-role" style={{ display: 'block', marginBottom: '0.35rem', fontSize: '0.875rem' }}>
           {t('resume.selectTargetRole')}
         </label>
-        <select
-          id="resume-target-role"
-          value={targetRoleId}
-          onChange={(e) => setTargetRoleId(e.target.value)}
-          style={{ padding: '0.5rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--gray-200)', minWidth: '200px' }}
-        >
-          <option value="">—</option>
-          {roles.map((r, idx) => (
-            <option key={r.role_id ?? `role-${idx}`} value={r.role_id || ''}>{r.role_title || r.role_id}</option>
-          ))}
-        </select>
+        {roles.length === 0 ? (
+          <p style={{ color: 'var(--gray-500)', fontSize: '0.875rem', margin: 0 }}>
+            {t('resume.noTargetRoles') || '暂无目标岗位'}
+          </p>
+        ) : (
+          <select
+            id="resume-target-role"
+            value={targetRoleId}
+            onChange={(e) => setTargetRoleId(e.target.value)}
+            style={{ padding: '0.5rem 0.75rem', borderRadius: 'var(--radius)', border: '1px solid var(--gray-200)', minWidth: '200px' }}
+          >
+            <option value="">{t('resume.optional') || '—'}</option>
+            {roles.map((r, idx) => (
+              <option key={r.role_id ?? `role-${idx}`} value={r.role_id || ''}>{r.role_title || r.role_id}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       <div style={{ marginTop: '1.5rem' }}>
