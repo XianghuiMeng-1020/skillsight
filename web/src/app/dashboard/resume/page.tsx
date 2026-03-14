@@ -15,11 +15,11 @@ import { ResumeStepErrorBoundary } from './ResumeStepErrorBoundary';
 import styles from './resume.module.css';
 
 const STEPS = [
-  { key: 'step1Title', keyDesc: 'step1Desc' },
-  { key: 'step2Title', keyDesc: 'step2Desc' },
-  { key: 'step3Title', keyDesc: 'step3Desc' },
-  { key: 'step4Title', keyDesc: 'step4Desc' },
-  { key: 'step5Title', keyDesc: 'step5Desc' },
+  { key: 'resume.step1Title', keyDesc: 'resume.step1Desc' },
+  { key: 'resume.step2Title', keyDesc: 'resume.step2Desc' },
+  { key: 'resume.step3Title', keyDesc: 'resume.step3Desc' },
+  { key: 'resume.step4Title', keyDesc: 'resume.step4Desc' },
+  { key: 'resume.step5Title', keyDesc: 'resume.step5Desc' },
 ] as const;
 
 function ResumePageContent() {
