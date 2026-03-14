@@ -1597,6 +1597,83 @@ def bff_delete_document(
     }
 
 
+# ─── Resume Enhancement Center ──────────────────────────────────────────────────
+
+@router.get("/resume-templates")
+def bff_student_resume_templates(
+    role_id: Optional[str] = None,
+    industry: Optional[str] = None,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """List resume templates for the Resume Enhancement Center."""
+    rows = db.execute(
+        text("""
+            SELECT template_id, name, description, industry_tags, preview_url, template_file, is_active
+            FROM resume_templates
+            WHERE is_active = TRUE
+            ORDER BY name
+            LIMIT 50
+        """),
+    ).mappings().all()
+    templates = []
+    for r in rows:
+        d = dict(r)
+        if d.get("template_id"):
+            d["template_id"] = str(d["template_id"])
+        if isinstance(d.get("industry_tags"), str):
+            try:
+                d["industry_tags"] = json.loads(d["industry_tags"])
+            except Exception:
+                d["industry_tags"] = []
+        templates.append(d)
+    log_audit(
+        engine,
+        subject_id=ident.subject_id,
+        action="bff.resume.templates.list",
+        object_type="resume_templates",
+        object_id="",
+        status="ok",
+        detail={"count": len(templates)},
+    )
+    return {"templates": templates}
+
+
+@router.get("/resume-reviews")
+def bff_student_resume_reviews(
+    limit: int = 10,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """List current user's resume reviews (paginated)."""
+    subject_id = ident.subject_id
+    limit = min(max(1, limit), 50)
+    offset = max(0, offset)
+    total_row = db.execute(
+        text("SELECT COUNT(*) FROM resume_reviews WHERE user_id = :uid"),
+        {"uid": subject_id},
+    ).scalar()
+    total = int(total_row or 0)
+    rows = db.execute(
+        text("""
+            SELECT review_id, doc_id, target_role_id, status, total_initial, total_final, created_at
+            FROM resume_reviews
+            WHERE user_id = :uid
+            ORDER BY created_at DESC
+            LIMIT :lim OFFSET :off
+        """),
+        {"uid": subject_id, "lim": limit, "off": offset},
+    ).mappings().all()
+    reviews = []
+    for r in rows:
+        d = dict(r)
+        if d.get("review_id"):
+            d["review_id"] = str(d["review_id"])
+        reviews.append(d)
+    return {"reviews": reviews, "total": total}
+
+
 # ─── Change Log (P4 Protocol 5) ────────────────────────────────────────────────
 
 @router.get("/change_log")

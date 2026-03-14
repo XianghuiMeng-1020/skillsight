@@ -1,0 +1,41 @@
+{
+  "version": "v1",
+  "dimensions": [
+    {
+      "id": "impact",
+      "name": "Impact & Achievements",
+      "weight": 0.25,
+      "criteria": "Uses quantified data to describe achievements (not just responsibilities). Follows STAR method. Demonstrates measurable outcomes."
+    },
+    {
+      "id": "relevance",
+      "name": "Relevance & Targeting",
+      "weight": 0.20,
+      "criteria": "Content aligns with the target role. Highlights relevant experience and skills. Tailored rather than generic."
+    },
+    {
+      "id": "structure",
+      "name": "Structure & Formatting",
+      "weight": 0.15,
+      "criteria": "Clear information hierarchy. Logical sections. Consistent formatting. Appropriate length (1-2 pages)."
+    },
+    {
+      "id": "language",
+      "name": "Language & Clarity",
+      "weight": 0.15,
+      "criteria": "Strong action verbs. No grammar errors. Concise and impactful writing. Professional tone."
+    },
+    {
+      "id": "skills_presentation",
+      "name": "Skills Presentation",
+      "weight": 0.15,
+      "criteria": "Skills are clearly listed and demonstrated through experience. Consistency with verified skill profile. Technical and soft skills balanced."
+    },
+    {
+      "id": "ats",
+      "name": "ATS Compatibility",
+      "weight": 0.10,
+      "criteria": "Keyword coverage for target role. Parseable format (no complex tables/graphics). Standard section headings."
+    }
+  ]
+}

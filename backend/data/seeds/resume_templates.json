@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Professional Classic",
+    "description": "Clean, traditional layout suitable for finance and consulting roles.",
+    "industry_tags": ["finance", "consulting", "corporate"],
+    "preview_url": "",
+    "template_file": "professional_classic.docx",
+    "is_active": true
+  },
+  {
+    "name": "Modern Tech",
+    "description": "Contemporary design for technology and engineering positions.",
+    "industry_tags": ["technology", "engineering", "software"],
+    "preview_url": "",
+    "template_file": "modern_tech.docx",
+    "is_active": true
+  },
+  {
+    "name": "Creative Portfolio",
+    "description": "Stylish layout for marketing, design, and creative roles.",
+    "industry_tags": ["marketing", "design", "creative"],
+    "preview_url": "",
+    "template_file": "creative_portfolio.docx",
+    "is_active": true
+  },
+  {
+    "name": "Academic Research",
+    "description": "Structured format for research and academia applications.",
+    "industry_tags": ["research", "academia", "education"],
+    "preview_url": "",
+    "template_file": "academic_research.docx",
+    "is_active": true
+  }
+]

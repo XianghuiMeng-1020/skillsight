@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "required": ["impact", "relevance", "structure", "language", "skills_presentation", "ats"],
+  "properties": {
+    "impact": { "$ref": "#/$defs/dimension_score" },
+    "relevance": { "$ref": "#/$defs/dimension_score" },
+    "structure": { "$ref": "#/$defs/dimension_score" },
+    "language": { "$ref": "#/$defs/dimension_score" },
+    "skills_presentation": { "$ref": "#/$defs/dimension_score" },
+    "ats": { "$ref": "#/$defs/dimension_score" }
+  },
+  "$defs": {
+    "dimension_score": {
+      "type": "object",
+      "required": ["score", "comment"],
+      "properties": {
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "comment": { "type": "string" }
+      }
+    }
+  }
+}

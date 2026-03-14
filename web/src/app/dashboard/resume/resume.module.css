@@ -1,0 +1,261 @@
+/* Resume Enhancement Center - layout and shared */
+
+.layout {
+  display: flex;
+  min-height: 100vh;
+  background: var(--gray-50);
+}
+
+.main {
+  flex: 1;
+  padding: 1.5rem 2rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.pageTitle {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--gray-800);
+  margin: 0 0 1rem 0;
+}
+
+.stepNav {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.stepDot {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  border: 2px solid var(--gray-300);
+  background: var(--white);
+  color: var(--gray-500);
+  font-weight: 600;
+  font-size: 0.875rem;
+  cursor: default;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.stepDotCurrent {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--white);
+  cursor: default;
+}
+
+.stepDotDone {
+  background: var(--success);
+  border-color: var(--success);
+  color: var(--white);
+  cursor: pointer;
+}
+
+.stepDotDone:hover {
+  filter: brightness(1.05);
+}
+
+.stepContent {
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 1.5rem;
+  min-height: 320px;
+}
+
+.backLink {
+  margin-top: 1rem;
+}
+
+.footer {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  gap: 1rem;
+}
+
+/* Uploader */
+.uploadZone {
+  border: 2px dashed var(--gray-300);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  text-align: center;
+  background: var(--gray-50);
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.uploadZoneActive {
+  border-color: var(--primary);
+  background: var(--primary-50);
+}
+
+.docList {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0 0;
+}
+
+.docItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.docItemSelected {
+  background: var(--primary-50);
+  border-left: 4px solid var(--primary);
+}
+
+/* Score card */
+.scoreRing {
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 1rem;
+}
+
+.scoreRingValue {
+  font-size: 2rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+.dimensionCard {
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  margin-bottom: 0.75rem;
+}
+
+.dimensionBar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--gray-200);
+  overflow: hidden;
+  margin-bottom: 0.5rem;
+}
+
+.dimensionBarFill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+/* Suggestions */
+.suggestionCard {
+  padding: 1rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  margin-bottom: 1rem;
+}
+
+.beforeBlock {
+  background: var(--error-light);
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  font-family: ui-monospace, monospace;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.afterBlock {
+  background: var(--success-light);
+  padding: 0.75rem;
+  border-radius: var(--radius);
+  font-family: ui-monospace, monospace;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.priorityTabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.priorityTab {
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--gray-200);
+  background: var(--white);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.priorityTabActive {
+  background: var(--primary-50);
+  border-color: var(--primary);
+}
+
+/* Comparison */
+.comparisonGrid {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Templates */
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.templateCard {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  transition: box-shadow 0.2s, transform 0.02s;
+}
+
+.templateCard:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.templateCard h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+}
+
+.templateTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.templateTag {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  background: var(--teal-50);
+  color: var(--teal-dark);
+}
+
+@media (max-width: 768px) {
+  .main {
+    padding: 1rem;
+  }
+  .stepNav {
+    justify-content: center;
+  }
+  .templateGrid {
+    grid-template-columns: 1fr;
+  }
+}

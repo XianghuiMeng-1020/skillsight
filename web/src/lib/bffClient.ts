@@ -590,4 +590,107 @@ export const studentBff = {
       .filter(r => r.readiness >= 60);
     return { count: matched.length, items: matched };
   },
+
+  // Resume Enhancement Center
+  resumeReviewStart: (docId: string, targetRoleId?: string) =>
+    bffRequest<{ review_id: string; status: string }>('/bff/student/resume-review/start', {
+      method: 'POST',
+      body: { doc_id: docId, target_role_id: targetRoleId ?? undefined },
+    }),
+
+  resumeReviewScore: (reviewId: string) =>
+    bffRequest<{
+      initial_scores?: Record<string, { score: number; comment: string }>;
+      total_initial?: number;
+      total_final?: number | null;
+      final_scores?: Record<string, { score: number; comment: string }> | null;
+    }>(`/bff/student/resume-review/${reviewId}/score`, { method: 'POST' }),
+
+  resumeReviewGetScore: (reviewId: string) =>
+    bffRequest<{
+      initial_scores: Record<string, { score: number; comment: string }> | null;
+      final_scores: Record<string, { score: number; comment: string }> | null;
+      total_initial: number | null;
+      total_final: number | null;
+    }>(`/bff/student/resume-review/${reviewId}/score`),
+
+  resumeReviewSuggest: (reviewId: string) =>
+    bffRequest<{
+      suggestions: Array<{
+        suggestion_id: string;
+        dimension: string;
+        section?: string;
+        original_text?: string;
+        suggested_text?: string;
+        explanation?: string;
+        priority: string;
+        status: string;
+      }>;
+    }>(`/bff/student/resume-review/${reviewId}/suggest`, { method: 'POST' }),
+
+  resumeReviewGetSuggestions: (reviewId: string, priority?: string) =>
+    bffRequest<{
+      suggestions: Array<{
+        suggestion_id: string;
+        dimension: string;
+        section?: string;
+        original_text?: string;
+        suggested_text?: string;
+        explanation?: string;
+        priority: string;
+        status: string;
+        student_edit?: string;
+      }>;
+    }>(`/bff/student/resume-review/${reviewId}/suggestions${priority ? `?priority=${encodeURIComponent(priority)}` : ''}`),
+
+  resumeReviewPatchSuggestion: (reviewId: string, suggestionId: string, status: string, studentEdit?: string) =>
+    bffRequest<{ suggestion_id: string; status: string }>(
+      `/bff/student/resume-review/${reviewId}/suggestion/${suggestionId}`,
+      { method: 'PATCH', body: { status, student_edit: studentEdit } }
+    ),
+
+  resumeReviewRescore: (reviewId: string) =>
+    bffRequest<{
+      final_scores: Record<string, { score: number; comment: string }>;
+      total_final: number;
+      total_initial: number;
+      improvements: Record<string, number>;
+    }>(`/bff/student/resume-review/${reviewId}/rescore`, { method: 'POST' }),
+
+  getResumeTemplates: (roleId?: string, industry?: string) => {
+    const params = new URLSearchParams();
+    if (roleId) params.set('role_id', roleId);
+    if (industry) params.set('industry', industry);
+    const q = params.toString();
+    return bffRequest<{
+      templates: Array<{
+        template_id: string;
+        name: string;
+        description?: string;
+        industry_tags?: string[];
+        preview_url?: string;
+        template_file?: string;
+      }>;
+    }>(`/bff/student/resume-templates${q ? `?${q}` : ''}`);
+  },
+
+  resumeReviewApplyTemplate: (reviewId: string, templateId: string) =>
+    bffRequest<{ filename: string; content_base64: string; mime_type: string }>(
+      `/bff/student/resume-review/${reviewId}/apply-template`,
+      { method: 'POST', body: { template_id: templateId } }
+    ),
+
+  getResumeReviews: (limit = 10, offset = 0) =>
+    bffRequest<{
+      reviews: Array<{
+        review_id: string;
+        doc_id: string;
+        target_role_id?: string;
+        status: string;
+        total_initial?: number;
+        total_final?: number;
+        created_at?: string;
+      }>;
+      total: number;
+    }>(`/bff/student/resume-reviews?limit=${limit}&offset=${offset}`),
 };
