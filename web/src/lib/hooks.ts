@@ -1020,17 +1020,21 @@ export function useAchievements() {
         if (data.recentUnlock) setRecentUnlock(data.recentUnlock as Achievement);
       } catch (e) {
         logger.error('Failed to load achievements', e);
-        const saved = localStorage.getItem('skillsight-achievements');
-        if (saved) {
-          try {
-            const parsed = JSON.parse(saved);
-            setAchievements(prev => prev.map(a => {
-              const savedA = parsed.find((s: Achievement) => s.id === a.id);
-              return savedA ? { ...a, ...savedA } : a;
-            }));
-          } catch {
-            // ignore
+        try {
+          const saved = localStorage.getItem('skillsight-achievements');
+          if (saved) {
+            try {
+              const parsed = JSON.parse(saved);
+              setAchievements(prev => prev.map(a => {
+                const savedA = parsed.find((s: Achievement) => s.id === a.id);
+                return savedA ? { ...a, ...savedA } : a;
+              }));
+            } catch {
+              // ignore
+            }
           }
+        } catch (e) {
+          logger.warn('Failed to read achievements from localStorage', e);
         }
       } finally {
         if (!cancelled) setLoaded(true);
@@ -1054,7 +1058,11 @@ export function useAchievements() {
         }
         return { ...a, progress: newProgress };
       });
-      localStorage.setItem('skillsight-achievements', JSON.stringify(updated));
+      try {
+        localStorage.setItem('skillsight-achievements', JSON.stringify(updated));
+      } catch (e) {
+        logger.warn('Failed to save achievements to localStorage', e);
+      }
       import('@/lib/bffClient').then(({ studentBff }) => {
         studentBff.postAchievementProgress(achievementId, progress).catch(() => {});
       });

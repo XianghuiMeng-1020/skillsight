@@ -97,7 +97,7 @@ export default function StaffPage() {
           <span style={{ color: '#94a3b8' }}>Instructor Portal</span>
         </div>
         <button
-          onClick={() => { clearToken(); localStorage.removeItem('user'); setLoggedIn(false); setCourses([]); }}
+          onClick={() => { clearToken(); try { localStorage.removeItem('user'); } catch (e) { console.warn('Failed to clear user from localStorage:', e); } setLoggedIn(false); setCourses([]); }}
           style={{ padding: '6px 16px', borderRadius: 6, background: '#334155', color: '#94a3b8', border: 'none', cursor: 'pointer' }}
         >
           Sign Out

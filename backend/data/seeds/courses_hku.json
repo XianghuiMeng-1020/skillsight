@@ -1,0 +1,322 @@
+[
+  {
+    "course_id": "BSDS3001",
+    "course_name": "Social data science foundations",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Introductory",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSDS3002",
+    "course_name": "Social computing: methods and applications",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Introductory",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSDS3003",
+    "course_name": "Data processing and visualization",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Introductory",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSDS3004",
+    "course_name": "Introduction to statistics",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Introductory",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSDS3005",
+    "course_name": "Advanced statistical modeling for social applications",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Compulsory",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4018",
+    "course_name": "Data warehousing and data mining",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Compulsory/Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "SDST2604",
+    "course_name": "Introduction to R/Python programming and elementary data analysis",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Compulsory",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM3017",
+    "course_name": "Database systems",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective/Core",
+    "assessment": "70% coursework, 30% examination"
+  },
+  {
+    "course_id": "BSIM3021",
+    "course_name": "Web development, users and management",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM3025",
+    "course_name": "Multimedia and human-computer interaction",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4011",
+    "course_name": "Project management",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective/Core",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4019",
+    "course_name": "Electronic commerce",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4020",
+    "course_name": "Information society issues and policy",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective/Core",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4024",
+    "course_name": "Fundamentals of object-oriented programming",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4027",
+    "course_name": "Selected topics in information management",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4028",
+    "course_name": "Principles and practice of data visualization",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "MLIM6319",
+    "course_name": "Information behavior",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "MLIM7350",
+    "course_name": "Data curation",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "GEOG1020",
+    "course_name": "Modern maps in the age of big data",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "60% coursework, 40% examination"
+  },
+  {
+    "course_id": "GEOG2090",
+    "course_name": "Introduction to geographic information systems",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "60% coursework, 40% examination"
+  },
+  {
+    "course_id": "POLI3039",
+    "course_name": "Public policy analysis",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "POLI3131",
+    "course_name": "In search of good policy: an introduction to policy evaluation",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "PSYC2071",
+    "course_name": "Judgements and decision making",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "SOWK2131",
+    "course_name": "Behavioural economics for social change",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "SDST3612",
+    "course_name": "Statistical machine learning",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "SDST3613",
+    "course_name": "Marketing analytics",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "50% coursework, 50% examination"
+  },
+  {
+    "course_id": "SDST3622",
+    "course_name": "Data visualization",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "SDST4011",
+    "course_name": "Natural language processing",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "SDST4609",
+    "course_name": "Big data analytics",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Advanced Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSDS3999",
+    "course_name": "Internship",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Capstone",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSDS4999",
+    "course_name": "Project",
+    "credits": 6,
+    "programme": "BASc(SDS)",
+    "category": "Capstone",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM3001",
+    "course_name": "Information management foundations",
+    "credits": 6,
+    "programme": "BSc(IM)",
+    "category": "Core",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM3004",
+    "course_name": "Information retrieval",
+    "credits": 6,
+    "programme": "BSc(IM)",
+    "category": "Core",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM3023",
+    "course_name": "Information organisation and content management",
+    "credits": 6,
+    "programme": "BSc(IM)",
+    "category": "Core",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM3998",
+    "course_name": "Professional practices in information management",
+    "credits": 6,
+    "programme": "BSc(IM)",
+    "category": "Core",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM3999",
+    "course_name": "Internship",
+    "credits": 6,
+    "programme": "BSc(IM)",
+    "category": "Core",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4026",
+    "course_name": "Introduction to statistics and quantitative data analysis",
+    "credits": 6,
+    "programme": "BSc(IM)",
+    "category": "Core",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM4999",
+    "course_name": "Project",
+    "credits": 6,
+    "programme": "BSc(IM)",
+    "category": "Capstone",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "BSIM3014",
+    "course_name": "User-based systems analysis",
+    "credits": 6,
+    "programme": "BSc(IM)",
+    "category": "Elective",
+    "assessment": "100% coursework"
+  },
+  {
+    "course_id": "CAES9420",
+    "course_name": "Academic English for information management and social data science students",
+    "credits": 6,
+    "programme": "BASc(SDS)/BSc(IM)",
+    "category": "English",
+    "assessment": "100% coursework"
+  }
+]

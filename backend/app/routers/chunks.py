@@ -154,9 +154,17 @@ def embed_document_chunks(
         
         if not rows:
             raise HTTPException(status_code=404, detail="No chunks found for this document")
-        
-        # Generate embeddings
-        texts = [r["chunk_text"] for r in rows]
+
+        texts = []
+        for r in rows:
+            ct = r.get("chunk_text")
+            sn = (r.get("snippet") or "").strip()
+            if ct is not None and str(ct).strip():
+                texts.append(str(ct))
+            elif sn:
+                texts.append(sn)
+            else:
+                texts.append("(no extractable text)")
         vecs = embed_texts(texts)
         
         client = get_client()

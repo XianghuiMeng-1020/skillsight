@@ -55,29 +55,45 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<{ code: string; message: string; next_step: string } | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [needLogin, setNeedLogin] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const existing = localStorage.getItem('skillsight_token');
-    if (!existing) {
-      fetch(`${API_BASE_URL}/bff/student/auth/dev_login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subject_id: 'demo_student', role: 'student' }),
-      })
-        .then(r => { if (!r.ok) throw new Error(); return r.json(); })
-        .then(data => {
-          if (data?.token) {
-            localStorage.setItem('skillsight_token', data.token);
-            if (data.role) localStorage.setItem('skillsight_role', data.role);
-          }
+    try {
+      const existing = localStorage.getItem('skillsight_token');
+      if (!existing) {
+        fetch(`${API_BASE_URL}/bff/student/auth/dev_login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subject_id: 'demo_student', role: 'student' }),
         })
-        .catch(() => {
-          const msg = 'Auto-login failed. Please log in manually.';
-          setError(msg);
-          addToast('error', msg);
-        });
+          .then(r => { if (!r.ok) throw new Error(); return r.json(); })
+          .then(data => {
+            if (data?.token) {
+              try {
+                localStorage.setItem('skillsight_token', data.token);
+                if (data.role) localStorage.setItem('skillsight_role', data.role);
+                localStorage.setItem('user', JSON.stringify({
+                  id: 'demo_student',
+                  name: 'Demo Student',
+                  email: 'demo@connect.hku.hk',
+                  role: 'student',
+                  avatar: 'D',
+                }));
+              } catch (e) {
+                console.warn('Failed to save token to localStorage:', e);
+              }
+            }
+          })
+          .catch(() => {
+            setError(t('upload.autoLoginFailed'));
+            setNeedLogin(true);
+            addToast('error', t('upload.autoLoginFailed'));
+          });
+      }
+    } catch (e) {
+      console.warn('Failed to read token from localStorage:', e);
     }
   }, []);
 
@@ -144,6 +160,7 @@ export default function UploadPage() {
     setUploading(true);
     setStage('uploading');
     setError(null);
+    setNeedLogin(false);
     setResult(null);
     setRefusal(null);
     setAssessProgress({ done: 0, total: 0 });
@@ -165,8 +182,15 @@ export default function UploadPage() {
       });
 
       if (!response.ok) {
-        const err = await response.json();
+        const err = await response.json().catch(() => ({}));
         const detail = err.detail;
+        const isAuthError = response.status === 401 || (typeof detail === 'string' && /登入|login|unauthorized/i.test(detail));
+        if (isAuthError) {
+          setError(t('upload.loginRequired'));
+          setNeedLogin(true);
+          addToast('error', t('upload.loginRequired'));
+          return;
+        }
         const refusalPayload =
           detail && typeof detail === 'object' && detail.refusal
             ? detail.refusal
@@ -381,9 +405,14 @@ export default function UploadPage() {
           {error && (
             <div className="alert alert-error fade-in" style={{ marginBottom: '1.5rem' }}>
               <span>⚠</span>
-              <div>
-                <strong>{t('upload.failed')}</strong>
+              <div style={{ flex: 1 }}>
+                <strong>{needLogin ? undefined : t('upload.failed')}</strong>
                 <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem' }}>{error}</p>
+                {needLogin && (
+                  <Link href="/login" className="btn btn-primary btn-sm" style={{ marginTop: '0.75rem', display: 'inline-block' }}>
+                    {t('upload.goToLogin')}
+                  </Link>
+                )}
               </div>
             </div>
           )}

@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -38,7 +39,7 @@ from backend.app.change_log_events import (
 )
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
-from backend.app.security import Identity, issue_token, require_auth
+from backend.app.security import Identity, issue_token, require_auth, _is_dev_login_allowed
 
 router = APIRouter(prefix="/bff/student", tags=["bff-student"])
 _log = logging.getLogger(__name__)
@@ -103,6 +104,8 @@ class DevLoginReq(BaseModel):
 @router.post("/auth/dev_login")
 def bff_dev_login(payload: DevLoginReq):
     """Direct token issuance (no internal HTTP call)."""
+    if not _is_dev_login_allowed():
+        raise HTTPException(status_code=403, detail="dev_login disabled in production")
     token = issue_token(payload.subject_id, payload.role, ttl_s=int(payload.ttl_s))
     return {"token": token, "subject_id": payload.subject_id, "role": payload.role}
 
@@ -314,7 +317,7 @@ async def bff_embed(
 
 # ─── Auto-assess after upload (Gap 13) ─────────────────────────────────────────
 
-AUTO_ASSESS_SKILL_LIMIT = int(os.getenv("AUTO_ASSESS_SKILL_LIMIT", "10"))
+AUTO_ASSESS_SKILL_LIMIT = int(os.getenv("AUTO_ASSESS_SKILL_LIMIT", "50"))
 
 
 def _run_auto_assess_for_doc(
@@ -346,7 +349,7 @@ def _run_auto_assess_for_doc(
     for skill_id in skill_ids:
         try:
             # Demonstration (Decision 2)
-            dem_req = DemonstrationRequest(skill_id=skill_id, doc_id=doc_id, k=5)
+            dem_req = DemonstrationRequest(skill_id=skill_id, doc_id=doc_id, k=8, min_score=0.15)
             dem_result = ai_demonstration(req=dem_req, db=db, ident=ident)
             label = dem_result.get("label", "not_enough_information")
             rationale = dem_result.get("rationale", "")
@@ -387,7 +390,7 @@ def _run_auto_assess_for_doc(
             db.commit()
 
             # Proficiency (Decision 3)
-            prof_req = ProficiencyRequest(skill_id=skill_id, doc_id=doc_id, k=5)
+            prof_req = ProficiencyRequest(skill_id=skill_id, doc_id=doc_id, k=8, min_score=0.15)
             prof_result = ai_proficiency(req=prof_req, db=db, ident=ident)
             level = int(prof_result.get("level", 0))
             prof_label = prof_result.get("label", "novice")
@@ -424,28 +427,81 @@ def _run_auto_assess_for_doc(
     return {"skills_processed": processed, "skills_failed": failed, "skill_ids": skill_ids[:processed]}
 
 
+def _auto_assess_background(doc_id: str, subject_id: str, role: str):
+    """Run embed + auto-assess in a background thread with its own DB session."""
+    import threading
+    from backend.app.db.session import SessionLocal
+
+    def _run():
+        _log.info("auto-assess background: starting for doc %s", doc_id)
+        bg_db = SessionLocal()
+        try:
+            bg_ident = Identity(subject_id=subject_id, role=role, source="bearer")
+
+            from backend.app.routers.ai import _vector_pipeline_configured
+            vector_up = _vector_pipeline_configured()
+            embed_ok = False
+            try:
+                from backend.app.routers.chunks import embed_document_chunks
+                embed_document_chunks(doc_id, bg_db, bg_ident)
+                embed_ok = True
+                _log.info("auto-assess background: embedded chunks for doc %s", doc_id)
+            except Exception as exc:
+                _log.warning("auto-assess background: embed failed for doc %s: %s", doc_id, exc)
+
+            if not embed_ok and vector_up:
+                _log.warning("auto-assess background: skipping assessment for doc %s (embed failed while vector store active)", doc_id)
+                log_audit(
+                    engine,
+                    subject_id=subject_id,
+                    action="bff.student.documents.auto_assess",
+                    object_type="document",
+                    object_id=doc_id,
+                    status="error",
+                    detail={"message": "embed_failed_skipped_assessment"},
+                )
+                return
+
+            result = _run_auto_assess_for_doc(bg_db, doc_id, bg_ident)
+            log_audit(
+                engine,
+                subject_id=subject_id,
+                action="bff.student.documents.auto_assess",
+                object_type="document",
+                object_id=doc_id,
+                status="ok",
+                detail=result,
+            )
+            _log.info("auto-assess background: completed for doc %s — %s", doc_id, result)
+        except Exception as exc:
+            _log.error("auto-assess background: failed for doc %s: %s", doc_id, exc)
+        finally:
+            bg_db.close()
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+
+
 @router.post("/documents/{doc_id}/auto-assess")
 def bff_documents_auto_assess(
     doc_id: str,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
-) -> Dict[str, Any]:
+):
     """
-    Run demonstration + proficiency for all configured skills on this document.
-    Call after upload + embed so the dashboard shows real skill updates.
+    Kick off embed + demonstration + proficiency for all skills on this document.
+    HTTP 202 Accepted; processing continues in a background thread.
     """
     _check_consent(db, doc_id, ident.subject_id)
-    result = _run_auto_assess_for_doc(db, doc_id, ident)
-    log_audit(
-        engine,
-        subject_id=ident.subject_id,
-        action="bff.student.documents.auto_assess",
-        object_type="document",
-        object_id=doc_id,
-        status="ok",
-        detail=result,
+    _auto_assess_background(doc_id, ident.subject_id, ident.role)
+    return JSONResponse(
+        status_code=202,
+        content={
+            "status": "accepted",
+            "doc_id": doc_id,
+            "message": "Auto-assess started in background. Refresh the Skills page in ~1–2 minutes.",
+        },
     )
-    return result
 
 
 # ─── Evidence Search ──────────────────────────────────────────────────────────

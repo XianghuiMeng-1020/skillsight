@@ -81,7 +81,7 @@ export function AgentChat({
     try {
       const res = await studentBff.tutorSessionStart(skillId, docIds, mode);
       setSessionId(res.session_id);
-      let greeting = (t('agent.greeting') as string) || '';
+      let greeting = (t('agent.greeting') as string)?.trim() || (t('agent.welcomeFallback') as string) || 'Hi! How can I help you today?';
       if (mode === 'assessment') {
         const turnLimitLine = (t('agent.turnLimitGreeting') as string) || '';
         if (turnLimitLine) greeting = `${greeting}\n\n${turnLimitLine}`;
@@ -91,7 +91,8 @@ export function AgentChat({
       logger.error('AgentChat session start failed', e);
       const raw = e instanceof Error ? e.message : String(e);
       const isNetwork = /failed to fetch|network error|cors|load failed/i.test(raw) || raw === 'Failed to fetch';
-      setStartError(isNetwork ? (t('agent.sessionStartFailed') as string) : (raw || (t('agent.sessionStartFailed') as string)));
+      const errMsg = isNetwork ? (t('agent.sessionStartFailed') as string) : (t('agent.serviceUnavailable') as string) || (t('agent.sessionStartFailed') as string);
+      setStartError(errMsg);
     } finally {
       setLoading(false);
     }
@@ -172,17 +173,32 @@ export function AgentChat({
               <>
                 <span className={styles.spinner} />
                 {t('skills.loading') as string}
+                <div style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: 'var(--gray-400)' }}>
+                  {t('skills.loadingSlowHint') as string}
+                </div>
               </>
-            ) : null}
+            ) : (
+              <div style={{ marginTop: '0.5rem' }}>
+                <span>{t('skills.loading') as string}</span>
+                <button type="button" className={styles.retryBtn} style={{ marginLeft: '0.5rem' }} onClick={() => { setSessionStarted(false); }}>
+                  {t('agent.retry') as string}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {startError && (
           <div className={styles.errorBlock} role="alert">
             <span>{startError}</span>
-            <button type="button" className={styles.retryBtn} onClick={() => { setStartError(null); setSessionStarted(false); }} aria-label={t('agent.retry') as string}>
-              {t('agent.retry') as string}
-            </button>
+            <div className={styles.errorActions}>
+              <button type="button" className={styles.retryBtn} onClick={() => { setStartError(null); setSessionStarted(false); }} aria-label={t('agent.retry') as string}>
+                {t('agent.retry') as string}
+              </button>
+              <button type="button" className={styles.dismissBtn} onClick={onClose} aria-label={t('common.close') as string}>
+                {t('common.close') as string}
+              </button>
+            </div>
           </div>
         )}
 

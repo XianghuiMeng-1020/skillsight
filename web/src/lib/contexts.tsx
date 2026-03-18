@@ -22,19 +22,27 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    const savedTheme = localStorage.getItem('skillsight-theme') as Theme;
-    if (savedTheme) {
-      setThemeState(savedTheme);
-      document.documentElement.setAttribute('data-theme', savedTheme);
-    } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      setThemeState('dark');
-      document.documentElement.setAttribute('data-theme', 'dark');
+    try {
+      const savedTheme = localStorage.getItem('skillsight-theme') as Theme;
+      if (savedTheme) {
+        setThemeState(savedTheme);
+        document.documentElement.setAttribute('data-theme', savedTheme);
+      } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        setThemeState('dark');
+        document.documentElement.setAttribute('data-theme', 'dark');
+      }
+    } catch (e) {
+      console.warn('Failed to read theme from localStorage:', e);
     }
   }, []);
 
   const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme);
-    localStorage.setItem('skillsight-theme', newTheme);
+    try {
+      localStorage.setItem('skillsight-theme', newTheme);
+    } catch (e) {
+      console.warn('Failed to save theme to localStorage:', e);
+    }
     document.documentElement.setAttribute('data-theme', newTheme);
   }, []);
 
@@ -405,6 +413,7 @@ export const translations: Translations = {
   'skills.loadingSlowHint': { zh: '正在连接服务器，首次加载可能需要 10–20 秒，请稍候。', 'zh-TW': '正在連接伺服器，首次載入可能需要 10–20 秒，請稍候。', en: 'Connecting to server; first load may take 10–20 seconds.' },
   'skills.loadFailed': { zh: '加载失败', 'zh-TW': '載入失敗', en: 'Load Failed' },
   'skills.loginRequired': { zh: '请先登录以查看技能档案。', 'zh-TW': '請先登入以查看技能檔案。', en: 'Please log in to view your skill profile.' },
+  'skills.sessionExpired': { zh: '登录已过期，请重新登录后再试。', 'zh-TW': '登入已過期，請重新登入後再試。', en: 'Session expired. Please log in again.' },
   'skills.loadFailedMsg': { zh: '请确认已上传文档并登录，然后重试。', 'zh-TW': '請確認已上傳文件並登入，然後重試。', en: 'Please confirm you have uploaded documents and are logged in, then try again.' },
   'skills.networkErrorHint': { zh: '无法连接服务器，请稍后重试或联系支持。', 'zh-TW': '無法連接伺服器，請稍後重試或聯絡支援。', en: 'Cannot reach the server. Please try again later or contact support.' },
   'skills.retry': { zh: '重试', 'zh-TW': '重試', en: 'Retry' },
@@ -426,6 +435,8 @@ export const translations: Translations = {
   'agent.minsAgo': { zh: '分钟前', 'zh-TW': '分鐘前', en: 'mins ago' },
   'agent.retry': { zh: '重试', 'zh-TW': '重試', en: 'Retry' },
   'agent.sessionStartFailed': { zh: '无法连接评估服务，请检查网络后重试。', 'zh-TW': '無法連接評估服務，請檢查網路後重試。', en: 'Could not connect to the assessment service. Please check your network and try again.' },
+  'agent.serviceUnavailable': { zh: '评估服务暂时不可用，请检查网络或稍后重试。', 'zh-TW': '評估服務暫時無法使用，請檢查網路或稍後重試。', en: 'Assessment service is temporarily unavailable. Please check your network or try again later.' },
+  'agent.welcomeFallback': { zh: '你好！我是你的评估助手。请简要描述或回答我的问题以完成评估。', 'zh-TW': '你好！我是你的評估助手。請簡要描述或回答我的問題以完成評估。', en: 'Hi! I\'m your assessment assistant. Please briefly describe or answer my questions to complete the assessment.' },
   'agent.noContextHint': { zh: '在「评估」页选择具体类型后，可获得更针对性的评估。', 'zh-TW': '在「評估」頁選擇具體類型後，可獲得更具針對性的評估。', en: 'Choose a specific type on the Assessments page for a more targeted assessment.' },
   'agent.noContextLink': { zh: '去选择', 'zh-TW': '去選擇', en: 'Choose type' },
   'agent.turnLimitGreeting': { zh: '本轮评估约 10 轮对话内完成。', 'zh-TW': '本輪評估約 10 輪對話內完成。', en: 'This assessment usually completes within about 10 exchanges.' },
@@ -562,6 +573,8 @@ export const translations: Translations = {
   'login.continueEmail': { zh: '使用邮箱继续', 'zh-TW': '使用電郵繼續', en: 'Continue with Email' },
   'login.needHelp': { zh: '需要帮助？', 'zh-TW': '需要幫助？', en: 'Need help?' },
   'login.contactUs': { zh: '联系我们', 'zh-TW': '聯絡我們', en: 'Contact us' },
+  'login.testAccountTitle': { zh: '测试账户', 'zh-TW': '測試帳戶', en: 'Test account' },
+  'login.testAccountHint': { zh: '无 HKU 账号也可体验：点击上方「使用 HKU 门户登录」将使用演示账户登录（学生身份）。', 'zh-TW': '無 HKU 帳號也可體驗：點擊上方「使用 HKU 入口登入」將以示範帳戶登入（學生身份）。', en: 'No HKU account? Click "Log in with HKU Portal" above to sign in as a demo student.' },
   'login.failedNetwork': { zh: '无法连接服务器，请检查网络后重试或联系支持。', 'zh-TW': '無法連接伺服器，請檢查網路後重試或聯絡支援。', en: 'Cannot connect. Please check your network and try again, or contact support.' },
   'assistant.loginRequired': { zh: '请先登录以使用评估助手', 'zh-TW': '請先登入以使用評估助手', en: 'Please log in to use the assessment assistant' },
   'assistant.goLogin': { zh: '去登录', 'zh-TW': '前往登入', en: 'Go to Login' },
@@ -597,6 +610,7 @@ export const translations: Translations = {
   'assessmentsList.submitEssay': { zh: '📤 提交文章', 'zh-TW': '📤 提交文章', en: '📤 Submit Essay' },
   'assessmentsList.couldNotStart': { zh: '无法启动评估，请检查后端是否运行。', 'zh-TW': '無法啟動評估，請檢查後端是否運行。', en: 'Could not start assessment. Please check if the backend is running.' },
   'assessmentsList.networkError': { zh: '无法连接评估服务，请检查网络后重试。', 'zh-TW': '無法連接評估服務，請檢查網路後重試。', en: 'Could not connect to the assessment service. Please check your network and try again.' },
+  'assessmentsList.serviceUnavailable': { zh: '评估服务暂时不可用。请检查网络连接并确认后端已启动，或稍后重试。', 'zh-TW': '評估服務暫時無法使用。請檢查網路並確認後端已啟動，或稍後重試。', en: 'Assessment service is temporarily unavailable. Please check your network and ensure the backend is running, or try again later.' },
   'assessmentsList.submissionFailed': { zh: '提交失败', 'zh-TW': '提交失敗', en: 'Submission failed' },
   'assessmentsList.time1_2': { zh: '1-2 分钟', 'zh-TW': '1-2 分鐘', en: '1-2 minutes' },
   'assessmentsList.time15_30': { zh: '15-30 分钟', 'zh-TW': '15-30 分鐘', en: '15-30 minutes' },
@@ -736,6 +750,9 @@ export const translations: Translations = {
   'upload.viewDetails': { zh: '查看证据详情', 'zh-TW': '查看證據詳情', en: 'View Evidence Details' },
   'upload.backToDashboard': { zh: '返回仪表盘', 'zh-TW': '返回儀表板', en: 'Back to Dashboard' },
   'upload.failed': { zh: '上传失败', 'zh-TW': '上傳失敗', en: 'Upload Failed' },
+  'upload.loginRequired': { zh: '请先登入后再上传文件。', 'zh-TW': '請先登入後再上傳檔案。', en: 'Please log in first before uploading.' },
+  'upload.goToLogin': { zh: '前往登录', 'zh-TW': '前往登入', en: 'Go to login' },
+  'upload.autoLoginFailed': { zh: '自动登录失败，请点击下方链接手动登录。', 'zh-TW': '自動登入失敗，請點擊下方連結手動登入。', en: 'Auto-login failed. Please log in manually using the link below.' },
   'upload.rejected': { zh: '请求被拒绝：', 'zh-TW': '請求被拒絕：', en: 'Request rejected: ' },
   'upload.nextStep': { zh: '下一步：', 'zh-TW': '下一步：', en: 'Next step:' },
   'upload.clickToChange': { zh: '点击更换文件', 'zh-TW': '點擊更換文件', en: 'Click to change file' },
@@ -775,7 +792,9 @@ export const translations: Translations = {
   'upload.pageSubtitle': { zh: '添加文档、项目或录音以建立你的技能档案', 'zh-TW': '添加文件、專案或錄音以建立你的技能檔案', en: 'Add documents, projects, or recordings to build your skill profile' },
   'upload.filesProcessedSuccess': { zh: '个文件已成功处理。', 'zh-TW': '個文件已成功處理。', en: 'file(s) processed successfully.' },
   'upload.autoAssessHint': { zh: '系统将根据文档自动评估技能，约 1–2 分钟内可在首页看到更新。', 'zh-TW': '系統將根據文件自動評估技能，約 1–2 分鐘內可在首頁看到更新。', en: 'Skills will be auto-assessed from your documents; updates will appear on the dashboard in 1–2 minutes.' },
-  'upload.autoAssessDone': { zh: '已为 {n} 项技能完成自动评估', 'zh-TW': '已為 {n} 項技能完成自動評估', en: 'Auto-assessed {n} skills.' },
+  'upload.autoAssessDone': { zh: '已为 {n} 个文档排队 AI 技能评估，约 1–2 分钟后请在技能页刷新查看。', 'zh-TW': '已為 {n} 個文件排隊 AI 技能評估，約 1–2 分鐘後請在技能頁重新整理查看。', en: 'Queued AI assessment for {n} document(s). Refresh the Skills page in 1–2 minutes.' },
+  'upload.autoAssessPartial': { zh: '部分文档未能启动评估（{ok} 成功，{fail} 失败）。请稍后在技能页重试。', 'zh-TW': '部分文件未能啟動評估（{ok} 成功，{fail} 失敗）。請稍後在技能頁重試。', en: '{ok} document(s) queued; {fail} failed. Retry from the Skills page later.' },
+  'upload.autoAssessAllFailed': { zh: '无法启动自动评估，请稍后重试或前往技能页手动刷新。', 'zh-TW': '無法啟動自動評估，請稍後重試或前往技能頁手動重新整理。', en: 'Could not start auto-assess. Retry later or refresh from the Skills page.' },
   'upload.autoAssessNoUpdate': { zh: '自动评估未更新技能，请确认文档已解析完成或稍后在技能页手动评估。', 'zh-TW': '自動評估未更新技能，請確認文件已解析完成或稍後在技能頁手動評估。', en: 'Auto-assess did not update skills. Confirm documents are parsed or assess manually on the Skills page.' },
   'upload.sectionsExtracted': { zh: '个证据片段已提取', 'zh-TW': '個證據片段已提取', en: 'evidence sections extracted' },
   'upload.selectFiles': { zh: '📤 选择文件', 'zh-TW': '📤 選擇文件', en: '📤 Select Files' },
@@ -799,7 +818,6 @@ export const translations: Translations = {
   'upload.privacyCardTitle': { zh: '🔒 隐私', 'zh-TW': '🔒 隱私', en: '🔒 Privacy' },
   'upload.privacyCardDesc': { zh: '你的文件会被安全处理，仅用于技能评估。你始终拥有数据的完全控制权。', 'zh-TW': '你的文件會被安全處理，僅用於技能評估。你始終擁有資料的完全控制權。', en: 'Your files are processed securely and only used for skill assessment. You maintain full control over your data.' },
   'upload.managePrivacy': { zh: '🔒 管理隐私设置', 'zh-TW': '🔒 管理隱私設定', en: '🔒 Manage Privacy Settings' },
-  'upload.loginRequired': { zh: '请先登录后再上传文档。', 'zh-TW': '請先登入後再上傳文件。', en: 'Please log in to upload documents.' },
   'upload.embedding': { zh: '正在生成向量...', 'zh-TW': '正在生成向量...', en: 'Generating embeddings...' },
   'upload.assessing': { zh: 'AI 评估技能中', 'zh-TW': 'AI 評估技能中', en: 'AI assessing skills' },
   'upload.done': { zh: '完成！', 'zh-TW': '完成！', en: 'Complete!' },
@@ -991,15 +1009,23 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-    const savedLang = localStorage.getItem('skillsight-language') as Language;
-    if (savedLang && ['zh', 'zh-TW', 'en'].includes(savedLang)) {
-      setLanguageState(savedLang);
+    try {
+      const savedLang = localStorage.getItem('skillsight-language') as Language;
+      if (savedLang && ['zh', 'zh-TW', 'en'].includes(savedLang)) {
+        setLanguageState(savedLang);
+      }
+    } catch (e) {
+      console.warn('Failed to read language from localStorage:', e);
     }
   }, []);
 
   const setLanguage = useCallback((lang: Language) => {
     setLanguageState(lang);
-    localStorage.setItem('skillsight-language', lang);
+    try {
+      localStorage.setItem('skillsight-language', lang);
+    } catch (e) {
+      console.warn('Failed to save language to localStorage:', e);
+    }
   }, []);
 
   useEffect(() => {
@@ -1074,13 +1100,17 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const hasSeenTutorial = localStorage.getItem('skillsight-tutorial-completed');
-    const user = localStorage.getItem('user');
-    const savedName = localStorage.getItem('skillsight-onboarding-name');
-    if (savedName) setTutorialNameState(savedName);
-    const isDashboardOrHome = pathname === '/dashboard' || pathname === '/';
-    if (!hasSeenTutorial && user && isDashboardOrHome) {
-      timer = setTimeout(() => setShowTutorial(true), 800);
+    try {
+      const hasSeenTutorial = localStorage.getItem('skillsight-tutorial-completed');
+      const user = localStorage.getItem('user');
+      const savedName = localStorage.getItem('skillsight-onboarding-name');
+      if (savedName) setTutorialNameState(savedName);
+      const isDashboardOrHome = pathname === '/dashboard' || pathname === '/';
+      if (!hasSeenTutorial && user && isDashboardOrHome) {
+        timer = setTimeout(() => setShowTutorial(true), 800);
+      }
+    } catch (e) {
+      console.warn('Failed to read tutorial state from localStorage:', e);
     }
     return () => {
       if (timer) clearTimeout(timer);
@@ -1091,8 +1121,12 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     const clean = name.trim();
     setTutorialNameState(clean);
     if (typeof localStorage !== 'undefined') {
-      if (clean) localStorage.setItem('skillsight-onboarding-name', clean);
-      else localStorage.removeItem('skillsight-onboarding-name');
+      try {
+        if (clean) localStorage.setItem('skillsight-onboarding-name', clean);
+        else localStorage.removeItem('skillsight-onboarding-name');
+      } catch (e) {
+        console.warn('Failed to save tutorial name to localStorage:', e);
+      }
     }
   }, []);
 
@@ -1115,12 +1149,24 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
 
   const skipTutorial = useCallback(() => {
     setShowTutorial(false);
-    if (typeof localStorage !== 'undefined') localStorage.setItem('skillsight-tutorial-completed', 'true');
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('skillsight-tutorial-completed', 'true');
+      } catch (e) {
+        console.warn('Failed to save tutorial state to localStorage:', e);
+      }
+    }
   }, []);
 
   const completeTutorial = useCallback(() => {
     setShowTutorial(false);
-    if (typeof localStorage !== 'undefined') localStorage.setItem('skillsight-tutorial-completed', 'true');
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('skillsight-tutorial-completed', 'true');
+      } catch (e) {
+        console.warn('Failed to save tutorial state to localStorage:', e);
+      }
+    }
   }, []);
 
   return (

@@ -20,7 +20,14 @@ export default function ReviewTicketPage() {
     let cancelled = false;
     setLoading(true);
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
-    const token = typeof window !== 'undefined' ? localStorage.getItem('skillsight_token') : null;
+    let token: string | null = null;
+    if (typeof window !== 'undefined') {
+      try {
+        token = localStorage.getItem('skillsight_token');
+      } catch (e) {
+        console.warn('Failed to read token from localStorage:', e);
+      }
+    }
     fetch(`${API_BASE}/bff/staff/review/${ticketId}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     })

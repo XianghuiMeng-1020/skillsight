@@ -334,6 +334,29 @@
   background: var(--primary-50);
 }
 
+.errorBlock .errorActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.errorBlock .dismissBtn {
+  padding: 0.375rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--gray-300);
+  background: var(--white);
+  color: var(--gray-700);
+  font-weight: 500;
+  cursor: pointer;
+  font-size: 0.8125rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.errorBlock .dismissBtn:hover {
+  background: var(--gray-100);
+}
+
 /* ----- Career bar ----- */
 .careerBar {
   flex-shrink: 0;

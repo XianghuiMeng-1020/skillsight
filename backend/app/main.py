@@ -12,7 +12,7 @@ from backend.app.db.session import SessionLocal
 from backend.app.middleware.audit_middleware import AuditMiddleware
 from backend.app.middleware.rate_limit_middleware import RateLimitMiddleware
 from backend.app.rate_limit import _parse_bool_env
-from backend.app.security import require_production_secret
+from backend.app.security import require_production_secret, _is_production
 
 # SkillSight schemas (Week1 Day3)
 # NOTE: repo-root/ is expected to be on PYTHONPATH when running uvicorn from repo root.
@@ -84,25 +84,42 @@ def _seed_roles_and_skills(db):
                     continue
                 db.execute(
                     text("""
-                        INSERT INTO skills (skill_id, canonical_name, aliases, definition,
-                                            evidence_rules, level_rubric, version, source, created_at)
-                        VALUES (:skill_id, :canonical_name, :aliases, :definition,
-                                :evidence_rules, :level_rubric, :version, :source, :created_at)
+                        INSERT INTO skills (skill_id, canonical_name, definition,
+                                            evidence_rules, level_rubric_json, version, source, created_at)
+                        VALUES (:skill_id, :canonical_name, :definition,
+                                :evidence_rules, :level_rubric_json, :version, :source, :created_at)
                         ON CONFLICT (skill_id) DO NOTHING
                     """),
                     {
                         "skill_id": sid,
                         "canonical_name": s.get("canonical_name", ""),
-                        "aliases": json.dumps(s.get("aliases", []), ensure_ascii=False),
                         "definition": s.get("definition", ""),
                         "evidence_rules": s.get("evidence_rules", ""),
-                        "level_rubric": json.dumps(s.get("level_rubric", {}), ensure_ascii=False),
+                        "level_rubric_json": json.dumps(s.get("level_rubric", {}), ensure_ascii=False),
                         "version": s.get("version", "v1"),
                         "source": s.get("source", "HKU"),
                         "created_at": now,
                     },
                 )
-            logger.info("Seeded %d skills from skills.json", len(skills))
+                for alias in s.get("aliases", []):
+                    try:
+                        db.execute(
+                            text("""
+                                INSERT INTO skill_aliases (alias_id, skill_id, alias, source, created_at)
+                                VALUES ((:aid)::uuid, :skill_id, :alias, :source, :created_at)
+                                ON CONFLICT (skill_id, alias) DO NOTHING
+                            """),
+                            {
+                                "aid": str(uuid.uuid4()),
+                                "skill_id": sid,
+                                "alias": alias,
+                                "source": s.get("source", "HKU"),
+                                "created_at": now,
+                            },
+                        )
+                    except Exception as ex:
+                        logger.debug("skill_aliases seed skip skill=%s alias=%s: %s", sid, alias, ex)
+            logger.info("Seeded %d skills from %s", len(skills), skills_file.name)
 
     # --- seed roles ---
     roles_file = base / "roles.json"
@@ -260,7 +277,7 @@ def root():
 
 @app.get("/__routes")
 def __routes():
-    if _IS_PRODUCTION:
+    if _is_production():
         raise HTTPException(status_code=404, detail="Not found")
     return JSONResponse([
         {"path": r.path, "name": r.name, "methods": sorted(list(getattr(r, "methods", []) or []))}
@@ -269,7 +286,9 @@ def __routes():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "ok": True, "schema": _SCHEMA_HEALTH}
+    # Re-check schema on each request so DB fixes (migrations / manual SQL) show up without redeploy.
+    live = _run_schema_health_check()
+    return {"status": "ok", "ok": True, "schema": live}
 
 
 @app.get("/health/schema")
@@ -322,7 +341,7 @@ def readyz():
 @app.get("/debug/routes_count")
 def debug_routes_count():
     """Debug endpoint to count routes."""
-    if _IS_PRODUCTION:
+    if _is_production():
         raise HTTPException(status_code=404, detail="Not found")
     return {
         "total_routes": len(app.routes),

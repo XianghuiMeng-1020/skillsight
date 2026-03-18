@@ -38,19 +38,24 @@ export default function Home() {
   
   useEffect(() => {
     setMounted(true);
-    const user = localStorage.getItem('user');
-    const token = localStorage.getItem('auth_token');
-    if (user && token) {
-      try {
-        const userData = JSON.parse(user);
-        router.push(userData.role === 'admin' ? '/admin' : '/dashboard');
-      } catch {
+    try {
+      const user = localStorage.getItem('user');
+      const token = localStorage.getItem('auth_token');
+      if (user && token) {
+        try {
+          const userData = JSON.parse(user);
+          router.push(userData.role === 'admin' ? '/admin' : '/dashboard');
+        } catch {
+          localStorage.removeItem('user');
+          router.push('/login');
+        }
+      } else {
         localStorage.removeItem('user');
+        localStorage.removeItem('auth_token');
         router.push('/login');
       }
-    } else {
-      localStorage.removeItem('user');
-      localStorage.removeItem('auth_token');
+    } catch (e) {
+      console.warn('Failed to read auth state from localStorage:', e);
       router.push('/login');
     }
   }, [router]);

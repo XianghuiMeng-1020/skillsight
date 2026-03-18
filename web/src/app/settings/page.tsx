@@ -24,9 +24,13 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
+    try {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        setUser(JSON.parse(userData));
+      }
+    } catch (e) {
+      console.warn('Failed to read user from localStorage:', e);
     }
   }, []);
 
@@ -100,7 +104,11 @@ export default function SettingsPage() {
                 className="btn btn-primary"
                 onClick={() => {
                   if (user) {
-                    localStorage.setItem('user', JSON.stringify(user));
+                    try {
+                      localStorage.setItem('user', JSON.stringify(user));
+                    } catch (e) {
+                      console.warn('Failed to save user to localStorage:', e);
+                    }
                   }
                 }}
               >
@@ -222,10 +230,14 @@ export default function SettingsPage() {
 
           {/* Sign Out */}
           <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-            <button 
+            <button
               className="btn btn-secondary"
               onClick={() => {
-                localStorage.removeItem('user');
+                try {
+                  localStorage.removeItem('user');
+                } catch (e) {
+                  console.warn('Failed to remove user from localStorage:', e);
+                }
                 clearToken();
                 window.location.href = '/login';
               }}

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
-import { studentBff, getToken } from '@/lib/bffClient';
+import { studentBff, getToken, BffError } from '@/lib/bffClient';
 
 interface EvidenceItem {
   chunk_id: string;
@@ -77,9 +77,13 @@ export default function SkillsProfilePage() {
       const data = await studentBff.getProfile();
       setProfile(data as ProfileData);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to load profile';
-      const isNetworkError = typeof msg === 'string' && (msg === 'Failed to fetch' || msg.includes('fetch') || msg.includes('Network'));
-      setError(isNetworkError ? (t('skills.networkErrorHint') as string) || msg : msg);
+      if (e instanceof BffError && e.status === 401) {
+        setError((t('skills.sessionExpired') as string) || 'Session expired. Please log in again.');
+      } else {
+        const msg = e instanceof Error ? e.message : 'Failed to load profile';
+        const isNetworkError = typeof msg === 'string' && (msg === 'Failed to fetch' || msg.includes('fetch') || msg.includes('Network'));
+        setError(isNetworkError ? (t('skills.networkErrorHint') as string) || msg : msg);
+      }
       setProfile(null);
     } finally {
       setLoading(false);

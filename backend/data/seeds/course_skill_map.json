@@ -1,0 +1,262 @@
+[
+  {
+    "course_id": "SDST2604",
+    "skill_id": "HKU.SKILL.PYTHON.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "SDST2604",
+    "skill_id": "HKU.SKILL.R.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSIM4024",
+    "skill_id": "HKU.SKILL.PYTHON.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSDS3004",
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSDS3005",
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSDS3005",
+    "skill_id": "HKU.SKILL.ML.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM4026",
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSDS3003",
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSDS3003",
+    "skill_id": "HKU.SKILL.DATA_VIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSDS3001",
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSDS3001",
+    "skill_id": "HKU.SKILL.RESEARCH.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM4028",
+    "skill_id": "HKU.SKILL.DATA_VIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "SDST3622",
+    "skill_id": "HKU.SKILL.DATA_VIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "SDST3622",
+    "skill_id": "HKU.SKILL.R.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM3017",
+    "skill_id": "HKU.SKILL.SQL.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSIM4018",
+    "skill_id": "HKU.SKILL.SQL.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM4018",
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSIM4018",
+    "skill_id": "HKU.SKILL.ML.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "SDST3612",
+    "skill_id": "HKU.SKILL.ML.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "SDST3612",
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "SDST4011",
+    "skill_id": "HKU.SKILL.NLP.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "SDST4011",
+    "skill_id": "HKU.SKILL.ML.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "SDST4609",
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "SDST4609",
+    "skill_id": "HKU.SKILL.ML.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "GEOG2090",
+    "skill_id": "HKU.SKILL.GIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "GEOG1020",
+    "skill_id": "HKU.SKILL.GIS.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "GEOG1020",
+    "skill_id": "HKU.SKILL.DATA_VIS.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM4011",
+    "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSIM4011",
+    "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM3004",
+    "skill_id": "HKU.SKILL.IR.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSIM3001_IM",
+    "skill_id": "HKU.SKILL.IR.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSIM3023",
+    "skill_id": "HKU.SKILL.IR.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "MLIM7350",
+    "skill_id": "HKU.SKILL.IR.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "MLIM7350",
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM3021",
+    "skill_id": "HKU.SKILL.WEB_DEV.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSDS3002",
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSDS3002",
+    "skill_id": "HKU.SKILL.NLP.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "CAES9420",
+    "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "CAES9420",
+    "skill_id": "HKU.SKILL.RESEARCH.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSDS4999",
+    "skill_id": "HKU.SKILL.RESEARCH.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSIM4999",
+    "skill_id": "HKU.SKILL.RESEARCH.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "BSDS3999",
+    "skill_id": "HKU.SKILL.TEAMWORK.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM3999",
+    "skill_id": "HKU.SKILL.TEAMWORK.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "SDST3613",
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "SDST3613",
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "POLI3039",
+    "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "POLI3039",
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "POLI3131",
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "relevance": "primary"
+  },
+  {
+    "course_id": "POLI3131",
+    "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM3014",
+    "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM3025",
+    "skill_id": "HKU.SKILL.WEB_DEV.v1",
+    "relevance": "secondary"
+  },
+  {
+    "course_id": "BSIM3025",
+    "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+    "relevance": "secondary"
+  }
+]

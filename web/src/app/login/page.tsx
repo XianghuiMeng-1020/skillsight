@@ -49,14 +49,18 @@ export default function LoginPage() {
     try {
       const bffRole: BffRole = role === 'admin' ? 'admin' : 'student';
       await devLogin({ subject_id: subjectId, role: bffRole, ttl_s: 43200 });
-      localStorage.removeItem('skillsight-tutorial-completed');
-      localStorage.setItem('user', JSON.stringify({
-        id: subjectId,
-        name: displayName,
-        email: emailAddr,
-        role: bffRole,
-        avatar: displayName[0].toUpperCase()
-      }));
+      try {
+        localStorage.removeItem('skillsight-tutorial-completed');
+        localStorage.setItem('user', JSON.stringify({
+          id: subjectId,
+          name: displayName,
+          email: emailAddr,
+          role: bffRole,
+          avatar: displayName[0].toUpperCase()
+        }));
+      } catch (e) {
+        console.warn('Failed to save user to localStorage:', e);
+      }
       window.dispatchEvent(new Event('skillsight-login'));
       router.push(role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
@@ -151,6 +155,27 @@ export default function LoginPage() {
             <>{t('login.signInHKU')}</>
           )}
         </button>
+
+        {/* Test account hint - v2 */}
+        <div
+          data-testid="test-account-hint"
+          style={{
+            marginTop: '1rem',
+            padding: '0.75rem 1rem',
+            background: '#F2F7F4',
+            border: '1px solid #D6E5DD',
+            borderRadius: '8px',
+            fontSize: '0.8125rem',
+            color: '#374151',
+          }}
+        >
+          <strong style={{ display: 'block', marginBottom: '0.25rem', color: '#1F2937' }}>
+            {(t('login.testAccountTitle') as string) || '测试账户'}
+          </strong>
+          <span>
+            {(t('login.testAccountHint') as string) || '无 HKU 账号也可体验：点击上方「使用 HKU 门户登录」将使用演示账户登录（学生身份）。'}
+          </span>
+        </div>
 
         <div className="login-divider">{t('login.or')}</div>
 

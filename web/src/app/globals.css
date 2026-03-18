@@ -290,7 +290,7 @@ a:hover {
   flex-direction: column;
   position: fixed;
   height: 100vh;
-  z-index: 100;
+  z-index: 200;
 }
 
 .sidebar-header {
@@ -1116,7 +1116,7 @@ a:hover {
   position: fixed;
   left: 1rem;
   top: 1rem;
-  z-index: 99;
+  z-index: 150;
   width: 44px;
   height: 44px;
   border-radius: var(--radius);
@@ -1141,7 +1141,7 @@ a:hover {
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.35);
-  z-index: 101;
+  z-index: 180;
 }
 .sidebar-close {
   position: absolute;

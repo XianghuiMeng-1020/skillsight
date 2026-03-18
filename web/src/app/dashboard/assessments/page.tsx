@@ -197,7 +197,16 @@ export default function AssessmentsPage() {
         body: JSON.stringify(body),
       });
       
-      if (!response.ok) throw new Error('Failed to start');
+      if (!response.ok) {
+        let errMsg = '';
+        try {
+          const errBody = await response.json().catch(() => ({}));
+          errMsg = (errBody as { detail?: string })?.detail ?? response.statusText ?? 'Failed to start';
+        } catch {
+          errMsg = 'Failed to start';
+        }
+        throw new Error(errMsg);
+      }
       
       const data = await response.json();
       setSession(data);
@@ -205,7 +214,8 @@ export default function AssessmentsPage() {
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
       const isNetwork = /failed to fetch|network error|cors|load failed/i.test(raw) || raw === 'Failed to fetch';
-      addToast('error', isNetwork ? t('assessmentsList.networkError') : t('assessmentsList.couldNotStart'));
+      const msg = isNetwork ? t('assessmentsList.networkError') : t('assessmentsList.serviceUnavailable');
+      addToast('error', msg);
     } finally {
       setLoading(false);
     }
@@ -326,7 +336,7 @@ export default function AssessmentsPage() {
       const isNetwork = /failed to fetch|network error|cors|load failed/i.test(msg) || msg === 'Failed to fetch';
       const displayMsg = isNetwork
         ? t('assessmentsList.networkError')
-        : (msg && msg.length < 120 ? msg : (t('assessmentsList.submissionFailed') || 'Assessment service temporarily unavailable. Please try again.'));
+        : (msg && msg.length < 120 ? msg : t('assessmentsList.serviceUnavailable'));
       addToast('error', displayMsg);
     } finally {
       setSubmitting(false);

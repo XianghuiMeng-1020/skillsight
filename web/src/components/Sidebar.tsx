@@ -92,9 +92,13 @@ export default function Sidebar() {
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
+    try {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        setUser(JSON.parse(userData));
+      }
+    } catch (e) {
+      console.warn('Failed to read user from localStorage:', e);
     }
   }, []);
 
@@ -203,11 +207,14 @@ export default function Sidebar() {
             <div className="user-role">{isAdmin ? t('user.administrator') : t('user.student')}</div>
           </div>
           <button 
-            className="btn btn-icon btn-ghost" 
+            className="btn btn-ghost btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.375rem 0.5rem' }}
             onClick={handleLogout}
             title={t('action.signOut')}
+            aria-label={t('action.signOut')}
           >
-            🚪
+            <span aria-hidden>🚪</span>
+            <span>{t('action.signOut')}</span>
           </button>
         </div>
       </div>

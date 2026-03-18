@@ -34,9 +34,11 @@ def _is_production() -> bool:
 
 
 def _is_dev_login_allowed() -> bool:
-    """Allow dev_login in all environments for demo/MVP deployment.
-    Tokens are secured by SKILLSIGHT_AUTH_SECRET."""
-    return True
+    """dev_login is disabled when SKILLSIGHT_ENV is production/prod unless
+    SKILLSIGHT_ALLOW_DEV_LOGIN is set to 1/true/yes (demo/staging only)."""
+    if os.getenv("SKILLSIGHT_ALLOW_DEV_LOGIN", "").strip().lower() in ("1", "true", "yes"):
+        return True
+    return not _is_production()
 
 
 def require_production_secret() -> None:

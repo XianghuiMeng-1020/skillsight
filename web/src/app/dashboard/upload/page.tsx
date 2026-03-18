@@ -114,26 +114,32 @@ export default function UploadPage() {
       setFiles([]);
       setConsent(false);
 
-      // Trigger auto-assess after a short delay so embed/chunks are ready (Gap 13)
+      // Trigger auto-assess for each uploaded document
       const docIds = uploadResults.map((r) => r.doc_id).filter(Boolean);
       if (docIds.length > 0) {
-        const delayMs = 5000;
         setTimeout(async () => {
-          let totalProcessed = 0;
+          let ok = 0;
+          let fail = 0;
           for (const docId of docIds) {
             try {
-              const res = await studentBff.autoAssessDocument(docId);
-              totalProcessed += res?.skills_processed ?? 0;
+              const r = await studentBff.autoAssessDocument(docId);
+              if (r?.status === 'accepted') ok += 1;
+              else fail += 1;
             } catch {
-              // ignore per-doc failure
+              fail += 1;
             }
           }
-          if (totalProcessed > 0) {
-            addToast('success', t('upload.autoAssessDone')?.replace('{n}', String(totalProcessed)) ?? `Auto-assessed ${totalProcessed} skills.`);
+          if (ok === docIds.length) {
+            addToast('success', (t('upload.autoAssessDone') as string)?.replace('{n}', String(ok)) ?? `Queued assessment for ${ok} document(s).`);
+          } else if (ok > 0) {
+            addToast(
+              'warning',
+              (t('upload.autoAssessPartial') as string)?.replace('{ok}', String(ok)).replace('{fail}', String(fail)) ?? `${ok} queued, ${fail} failed.`
+            );
           } else {
-            addToast('info', t('upload.autoAssessNoUpdate') ?? 'Auto-assess did not update skills. Confirm documents are parsed or assess manually on the Skills page.');
+            addToast('error', (t('upload.autoAssessAllFailed') as string) ?? 'Auto-assess failed to start.');
           }
-        }, delayMs);
+        }, 2000);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t('upload.failed'));

@@ -286,6 +286,7 @@ def list_chunks_for_document(
     """
     Return {count, items} for chunks of a doc.
     """
+    check_doc_access(ident, doc_id, db)
     try:
         insp = inspect(engine)
         tables = set(insp.get_table_names(schema="public"))

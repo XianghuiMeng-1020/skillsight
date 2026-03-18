@@ -76,7 +76,7 @@ export default function ProgrammePage() {
           <span style={{ color: '#475569' }}>|</span>
           <span style={{ color: '#94a3b8' }}>Programme Portal</span>
         </div>
-        <button onClick={() => { clearToken(); localStorage.removeItem('user'); setLoggedIn(false); setProgrammes([]); }}
+        <button onClick={() => { clearToken(); try { localStorage.removeItem('user'); } catch (e) { console.warn('Failed to clear user from localStorage:', e); } setLoggedIn(false); setProgrammes([]); }}
           style={{ padding: '6px 16px', borderRadius: 6, background: '#334155', color: '#94a3b8', border: 'none', cursor: 'pointer' }}>
           Sign Out
         </button>

@@ -1,0 +1,343 @@
+[
+  {
+    "skill_id": "HKU.SKILL.PYTHON.v1",
+    "canonical_name": "Python Programming",
+    "aliases": [
+      "Python",
+      "Python3",
+      "Python coding"
+    ],
+    "definition": "Writing, debugging, and maintaining Python programs for data processing, automation, and analysis.",
+    "evidence_rules": "Evidence includes runnable Python code demonstrating correct logic.",
+    "level_rubric": {
+      "0": "No Python artifact.",
+      "1": "Small scripts with guidance.",
+      "2": "Multi-step tasks independently.",
+      "3": "Robust modules, tests, clear APIs."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.R.v1",
+    "canonical_name": "R Programming",
+    "aliases": [
+      "R",
+      "R language",
+      "RStudio"
+    ],
+    "definition": "Using R for statistical computing, data analysis, and visualization.",
+    "evidence_rules": "Evidence includes R scripts, analysis outputs, or Shiny apps.",
+    "level_rubric": {
+      "0": "No R artifact.",
+      "1": "Basic scripts with guidance.",
+      "2": "Independent analysis and visualization.",
+      "3": "Reproducible workflows, packages."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.SQL.v1",
+    "canonical_name": "SQL & Databases",
+    "aliases": [
+      "SQL",
+      "database management",
+      "RDBMS"
+    ],
+    "definition": "Querying and managing relational/non-relational databases.",
+    "evidence_rules": "Evidence includes queries, schema design, or database artifacts.",
+    "level_rubric": {
+      "0": "No database evidence.",
+      "1": "Simple SELECT with guidance.",
+      "2": "Joins, aggregation, design.",
+      "3": "Complex queries, optimization, administration."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "canonical_name": "Statistics & Quantitative Methods",
+    "aliases": [
+      "statistics",
+      "statistical analysis",
+      "quantitative methods"
+    ],
+    "definition": "Applying statistical methods for data analysis, inference, and modeling.",
+    "evidence_rules": "Evidence shows use of descriptive/inferential statistics, tests, or models.",
+    "level_rubric": {
+      "0": "No statistical evidence.",
+      "1": "Basic descriptive stats.",
+      "2": "Inference, regression, interpretation.",
+      "3": "Advanced modeling, validation."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_VIS.v1",
+    "canonical_name": "Data Visualization",
+    "aliases": [
+      "data visualization",
+      "dashboarding",
+      "visual analytics"
+    ],
+    "definition": "Creating clear visual representations of data for analysis and communication.",
+    "evidence_rules": "Evidence includes charts, dashboards, or visualization code.",
+    "level_rubric": {
+      "0": "No visualization evidence.",
+      "1": "Basic charts.",
+      "2": "Appropriate chart choice, clarity.",
+      "3": "Interactive or publication-ready visuals."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.ML.v1",
+    "canonical_name": "Machine Learning",
+    "aliases": [
+      "machine learning",
+      "ML",
+      "deep learning"
+    ],
+    "definition": "Building and evaluating ML models for prediction, classification, or clustering.",
+    "evidence_rules": "Evidence includes model training, evaluation, or ML pipelines.",
+    "level_rubric": {
+      "0": "No ML evidence.",
+      "1": "Simple models with guidance.",
+      "2": "Train/evaluate, basic tuning.",
+      "3": "Pipeline design, deployment, validation."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+    "canonical_name": "Project Management",
+    "aliases": [
+      "project management",
+      "PM",
+      "Agile"
+    ],
+    "definition": "Planning, executing, and closing projects with scope, time, and stakeholder management.",
+    "evidence_rules": "Evidence shows planning, tracking, or delivery of projects.",
+    "level_rubric": {
+      "0": "No PM evidence.",
+      "1": "Contributed to planned tasks.",
+      "2": "Led or coordinated deliverables.",
+      "3": "Full lifecycle, risk handling, multi-team."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "canonical_name": "Data Analysis",
+    "aliases": [
+      "data analysis",
+      "data analytics",
+      "analytics"
+    ],
+    "definition": "End-to-end data analysis: cleaning, exploration, and insight generation.",
+    "evidence_rules": "Evidence shows data handling, analysis, and conclusions.",
+    "level_rubric": {
+      "0": "No analysis evidence.",
+      "1": "Basic cleaning and summary.",
+      "2": "Structured analysis, clear findings.",
+      "3": "Rigorous methodology, reproducibility."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.NLP.v1",
+    "canonical_name": "Natural Language Processing",
+    "aliases": [
+      "NLP",
+      "text mining",
+      "natural language processing"
+    ],
+    "definition": "Processing and analyzing text data using NLP techniques.",
+    "evidence_rules": "Evidence includes text processing, NLP models, or text pipelines.",
+    "level_rubric": {
+      "0": "No NLP evidence.",
+      "1": "Basic text handling.",
+      "2": "Models or pipelines applied.",
+      "3": "Custom models, evaluation, deployment."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.IR.v1",
+    "canonical_name": "Information Retrieval & Management",
+    "aliases": [
+      "information retrieval",
+      "knowledge management",
+      "information architecture"
+    ],
+    "definition": "Design and evaluation of systems for organizing, storing, and retrieving information.",
+    "evidence_rules": "Evidence shows search systems, indexing, metadata, or retrieval evaluation.",
+    "level_rubric": {
+      "0": "No IR evidence.",
+      "1": "Basic search or indexing.",
+      "2": "Evaluation, ranking, or taxonomy.",
+      "3": "System design, optimization."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.COMMUNICATION.v1",
+    "canonical_name": "Communication & Presentation",
+    "aliases": [
+      "communication",
+      "presentation skills",
+      "report writing"
+    ],
+    "definition": "Effective written and verbal communication for professional and academic contexts.",
+    "evidence_rules": "Evidence shows clear structure, audience awareness, and professional tone.",
+    "level_rubric": {
+      "0": "No communication evidence.",
+      "1": "Basic written communication.",
+      "2": "Clear, audience-aware communication.",
+      "3": "Multi-format, persuasive, leadership-level."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.EXCEL.v1",
+    "canonical_name": "Excel & Spreadsheets",
+    "aliases": [
+      "Excel",
+      "spreadsheets",
+      "Google Sheets"
+    ],
+    "definition": "Using spreadsheet tools for data organization, analysis, and reporting.",
+    "evidence_rules": "Evidence includes spreadsheet formulas, pivot tables, or reports.",
+    "level_rubric": {
+      "0": "No spreadsheet evidence.",
+      "1": "Basic formulas.",
+      "2": "Pivot tables, charts, functions.",
+      "3": "Advanced modeling, macros, automation."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.CLOUD.v1",
+    "canonical_name": "Cloud Computing & DevOps",
+    "aliases": [
+      "AWS",
+      "Azure",
+      "cloud computing",
+      "DevOps"
+    ],
+    "definition": "Deploying and managing applications and data infrastructure on cloud platforms.",
+    "evidence_rules": "Evidence shows cloud service usage, deployment, or infrastructure.",
+    "level_rubric": {
+      "0": "No cloud evidence.",
+      "1": "Basic service usage.",
+      "2": "Multi-service architecture.",
+      "3": "Production deployment, optimization."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.GIS.v1",
+    "canonical_name": "GIS & Spatial Analysis",
+    "aliases": [
+      "GIS",
+      "geospatial analysis",
+      "spatial data"
+    ],
+    "definition": "Using geographic information systems for spatial data analysis and mapping.",
+    "evidence_rules": "Evidence includes GIS projects, spatial analysis, or map outputs.",
+    "level_rubric": {
+      "0": "No GIS evidence.",
+      "1": "Basic mapping.",
+      "2": "Spatial analysis, data integration.",
+      "3": "Advanced modeling, custom tools."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.WEB_DEV.v1",
+    "canonical_name": "Web Development",
+    "aliases": [
+      "web development",
+      "frontend",
+      "full-stack"
+    ],
+    "definition": "Building and maintaining web applications and APIs.",
+    "evidence_rules": "Evidence includes web applications, code, or deployed sites.",
+    "level_rubric": {
+      "0": "No web dev evidence.",
+      "1": "Basic pages.",
+      "2": "Full app with backend.",
+      "3": "Production-grade, tested, deployed."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.CRITICAL_THINKING.v1",
+    "canonical_name": "Critical Thinking & Problem Solving",
+    "aliases": [
+      "critical thinking",
+      "problem solving",
+      "analytical skills"
+    ],
+    "definition": "Analyzing complex problems, evaluating evidence, and making reasoned decisions.",
+    "evidence_rules": "Evidence shows structured reasoning, alternatives analysis, or evidence-based conclusions.",
+    "level_rubric": {
+      "0": "No evidence.",
+      "1": "Basic problem identification.",
+      "2": "Structured analysis with alternatives.",
+      "3": "Complex multi-factor evaluation."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.TEAMWORK.v1",
+    "canonical_name": "Teamwork & Collaboration",
+    "aliases": [
+      "teamwork",
+      "collaboration"
+    ],
+    "definition": "Working effectively in teams, contributing to shared goals.",
+    "evidence_rules": "Evidence shows team contributions, coordination, or peer feedback.",
+    "level_rubric": {
+      "0": "No teamwork evidence.",
+      "1": "Participated in team tasks.",
+      "2": "Active contributor, coordination.",
+      "3": "Led teams, resolved conflicts."
+    },
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.RESEARCH.v1",
+    "canonical_name": "Research Methods",
+    "aliases": [
+      "research methods",
+      "research design"
+    ],
+    "definition": "Designing and conducting research using qualitative and/or quantitative methods.",
+    "evidence_rules": "Evidence shows research design, data collection, or analysis methodology.",
+    "level_rubric": {
+      "0": "No research evidence.",
+      "1": "Assisted with data collection.",
+      "2": "Independent research design.",
+      "3": "Published or presented research."
+    },
+    "version": "v1",
+    "source": "HKU"
+  }
+]

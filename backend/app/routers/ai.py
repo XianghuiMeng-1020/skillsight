@@ -159,6 +159,18 @@ def _get_chunks_for_doc(db: Session, doc_id: str, limit: int = 100) -> List[Dict
     return [dict(r) for r in rows]
 
 
+def _vector_pipeline_configured() -> bool:
+    """True when Qdrant + embeddings are available; if True, empty search means no relevant hits (no DB fallback)."""
+    get_client, _ = _get_vector_store()
+    embed_texts = _get_embeddings()
+    if embed_texts is None or get_client is None:
+        return False
+    try:
+        return get_client() is not None
+    except Exception:
+        return False
+
+
 def _search_relevant_chunks(skill_text: str, doc_id: str, k: int = 5, min_score: float = 0.1) -> List[Dict[str, Any]]:
     """Use vector search to find relevant chunks for a skill in a document."""
     get_client, search = _get_vector_store()
@@ -203,7 +215,7 @@ def _format_evidence_list(chunks: List[Dict[str, Any]]) -> str:
     lines = []
     for i, ch in enumerate(chunks):
         cid = ch.get("chunk_id", f"chunk_{i}")
-        snippet = (ch.get("snippet") or "")[:300]
+        snippet = (ch.get("snippet") or "")[:800]
         section = ch.get("section_path") or ""
         page = ch.get("page_start")
         meta = []
@@ -217,21 +229,33 @@ def _format_evidence_list(chunks: List[Dict[str, Any]]) -> str:
 
 
 def _format_rubric_text(rubric: Dict[str, Any]) -> str:
-    """Format rubric for prompt injection."""
+    """Format rubric for prompt injection. Handles both flat and nested formats."""
     if not rubric:
         return "(no rubric provided)"
-    
+
     lines = []
     levels = rubric.get("levels", rubric)
+    if not isinstance(levels, dict):
+        return "(no rubric provided)"
+
+    label_map = {0: "novice", 1: "developing", 2: "proficient", 3: "advanced"}
     for level_key in sorted(levels.keys(), key=lambda x: int(x) if x.isdigit() else 999):
         level_data = levels[level_key]
-        label = level_data.get("label", f"level_{level_key}")
-        criteria = level_data.get("criteria", [])
-        lines.append(f"Level {level_key} ({label}):")
-        for c in criteria:
-            cid = c.get("id", "?")
-            ctext = c.get("text", "")
-            lines.append(f"  - [{cid}] {ctext}")
+        if isinstance(level_data, str):
+            label = label_map.get(int(level_key) if level_key.isdigit() else 999, f"level_{level_key}")
+            lines.append(f"Level {level_key} ({label}):")
+            lines.append(f"  - [{label.upper()}] {level_data}")
+        elif isinstance(level_data, dict):
+            label = level_data.get("label", label_map.get(int(level_key) if level_key.isdigit() else 999, f"level_{level_key}"))
+            criteria = level_data.get("criteria", [])
+            lines.append(f"Level {level_key} ({label}):")
+            if isinstance(criteria, list):
+                for c in criteria:
+                    cid = c.get("id", "?") if isinstance(c, dict) else "?"
+                    ctext = c.get("text", str(c)) if isinstance(c, dict) else str(c)
+                    lines.append(f"  - [{cid}] {ctext}")
+            elif isinstance(criteria, str):
+                lines.append(f"  - {criteria}")
     return "\n".join(lines) if lines else "(no rubric provided)"
 
 
@@ -312,24 +336,27 @@ def _validate_proficiency_output(output: Dict[str, Any], valid_chunk_ids: List[s
 
 
 def _extract_all_criteria_ids(rubric: Dict[str, Any]) -> List[str]:
-    """Extract all criterion IDs from rubric."""
+    """Extract all criterion IDs from rubric. Handles both flat and nested formats."""
     ids = []
     if not rubric or not isinstance(rubric, dict):
         return ids
+    label_map = {0: "novice", 1: "developing", 2: "proficient", 3: "advanced"}
     levels = rubric.get("levels", rubric)
     if not isinstance(levels, dict):
         return ids
-    for level_data in levels.values():
-        if not isinstance(level_data, dict):
-            continue
-        criteria = level_data.get("criteria", [])
-        if not isinstance(criteria, list):
-            continue
-        for c in criteria:
-            if isinstance(c, dict):
-                cid = c.get("id")
-                if cid:
-                    ids.append(cid)
+    for level_key, level_data in levels.items():
+        if isinstance(level_data, str):
+            label = label_map.get(int(level_key) if level_key.isdigit() else 999, f"LEVEL_{level_key}")
+            ids.append(label.upper())
+        elif isinstance(level_data, dict):
+            criteria = level_data.get("criteria", [])
+            if not isinstance(criteria, list):
+                continue
+            for c in criteria:
+                if isinstance(c, dict):
+                    cid = c.get("id")
+                    if cid:
+                        ids.append(cid)
     return ids
 
 
@@ -375,20 +402,20 @@ def ai_demonstration(
     
     # Get relevant evidence chunks via vector search
     chunks = _search_relevant_chunks(skill_text, req.doc_id, k=req.k, min_score=req.min_score)
-    
-    # If no chunks from vector search, try DB fallback with more chunks
-    if not chunks:
+
+    # DB fallback only when vector stack unavailable (offline demo); never random first-N when Qdrant is up but empty
+    if not chunks and not _vector_pipeline_configured():
         db_chunks = _get_chunks_for_doc(db, req.doc_id, limit=max(req.k, 20))
         chunks = [{"chunk_id": str(c["chunk_id"]),
                    "snippet": c.get("chunk_text") or c.get("snippet", ""),
                    "section_path": c.get("section_path"), "page_start": c.get("page_start")}
                   for c in db_chunks]
-    
+
     valid_chunk_ids = [c["chunk_id"] for c in chunks if c.get("chunk_id")]
-    
+
     # Format evidence for prompt
     evidence_text = _format_evidence_list(chunks)
-    
+
     # Build prompt
     prompt = DEMONSTRATION_PROMPT.replace("{skill_text}", skill_text).replace("{evidence_list}", evidence_text)
     
@@ -469,15 +496,14 @@ def ai_proficiency(
     
     # Get relevant evidence chunks
     chunks = _search_relevant_chunks(skill_text, req.doc_id, k=req.k, min_score=req.min_score)
-    
-    # Fallback to DB if vector search empty
-    if not chunks:
+
+    if not chunks and not _vector_pipeline_configured():
         db_chunks = _get_chunks_for_doc(db, req.doc_id, limit=max(req.k, 20))
         chunks = [{"chunk_id": str(c["chunk_id"]),
                    "snippet": c.get("chunk_text") or c.get("snippet", ""),
                    "section_path": c.get("section_path"), "page_start": c.get("page_start")}
                   for c in db_chunks]
-    
+
     valid_chunk_ids = [c["chunk_id"] for c in chunks if c.get("chunk_id")]
     valid_criteria = _extract_all_criteria_ids(rubric)
     

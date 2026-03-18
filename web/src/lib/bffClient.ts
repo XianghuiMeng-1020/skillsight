@@ -21,25 +21,43 @@ const ROLE_KEY = 'skillsight_role';
 
 export function setToken(token: string, role: BffRole): void {
   if (typeof window !== 'undefined') {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(ROLE_KEY, role);
+    try {
+      localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem(ROLE_KEY, role);
+    } catch (e) {
+      console.warn('Failed to save token to localStorage:', e);
+    }
   }
 }
 
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch (e) {
+    console.warn('Failed to read token from localStorage:', e);
+    return null;
+  }
 }
 
 export function getRole(): BffRole | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem(ROLE_KEY) as BffRole | null;
+  try {
+    return localStorage.getItem(ROLE_KEY) as BffRole | null;
+  } catch (e) {
+    console.warn('Failed to read role from localStorage:', e);
+    return null;
+  }
 }
 
 export function clearToken(): void {
   if (typeof window !== 'undefined') {
-    localStorage.removeItem(TOKEN_KEY);
-    localStorage.removeItem(ROLE_KEY);
+    try {
+      localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(ROLE_KEY);
+    } catch (e) {
+      console.warn('Failed to clear token from localStorage:', e);
+    }
   }
 }
 
@@ -392,11 +410,11 @@ export interface ExportStatementResponse {
   };
 }
 
+/** POST /bff/student/documents/{doc_id}/auto-assess returns 202 Accepted. */
 export interface AutoAssessResponse {
-  skills_processed: number;
-  skills_failed?: number;
-  skill_ids?: string[];
-  message?: string;
+  status: 'accepted';
+  doc_id: string;
+  message: string;
 }
 
 // ─── Student BFF client (re-export pattern for consistency) ──────────────────
@@ -524,7 +542,7 @@ export const studentBff = {
       body: { role_id: roleId, skill_ids: skillIds },
     }),
 
-  /** Run demonstration + proficiency for this document (after upload/embed). */
+  /** Queue embed + skill assessment for this document (202 Accepted; runs in background). */
   autoAssessDocument: (docId: string) =>
     bffRequest<AutoAssessResponse>(
       `/bff/student/documents/${encodeURIComponent(docId)}/auto-assess`,

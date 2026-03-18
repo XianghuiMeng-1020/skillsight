@@ -185,16 +185,20 @@ export default function StudentDashboard() {
   };
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      const user = JSON.parse(userData);
-      setUserName(user.name);
-    }
+    try {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        const user = JSON.parse(userData);
+        setUserName(user.name);
+      }
 
-    const hasSeenHint = localStorage.getItem('skillsight-first-route-seen');
-    if (!hasSeenHint) {
-      setShowFirstTimeHint(true);
-      localStorage.setItem('skillsight-first-route-seen', 'true');
+      const hasSeenHint = localStorage.getItem('skillsight-first-route-seen');
+      if (!hasSeenHint) {
+        setShowFirstTimeHint(true);
+        localStorage.setItem('skillsight-first-route-seen', 'true');
+      }
+    } catch (e) {
+      console.warn('Failed to read user data from localStorage:', e);
     }
 
     fetchData();
@@ -300,7 +304,7 @@ export default function StudentDashboard() {
               <div className="stat-label">{t('dashboard.docsUploaded')}</div>
             </div>
             <div className="stat-card" title={t('dashboard.statVerifiedTip')}>
-              <div className="stat-icon blue">✓</div>
+              <div className="stat-icon green">✓</div>
               <div className="stat-value">{skills.filter(s => s.status === 'verified').length}</div>
               <div className="stat-label">{t('dashboard.skillsVerified')}</div>
             </div>
