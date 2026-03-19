@@ -24,7 +24,7 @@ services:
         generateValue: true
       - key: SKILLSIGHT_ENV
         value: production
-      - key: DEV_LOGIN_ENABLED
+      - key: SKILLSIGHT_ALLOW_DEV_LOGIN
         value: "true"
       - key: CORS_ALLOWED_ORIGINS
         value: https://skillsight.pages.dev,https://skillsight-230.pages.dev,https://www.skillsight.pages.dev

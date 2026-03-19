@@ -10,8 +10,7 @@ sqlalchemy>=2.0
 alembic>=1.13
 psycopg2-binary>=2.9
 
-# Vector store and embeddings
-sentence-transformers>=2.2
+# Vector store (embeddings via OpenAI API, no local model needed)
 qdrant-client>=1.7
 
 # Document parsing

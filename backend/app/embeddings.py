@@ -1,22 +1,17 @@
 """
 Embeddings module for SkillSight.
-Uses OpenAI embeddings API when OPENAI_API_KEY is set (production).
-Falls back to sentence-transformers locally, then to hash-based embeddings.
+Uses OpenAI text-embedding-3-small API (production).
+Falls back to deterministic hash-based embeddings when OPENAI_API_KEY is unset.
 """
 import hashlib
 import os
-import threading
 import warnings
 from typing import List
 
 _openai_client = None
-_st_model = None
-_use_fallback = False
-_lock = threading.Lock()
 
 OPENAI_EMB_MODEL = "text-embedding-3-small"
 OPENAI_EMB_DIM = 384
-ST_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 
 def _get_openai_client():
@@ -34,33 +29,8 @@ def _get_openai_client():
         return None
 
 
-def _get_st_model():
-    """Load sentence-transformers model. Skipped when OPENAI_API_KEY is set to avoid OOM."""
-    global _st_model, _use_fallback
-    if _use_fallback:
-        return None
-    if os.getenv("OPENAI_API_KEY", "").strip():
-        _use_fallback = True
-        return None
-    if _st_model is not None:
-        return _st_model
-    with _lock:
-        if _st_model is not None:
-            return _st_model
-        if _use_fallback:
-            return None
-        try:
-            from sentence_transformers import SentenceTransformer
-            _st_model = SentenceTransformer(ST_MODEL_NAME)
-        except (ImportError, Exception) as e:
-            warnings.warn(f"sentence-transformers unavailable: {e}")
-            _use_fallback = True
-            return None
-    return _st_model
-
-
 def _fallback_embed(text: str, dim: int = OPENAI_EMB_DIM) -> List[float]:
-    """Simple hash-based fallback embedding."""
+    """Deterministic hash-based fallback when OpenAI is unavailable."""
     h = hashlib.sha256(text.encode()).hexdigest()
     result = []
     for i in range(0, min(len(h), dim * 2), 2):
@@ -74,9 +44,8 @@ def _fallback_embed(text: str, dim: int = OPENAI_EMB_DIM) -> List[float]:
 def embed_texts(texts: List[str]) -> List[List[float]]:
     """
     Generate embeddings for a list of texts.
-    Priority: OpenAI API > sentence-transformers > hash fallback.
+    Priority: OpenAI API > hash fallback.
     """
-    # 1. Try OpenAI (cheap, fast, no memory)
     client = _get_openai_client()
     if client is not None:
         try:
@@ -87,15 +56,8 @@ def embed_texts(texts: List[str]) -> List[List[float]]:
             )
             return [item.embedding for item in resp.data]
         except Exception as e:
-            warnings.warn(f"OpenAI embeddings failed: {e}, trying fallbacks")
+            warnings.warn(f"OpenAI embeddings failed: {e}, using hash fallback")
 
-    # 2. Try sentence-transformers (local, uses memory)
-    m = _get_st_model()
-    if m is not None:
-        vecs = m.encode(texts, normalize_embeddings=True)
-        return [v.tolist() for v in vecs]
-
-    # 3. Hash fallback
     return [_fallback_embed(t) for t in texts]
 
 
