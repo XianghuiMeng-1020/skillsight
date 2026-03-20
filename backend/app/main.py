@@ -268,7 +268,7 @@ app.add_middleware(AuditMiddleware)
 def root():
     return {
         "service": "SkillSight API",
-        "version": "0.1.0",
+        "version": "0.1.1-fix-scoring",
         "status": "ok",
         "docs": "/docs",
         "health": "/health",
