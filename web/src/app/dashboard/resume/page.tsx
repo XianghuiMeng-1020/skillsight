@@ -91,10 +91,12 @@ function ResumePageContent() {
     }
   };
 
+  const sidebarOffset = { marginLeft: 'var(--sidebar-width, 260px)', position: 'relative' as const, zIndex: 1 };
+
   return (
     <div className={styles.layout}>
       <Sidebar />
-      <main className={styles.main}>
+      <main className={styles.main} style={sidebarOffset}>
         <header className={styles.header}>
           <h1 className={styles.pageTitle}>{t('resume.pageTitle')}</h1>
           <nav className={styles.stepNav} role="list" aria-label="Steps">
@@ -184,7 +186,7 @@ export default function ResumePage() {
     <Suspense fallback={
       <div className={styles.layout}>
         <Sidebar />
-        <main className={styles.main}>
+        <main className={styles.main} style={{ marginLeft: 'var(--sidebar-width, 260px)', position: 'relative', zIndex: 1 }}>
           <p>{t('common.loading')}</p>
         </main>
       </div>
