@@ -602,7 +602,7 @@ export const studentBff = {
       .map(r => {
         const id = r.role_id ?? '';
         const b = byId.get(id);
-        return b ? { role_id: id, role_title: b.role_title || r.role_title ?? '', readiness: b.readiness } : null;
+        return b ? { role_id: id, role_title: b.role_title || (r.role_title ?? ''), readiness: b.readiness } : null;
       })
       .filter((x): x is { role_id: string; role_title: string; readiness: number } => x !== null && x.readiness >= 60);
     return { count: matched.length, items: matched };
