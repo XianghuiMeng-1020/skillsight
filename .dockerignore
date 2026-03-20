@@ -4,12 +4,9 @@ docs/
 scripts/
 .git/
 .github/
-*.md
-*.txt
-!backend/requirements.txt
-!packages/prompts/*.txt
-!packages/prompts/*.json
-!packages/schemas/*.json
+/*.md
+/*.txt
+README.md
 backend/venv/
 backend/.venv/
 backend/uploads/
@@ -17,11 +14,14 @@ backend/tests/
 backend/.env
 **/__pycache__/
 **/*.pyc
-*.bak
-*.bak.*
+/*.bak
+/*.bak.*
 node_modules/
 .DS_Store
-*.pdf
-*.csv
-roles_*.json
+/*.pdf
+/*.csv
+/roles_*.json
 demo/
+test_files/
+latex paper/
+LaTeX/
