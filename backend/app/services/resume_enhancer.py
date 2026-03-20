@@ -103,11 +103,12 @@ def generate_suggestions(
     verified_skills = get_verified_skills_summary(db, user_id)
     target_role_desc = get_target_role_description(db, target_role_id)
 
-    user_message = prompt_tpl.format(
-        scoring_json=json.dumps(scoring_json, ensure_ascii=False, indent=2),
-        verified_skills=verified_skills,
-        target_role_description=target_role_desc or "(Not specified)",
-        resume_text=(resume_text or "")[:30000],
+    user_message = (
+        prompt_tpl
+        .replace("{scoring_json}", json.dumps(scoring_json, ensure_ascii=False, indent=2))
+        .replace("{verified_skills}", verified_skills)
+        .replace("{target_role_description}", target_role_desc or "(Not specified)")
+        .replace("{resume_text}", (resume_text or "")[:30000])
     )
 
     generate = _get_llm_generate()
