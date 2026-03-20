@@ -18,7 +18,8 @@ from backend.app.services.resume_scorer import (
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PROMPTS_DIR = REPO_ROOT / "packages" / "prompts"
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+PROMPTS_DIR = _BACKEND_DIR / "prompts" if (_BACKEND_DIR / "prompts").exists() else REPO_ROOT / "packages" / "prompts"
 
 _log = logging.getLogger(__name__)
 

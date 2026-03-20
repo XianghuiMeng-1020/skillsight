@@ -14,8 +14,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-# Repo root: backend/app/services -> parents[3] = repo root (skillsight)
-PROMPTS_DIR = Path(__file__).resolve().parents[3] / "packages" / "prompts"
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+_PKG_DIR = Path(__file__).resolve().parents[3] / "packages" / "prompts"
+PROMPTS_DIR = _BACKEND_DIR / "prompts" if (_BACKEND_DIR / "prompts").exists() else _PKG_DIR
 
 
 def _load_system_prompt(mode: str = "assessment") -> str:

@@ -14,9 +14,9 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-# Repo root: backend/app/services -> parents[3] = repo root (skillsight)
 REPO_ROOT = Path(__file__).resolve().parents[3]
-PROMPTS_DIR = REPO_ROOT / "packages" / "prompts"
+_BACKEND_DIR = Path(__file__).resolve().parents[2]
+PROMPTS_DIR = _BACKEND_DIR / "prompts" if (_BACKEND_DIR / "prompts").exists() else REPO_ROOT / "packages" / "prompts"
 SCHEMAS_DIR = REPO_ROOT / "packages" / "schemas"
 
 _log = logging.getLogger(__name__)

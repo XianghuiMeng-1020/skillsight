@@ -72,14 +72,16 @@ def _get_qm():
 
 router = APIRouter(prefix="/ai", tags=["ai"], dependencies=[Depends(require_auth)])
 
-# Load prompt templates
-PROMPTS_DIR = Path(__file__).parent.parent.parent.parent / "packages" / "prompts"
+_BACKEND_PROMPTS = Path(__file__).resolve().parents[2] / "prompts"
+_PKG_PROMPTS = Path(__file__).resolve().parents[3] / "packages" / "prompts"
+PROMPTS_DIR = _BACKEND_PROMPTS if _BACKEND_PROMPTS.exists() else _PKG_PROMPTS
 
 def _load_prompt(name: str) -> str:
-    p = PROMPTS_DIR / name
-    if p.exists():
-        return p.read_text(encoding="utf-8")
-    raise FileNotFoundError(f"Prompt template not found: {p}")
+    for d in (_BACKEND_PROMPTS, _PKG_PROMPTS):
+        p = d / name
+        if p.exists():
+            return p.read_text(encoding="utf-8")
+    raise FileNotFoundError(f"Prompt template not found: {name} (searched {_BACKEND_PROMPTS}, {_PKG_PROMPTS})")
 
 DEMONSTRATION_PROMPT = _load_prompt("demonstration_v1.txt")
 PROFICIENCY_PROMPT = _load_prompt("proficiency_v1.txt")

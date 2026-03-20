@@ -57,8 +57,11 @@ MAX_INPUT_CHARS = 2000
 def _llm_evaluate(prompt_name: str, **kwargs: Any) -> Optional[Dict[str, Any]]:
     """Load prompt template, format with kwargs, call LLM, parse JSON. Returns None on any failure."""
     import pathlib
-    prompts_dir = pathlib.Path(__file__).resolve().parents[2].parent.parent / "packages" / "prompts"
-    path = prompts_dir / prompt_name
+    backend_prompts = pathlib.Path(__file__).resolve().parents[2] / "prompts"
+    pkg_prompts = pathlib.Path(__file__).resolve().parents[3] / "packages" / "prompts"
+    path = backend_prompts / prompt_name
+    if not path.exists():
+        path = pkg_prompts / prompt_name
     if not path.exists():
         return None
     template = path.read_text(encoding="utf-8")
