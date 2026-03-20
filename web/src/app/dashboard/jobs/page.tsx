@@ -424,15 +424,15 @@ export default function JobsPage() {
                         ))}
                       </div>
 
-                      <h4 style={{ marginBottom: '0.75rem' }}>📚 Recommended HKU Courses</h4>
+                      <h4 style={{ marginBottom: '0.75rem' }}>{t('jobs.recommendedCourses')}</h4>
                       {coursesLoading ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '1rem', color: 'var(--gray-500)' }}>
                           <span className="spinner" style={{ width: 16, height: 16 }}></span>
-                          Loading courses...
+                          {t('jobs.loadingCourses')}
                         </div>
                       ) : recommendedCourses.length === 0 ? (
                         <div style={{ padding: '1rem', color: 'var(--gray-500)', fontSize: '0.875rem' }}>
-                          No matching HKU courses found for these skill gaps.
+                          {t('jobs.noMatchingCourses')}
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

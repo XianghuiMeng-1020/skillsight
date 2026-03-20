@@ -243,7 +243,7 @@ export default function SkillsProfilePage() {
                 <div className="empty-icon">🔍</div>
                 <div className="empty-title">{t('skills.noMatch')}</div>
                 <div className="empty-desc">
-                  {t('skills.uploadFirst')}<Link href="/upload" style={{ color: 'var(--primary)' }}>{t('skills.uploadDoc')}</Link>
+                  {t('skills.uploadFirst')}<Link href="/dashboard/upload" style={{ color: 'var(--primary)' }}>{t('skills.uploadDoc')}</Link>
                   {t('skills.andRunAssess')}
                 </div>
               </div>
@@ -405,7 +405,7 @@ export default function SkillsProfilePage() {
                               {t('skills.nextStep')}{skill.refusal?.next_step}
                             </p>
                             <Link
-                              href="/upload"
+                              href="/dashboard/upload"
                               className="btn btn-sm"
                               style={{
                                 marginTop: '0.625rem',

@@ -193,10 +193,11 @@ def search_evidence_vector(
 def search_evidence_keyword(
     req: EvidenceSearchRequest,
     db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
 ) -> Dict[str, Any]:
     """
     Keyword-based evidence search (fallback when vector search unavailable).
-    Uses SQL ILIKE for simple text matching.
+    Uses SQL ILIKE for simple text matching. Requires auth.
     """
     started = _now_utc()
     

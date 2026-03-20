@@ -344,15 +344,20 @@ class RoleReadinessRequest(BaseModel):
 # === Routes ===
 
 @router.post("/skill")
-def assess_skill(req: SkillAssessRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def assess_skill(
+    req: SkillAssessRequest,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+) -> Dict[str, Any]:
     """
     Skill matching assessment.
     
     Checks if a skill is demonstrated in a document by analyzing chunks for keyword matches.
     Returns decision (match/not_enough_information) and matched evidence.
     """
+    check_doc_access(ident, req.doc_id, db)
     started = _now_utc()
-    
+
     # Get skill info
     skill = _get_skill_info(db, req.skill_id)
     if not skill:
@@ -444,15 +449,20 @@ def assess_skill(req: SkillAssessRequest, db: Session = Depends(get_db)) -> Dict
 
 
 @router.post("/proficiency")
-def assess_proficiency(req: ProficiencyAssessRequest, db: Session = Depends(get_db)) -> Dict[str, Any]:
+def assess_proficiency(
+    req: ProficiencyAssessRequest,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+) -> Dict[str, Any]:
     """
     Proficiency level assessment.
     
     Analyzes document chunks to determine proficiency level (0-3) for a skill.
     Returns level, label, rationale, and best evidence.
     """
+    check_doc_access(ident, req.doc_id, db)
     started = _now_utc()
-    
+
     # Get skill info
     skill = _get_skill_info(db, req.skill_id)
     if not skill:

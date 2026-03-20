@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
+from backend.app.security import Identity, require_auth
 
 router = APIRouter(prefix="/proficiency", tags=["proficiency"])
 
@@ -37,8 +38,11 @@ def get_user_skill_proficiency(
     user_id: str,
     skill_id: str,
     db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
 ) -> Dict[str, Any]:
-    """Get proficiency for a specific user and skill combination."""
+    """Get proficiency for a specific user and skill combination. Users may only query their own; admin may query any."""
+    if ident.subject_id != user_id and ident.role != "admin":
+        raise HTTPException(status_code=403, detail="Not allowed to view another user's proficiency")
     try:
         insp = inspect(engine)
         tables = set(insp.get_table_names(schema="public"))
@@ -46,15 +50,14 @@ def get_user_skill_proficiency(
             return {"user_id": user_id, "skill_id": skill_id, "level": None, "message": "No proficiency data available"}
         
         # Try to find proficiency from documents uploaded by this user
-        # consents table uses subject_id instead of user_id
         sql = text("""
             SELECT sp.prof_id, sp.doc_id, sp.skill_id, sp.level, sp.label, sp.rationale, sp.created_at
             FROM skill_proficiency sp
             JOIN documents d ON d.doc_id = sp.doc_id
-            LEFT JOIN consents c ON c.doc_id = d.doc_id::text
+            LEFT JOIN consents c ON c.doc_id = d.doc_id::text AND c.user_id = :user_id
             WHERE sp.skill_id = :skill_id
-              AND (c.subject_id = :user_id OR d.doc_id IN (
-                  SELECT doc_id FROM consents WHERE subject_id = :user_id
+              AND (c.user_id = :user_id OR d.doc_id IN (
+                  SELECT doc_id FROM consents WHERE user_id = :user_id
               ))
             ORDER BY sp.created_at DESC
             LIMIT 1

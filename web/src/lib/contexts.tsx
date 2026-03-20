@@ -708,6 +708,9 @@ export const translations: Translations = {
   'jobs.close': { zh: '关闭', 'zh-TW': '關閉', en: 'Close' },
   'jobs.viewMySkills': { zh: '查看我的技能', 'zh-TW': '查看我的技能', en: 'View My Skills' },
   'jobs.noRolesYet': { zh: '暂无匹配数据', 'zh-TW': '暫無匹配資料', en: 'No matching data yet' },
+  'jobs.recommendedCourses': { zh: '📚 推荐港大课程', 'zh-TW': '📚 推薦港大課程', en: '📚 Recommended HKU Courses' },
+  'jobs.loadingCourses': { zh: '加载课程中...', 'zh-TW': '載入課程中...', en: 'Loading courses...' },
+  'jobs.noMatchingCourses': { zh: '暂无与这些技能差距匹配的港大课程。', 'zh-TW': '暫無與這些技能差距匹配的港大課程。', en: 'No matching HKU courses found for these skill gaps.' },
   'jobs.uploadFirst': { zh: '请先上传文档并运行 AI 评估，然后系统会自动计算你与各职位的匹配度。', 'zh-TW': '請先上傳文件並執行 AI 評估，系統會自動計算你與各職位的匹配度。', en: 'Upload a document and run an AI assessment first. The system will then calculate your readiness for each role.' },
 
   // 通用

@@ -14,7 +14,7 @@ import tempfile
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from pydantic import BaseModel, Field
@@ -811,8 +811,21 @@ def analyze_writing(req: WritingAnalysisRequest) -> Dict[str, Any]:
 # === Learning Path Recommendations ===
 
 class LearningPathRequest(BaseModel):
-    skills: List[Dict[str, Any]]  # [{"name": "Python", "level": 2}, ...]
+    """Accept skills as list of dicts [{"name": "Python", "level": 2}] or list of strings ["python", "machine_learning"]."""
+    skills: List[Union[Dict[str, Any], str]]
     targetRole: Optional[str] = None
+    current_level: Optional[str] = None  # used when skills are strings: "beginner" -> 0, etc.
+
+    def normalize_skills(self) -> List[Dict[str, Any]]:
+        level_map = {"beginner": 0, "intermediate": 1, "advanced": 2, "expert": 3}
+        out = []
+        default_level = level_map.get((self.current_level or "").lower(), 0)
+        for s in self.skills:
+            if isinstance(s, dict):
+                out.append({"name": str(s.get("name", s.get("skill_id", ""))), "level": int(s.get("level", default_level))})
+            else:
+                out.append({"name": str(s), "level": default_level})
+        return out
 
 
 @router.post("/learning-path")
@@ -820,77 +833,81 @@ def generate_learning_path(req: LearningPathRequest) -> Dict[str, Any]:
     """
     Generate personalized learning recommendations based on skill gaps.
     """
-    started = _now_utc()
-    
-    # Calculate skill gaps
-    skill_gaps = []
-    for skill in req.skills:
-        name = skill.get("name", "")
-        level = skill.get("level", 0)
-        target_level = 3  # Default target
-        
-        if level < target_level:
-            skill_gaps.append({
-                "skill": name,
-                "currentLevel": level,
-                "targetLevel": target_level,
-                "gap": target_level - level,
+    try:
+        started = _now_utc()
+        skills_normalized = req.normalize_skills()
+
+        # Calculate skill gaps
+        skill_gaps = []
+        for skill in skills_normalized:
+            name = skill.get("name", "")
+            level = int(skill.get("level", 0))
+            target_level = 3  # Default target
+
+            if level < target_level:
+                skill_gaps.append({
+                    "skill": name,
+                    "currentLevel": level,
+                    "targetLevel": target_level,
+                    "gap": target_level - level,
+                })
+
+        # Sort by gap (highest first)
+        skill_gaps.sort(key=lambda x: x["gap"], reverse=True)
+
+        # Generate recommendations
+        recommendations = []
+
+        # Predefined course templates
+        course_templates = {
+            "python": {"title": "Python 进阶课程", "titleEn": "Advanced Python", "type": "course", "hours": 20, "icon": "🐍"},
+            "communication": {"title": "商务沟通技巧", "titleEn": "Business Communication", "type": "course", "hours": 15, "icon": "🎙️"},
+            "data analysis": {"title": "数据分析实战", "titleEn": "Data Analysis Practice", "type": "project", "hours": 25, "icon": "📊"},
+            "machine learning": {"title": "机器学习基础", "titleEn": "ML Fundamentals", "type": "course", "hours": 40, "icon": "🤖"},
+            "problem solving": {"title": "算法与问题解决", "titleEn": "Algorithms & Problem Solving", "type": "assessment", "hours": 30, "icon": "🧠"},
+            "writing": {"title": "学术写作训练", "titleEn": "Academic Writing", "type": "course", "hours": 15, "icon": "✍️"},
+            "leadership": {"title": "领导力培养", "titleEn": "Leadership Development", "type": "course", "hours": 20, "icon": "👥"},
+            "project management": {"title": "项目管理实践", "titleEn": "Project Management", "type": "project", "hours": 25, "icon": "📋"},
+        }
+
+        for i, gap in enumerate(skill_gaps[:5]):
+            skill_lower = (gap["skill"] or "").lower()
+            template = None
+
+            for key, tmpl in course_templates.items():
+                if key in skill_lower or skill_lower in key:
+                    template = tmpl
+                    break
+
+            if not template:
+                template = {
+                    "title": f"提升 {gap['skill']}",
+                    "titleEn": f"Improve {gap['skill']}",
+                    "type": "course",
+                    "hours": gap["gap"] * 10,
+                    "icon": "📚",
+                }
+
+            priority = "high" if gap["gap"] >= 2 else "medium" if gap["gap"] == 1 else "low"
+
+            recommendations.append({
+                "id": f"rec-{i}",
+                "title": template["title"],
+                "titleEn": template["titleEn"],
+                "description": f"通过系统学习提升您的{gap['skill']}技能，从 Level {gap['currentLevel']} 提升到 Level {gap['targetLevel']}",
+                "descriptionEn": f"Improve your {gap['skill']} skills from Level {gap['currentLevel']} to Level {gap['targetLevel']}",
+                "type": template["type"],
+                "skill": gap["skill"],
+                "priority": priority,
+                "estimatedHours": template["hours"],
+                "icon": template["icon"],
             })
-    
-    # Sort by gap (highest first)
-    skill_gaps.sort(key=lambda x: x["gap"], reverse=True)
-    
-    # Generate recommendations
-    recommendations = []
-    
-    # Predefined course templates
-    course_templates = {
-        "python": {"title": "Python 进阶课程", "titleEn": "Advanced Python", "type": "course", "hours": 20, "icon": "🐍"},
-        "communication": {"title": "商务沟通技巧", "titleEn": "Business Communication", "type": "course", "hours": 15, "icon": "🎙️"},
-        "data analysis": {"title": "数据分析实战", "titleEn": "Data Analysis Practice", "type": "project", "hours": 25, "icon": "📊"},
-        "machine learning": {"title": "机器学习基础", "titleEn": "ML Fundamentals", "type": "course", "hours": 40, "icon": "🤖"},
-        "problem solving": {"title": "算法与问题解决", "titleEn": "Algorithms & Problem Solving", "type": "assessment", "hours": 30, "icon": "🧠"},
-        "writing": {"title": "学术写作训练", "titleEn": "Academic Writing", "type": "course", "hours": 15, "icon": "✍️"},
-        "leadership": {"title": "领导力培养", "titleEn": "Leadership Development", "type": "course", "hours": 20, "icon": "👥"},
-        "project management": {"title": "项目管理实践", "titleEn": "Project Management", "type": "project", "hours": 25, "icon": "📋"},
-    }
-    
-    for i, gap in enumerate(skill_gaps[:5]):
-        skill_lower = gap["skill"].lower()
-        template = None
-        
-        # Find matching template
-        for key, tmpl in course_templates.items():
-            if key in skill_lower or skill_lower in key:
-                template = tmpl
-                break
-        
-        if not template:
-            template = {
-                "title": f"提升 {gap['skill']}",
-                "titleEn": f"Improve {gap['skill']}",
-                "type": "course",
-                "hours": gap["gap"] * 10,
-                "icon": "📚",
-            }
-        
-        priority = "high" if gap["gap"] >= 2 else "medium" if gap["gap"] == 1 else "low"
-        
-        recommendations.append({
-            "id": f"rec-{i}",
-            "title": template["title"],
-            "titleEn": template["titleEn"],
-            "description": f"通过系统学习提升您的{gap['skill']}技能，从 Level {gap['currentLevel']} 提升到 Level {gap['targetLevel']}",
-            "descriptionEn": f"Improve your {gap['skill']} skills from Level {gap['currentLevel']} to Level {gap['targetLevel']}",
-            "type": template["type"],
-            "skill": gap["skill"],
-            "priority": priority,
-            "estimatedHours": template["hours"],
-            "icon": template["icon"],
-        })
-    
-    return {
-        "recommendations": recommendations,
-        "skillGaps": skill_gaps,
-        "timing_ms": int((_now_utc() - started).total_seconds() * 1000),
-    }
+
+        return {
+            "recommendations": recommendations,
+            "skillGaps": skill_gaps,
+            "timing_ms": int((_now_utc() - started).total_seconds() * 1000),
+        }
+    except Exception as e:
+        _log.exception("Learning path generation failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Learning path failed: {type(e).__name__}: {e}") from e

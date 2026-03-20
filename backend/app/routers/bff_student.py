@@ -966,6 +966,55 @@ class RoleAlignmentReq(BaseModel):
     doc_id: Optional[str] = None
 
 
+class RoleAlignmentBatchReq(BaseModel):
+    role_ids: List[str]
+    doc_id: Optional[str] = None
+
+
+@router.post("/roles/alignment/batch")
+async def bff_role_alignment_batch(
+    payload: RoleAlignmentBatchReq,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Return readiness scores for multiple roles in one call (avoids N+1 from frontend)."""
+    role_ids = payload.role_ids[:50] if payload.role_ids else []
+    doc_id = payload.doc_id
+    if not doc_id:
+        first_doc = db.execute(
+            text("""
+                SELECT d.doc_id FROM documents d
+                JOIN consents c ON c.doc_id = d.doc_id::text
+                WHERE c.user_id = :sub AND c.status = 'granted'
+                ORDER BY d.created_at DESC LIMIT 1
+            """),
+            {"sub": ident.subject_id},
+        ).mappings().first()
+        doc_id = first_doc["doc_id"] if first_doc else None
+    if not doc_id or not role_ids:
+        return {"items": [], "count": 0}
+    _check_consent(db, doc_id, ident.subject_id)
+
+    from backend.app.routers.assess import role_readiness, RoleReadinessRequest
+    items = []
+    for rid in role_ids:
+        try:
+            req = RoleReadinessRequest(
+                role_id=rid,
+                doc_id=doc_id,
+                subject_id=ident.subject_id,
+                store=False,
+            )
+            result = role_readiness(req=req, db=db, ident=ident)
+            score = float(result.get("score", result.get("readiness_score", 0)))
+            role_title = result.get("role_title", "")
+            items.append({"role_id": rid, "role_title": role_title, "readiness": round(min(1, max(0, score)) * 100)})
+        except Exception as e:
+            _log.warning("Batch alignment for role %s failed: %s", rid, e)
+            items.append({"role_id": rid, "role_title": "", "readiness": 0})
+    return {"items": items, "count": len(items)}
+
+
 @router.post("/roles/alignment")
 async def bff_role_alignment(
     payload: RoleAlignmentReq,

@@ -589,23 +589,22 @@ export const studentBff = {
       bffRequest<{ items: Array<{ doc_id?: string }> }>('/bff/student/documents?limit=1').catch(() => ({ items: [] })),
     ]);
     const latestDocId = (docsData.items || [])[0]?.doc_id;
-    if (!latestDocId || !rolesData.items?.length) return { count: 0, items: [] };
+    const roles = (rolesData.items || []) as Array<{ role_id?: string; role_title?: string }>;
+    if (!latestDocId || !roles.length) return { count: 0, items: [] };
 
-    const results = await Promise.allSettled(
-      (rolesData.items as Array<{ role_id?: string; role_title?: string }>).map(async (r) => {
-        const roleId = r.role_id ?? '';
-        const res = await bffRequest<{ score?: number }>('/bff/student/roles/alignment', {
-          method: 'POST',
-          body: { role_id: roleId, doc_id: latestDocId },
-        });
-        const readiness = Math.round(Math.max(0, Math.min(1, res.score ?? 0)) * 100);
-        return { role_id: roleId, role_title: r.role_title ?? '', readiness };
-      })
+    const roleIds = roles.map(r => r.role_id ?? '').filter(Boolean);
+    const batch = await bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number }> }>(
+      '/bff/student/roles/alignment/batch',
+      { method: 'POST', body: { role_ids: roleIds, doc_id: latestDocId } }
     );
-    const matched = results
-      .filter((r): r is PromiseFulfilledResult<{ role_id: string; role_title: string; readiness: number }> => r.status === 'fulfilled')
-      .map(r => r.value)
-      .filter(r => r.readiness >= 60);
+    const byId = new Map(batch.items?.map(i => [i.role_id, i]) ?? []);
+    const matched = roles
+      .map(r => {
+        const id = r.role_id ?? '';
+        const b = byId.get(id);
+        return b ? { role_id: id, role_title: b.role_title || r.role_title ?? '', readiness: b.readiness } : null;
+      })
+      .filter((x): x is { role_id: string; role_title: string; readiness: number } => x !== null && x.readiness >= 60);
     return { count: matched.length, items: matched };
   },
 

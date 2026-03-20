@@ -447,8 +447,8 @@ def _get_all_document_gaps(
 
 
 @router.get("/templates")
-def list_action_templates() -> Dict[str, Any]:
-    """List all available action templates."""
+def list_action_templates(ident: Identity = Depends(require_auth)) -> Dict[str, Any]:
+    """List all available action templates. Requires auth."""
     templates = _load_templates()
     return {
         "count": len(templates),

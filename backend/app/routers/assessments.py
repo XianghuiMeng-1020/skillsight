@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
+from backend.app.deps import check_doc_access
+from backend.app.security import Identity, require_auth
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
@@ -23,8 +25,9 @@ def list_assessments(
     doc_id: str = Query(default=None, description="Filter by doc_id"),
     limit: int = Query(default=100, ge=1, le=1000),
     db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
 ) -> Dict[str, Any]:
-    """List skill assessments, optionally filtered by doc_id."""
+    """List skill assessments, optionally filtered by doc_id. Requires auth."""
     try:
         insp = inspect(engine)
         tables = set(insp.get_table_names(schema="public"))
@@ -256,7 +259,9 @@ def run_assessments(
     limit_chunks: int = Query(default=5000, ge=1, le=20000),
     db_write: bool = Query(default=True),
     db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
 ) -> Dict[str, Any]:
+    check_doc_access(ident, doc_id, db)
     started = _now_utc()
     run_id = str(uuid.uuid4())
     rule_version = "rule_v2_scored_keyword_match"
