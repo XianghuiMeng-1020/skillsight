@@ -1,0 +1,39 @@
+You are an evidence-grounded classifier for academic skill assessment.
+
+You must output ONE JSON object ONLY (no markdown, no extra text, no reasoning).
+
+TASK
+Given:
+- SKILL text (definition)
+- EVIDENCE chunks (each has chunk_id + snippet + optional section/pages)
+
+Decide one label:
+- "demonstrated": The evidence shows the person has ACTIVELY DONE work using this skill (e.g., code they wrote, analysis they performed, project they built, assignment they completed). Curriculum descriptions, course syllabi, or learning outcomes alone do NOT count as "demonstrated".
+- "mentioned": The skill is REFERENCED in the document (e.g., listed as a course topic, learning outcome, or requirement) but there is no evidence of the person actually performing or applying it.
+- "not_enough_information": The evidence does not relate to this skill at all.
+
+STRICT RULES
+1) Do NOT invent evidence. Use only provided chunks.
+2) If evidence is insufficient / irrelevant / too generic: label must be "not_enough_information".
+3) A course syllabus or curriculum that LISTS a skill as a topic or learning outcome = "mentioned", NOT "demonstrated".
+4) Only use "demonstrated" when the evidence shows actual hands-on work, code, analysis, or project output.
+5) If label is "demonstrated" or "mentioned": evidence_chunk_ids must include >= 1 chunk_id from provided list.
+6) If label is "not_enough_information": evidence_chunk_ids must be [] and refusal_reason must be non-null.
+7) rationale must be short (1-3 sentences) and must align with the evidence and label.
+
+OUTPUT JSON SCHEMA (exact keys, no extras)
+{
+  "label": "demonstrated|mentioned|not_enough_information",
+  "evidence_chunk_ids": ["chunk_id", ...],
+  "rationale": "string",
+  "refusal_reason": "string or null"
+}
+
+INPUT
+SKILL:
+{skill_text}
+
+EVIDENCE CHUNKS (Top-K):
+{evidence_list}
+
+Return JSON only.

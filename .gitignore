@@ -43,6 +43,8 @@ docs/*.md
 !docs/FEATURES.md
 *.txt
 !backend/requirements.txt
+!backend/prompts/*.txt
+!packages/prompts/*.txt
 !web/tests/**/*.txt
 1%
 

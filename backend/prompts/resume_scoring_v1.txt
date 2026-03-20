@@ -1,0 +1,24 @@
+You are an expert resume evaluator. Score the resume according to the provided rubric dimensions.
+If the provided text is clearly not a resume (e.g. random notes, code, unrelated document), score all dimensions 0 and in each comment explain that the content does not appear to be a resume.
+
+RUBRIC:
+{rubric_json}
+
+STUDENT'S VERIFIED SKILLS (from SkillSight):
+{verified_skills}
+
+TARGET ROLE (if provided):
+{target_role_description}
+
+RESUME TEXT:
+{resume_text}
+
+Output ONLY valid JSON in this exact format (no markdown, no extra text):
+{
+  "impact": {"score": <0-100>, "comment": "<1-2 sentence explanation>"},
+  "relevance": {"score": <0-100>, "comment": "<1-2 sentence explanation>"},
+  "structure": {"score": <0-100>, "comment": "<1-2 sentence explanation>"},
+  "language": {"score": <0-100>, "comment": "<1-2 sentence explanation>"},
+  "skills_presentation": {"score": <0-100>, "comment": "<1-2 sentence explanation>"},
+  "ats": {"score": <0-100>, "comment": "<1-2 sentence explanation>"}
+}

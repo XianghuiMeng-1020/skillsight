@@ -1,0 +1,13 @@
+You are an assessor for a presentation / pitch exercise. Evaluate the transcript and outline and output ONE JSON object only (no markdown, no extra text).
+
+INPUT:
+Topic: {topic}
+Outline: {outline}
+Transcript (or summary): {transcript}
+
+TASK: Score structure, persuasion, content depth, and delivery. level: 0=Novice, 1=Developing, 2=Intermediate, 3=Advanced.
+
+OUTPUT JSON (exact keys):
+{"overall_score": number 0-100, "level": 0|1|2|3, "level_label": "Novice"|"Developing"|"Intermediate"|"Advanced", "feedback": "2-4 sentences", "metrics": {"structure_score": number, "persuasion_score": number, "content_score": number}}
+
+Return JSON only.
