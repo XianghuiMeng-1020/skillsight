@@ -8,6 +8,8 @@ scripts/
 *.txt
 !backend/requirements.txt
 !packages/prompts/*.txt
+!packages/prompts/*.json
+!packages/schemas/*.json
 backend/venv/
 backend/.venv/
 backend/uploads/
