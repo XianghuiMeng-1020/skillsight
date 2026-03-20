@@ -96,16 +96,20 @@ def get_verified_skills_summary(db: Session, user_id: str) -> str:
     Get a short text summary of the user's verified skills from skill_proficiency,
     scoped to documents the user has granted consent for.
     """
-    rows = db.execute(
-        text("""
-            SELECT DISTINCT sp.skill_id, sp.level, sp.label
-            FROM skill_proficiency sp
-            JOIN consents c ON c.doc_id = sp.doc_id::text AND c.user_id = :user_id AND c.status = 'granted'
-            ORDER BY sp.skill_id
-            LIMIT 200
-        """),
-        {"user_id": user_id},
-    ).fetchall()
+    try:
+        rows = db.execute(
+            text("""
+                SELECT DISTINCT sp.skill_id, sp.level, sp.label
+                FROM skill_proficiency sp
+                JOIN consents c ON c.doc_id = sp.doc_id::text AND c.user_id = :user_id AND c.status = 'granted'
+                ORDER BY sp.skill_id
+                LIMIT 200
+            """),
+            {"user_id": user_id},
+        ).fetchall()
+    except Exception as e:
+        _log.warning("get_verified_skills_summary query failed: %s", e)
+        return "None (no verified skills yet)."
     if not rows:
         return "None (no verified skills yet)."
     lines = []

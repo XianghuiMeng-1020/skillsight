@@ -194,6 +194,12 @@ def resume_review_score(
             status_code=502,
             detail={"error": "llm_timeout", "message": str(e), "retry": True},
         ) from e
+    except Exception as e:
+        _log.exception("Resume score unexpected error: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "scoring_failed", "message": f"Scoring failed: {type(e).__name__}: {e}", "retry": True},
+        ) from e
     scores = result["scores"]
     total = result["total"]
     db.execute(

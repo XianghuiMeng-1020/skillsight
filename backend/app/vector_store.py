@@ -100,21 +100,41 @@ except ImportError:
 
 
 def ensure_collection(client, dim: int):
-    """Ensure collection exists in Qdrant."""
+    """Ensure collection exists in Qdrant, with payload indexes for filtering."""
     if client is None:
         return
     qm = _get_qm()
     if qm is None:
         return
+    created = False
     try:
         client.get_collection(COLLECTION)
-        return
     except Exception as exc:
         logger.warning("collection check failed, will create: %s", exc)
-    client.create_collection(
-        collection_name=COLLECTION,
-        vectors_config=qm.VectorParams(size=dim, distance=qm.Distance.COSINE),
-    )
+        client.create_collection(
+            collection_name=COLLECTION,
+            vectors_config=qm.VectorParams(size=dim, distance=qm.Distance.COSINE),
+        )
+        created = True
+
+    _ensure_payload_index(client, qm, "doc_id", qm.PayloadSchemaType.KEYWORD)
+    if created:
+        _ensure_payload_index(client, qm, "chunk_id", qm.PayloadSchemaType.KEYWORD)
+
+
+def _ensure_payload_index(client, qm, field_name: str, schema_type):
+    """Create a payload index if it doesn't already exist."""
+    try:
+        client.create_payload_index(
+            collection_name=COLLECTION,
+            field_name=field_name,
+            field_schema=schema_type,
+        )
+        logger.info("Created payload index for '%s' on collection '%s'", field_name, COLLECTION)
+    except Exception as exc:
+        if "already exists" in str(exc).lower():
+            return
+        logger.warning("Payload index creation for '%s' failed (non-fatal): %s", field_name, exc)
 
 
 def upsert_points(client, points: list):

@@ -294,6 +294,9 @@ export default function AssessPage() {
       if (!response.ok) throw new Error(t('assess.startFailed'));
 
       const data = await response.json();
+      if (data.prompt && typeof data.prompt === 'object') {
+        data.prompt = data.prompt.prompt || data.prompt.title || '';
+      }
       setSession(data);
       idempotencyKeyRef.current = null;
     } catch {

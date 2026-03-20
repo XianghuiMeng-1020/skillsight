@@ -10,9 +10,11 @@
   flex: 1;
   padding: 1.5rem 2rem;
   max-width: 960px;
-  margin-left: var(--sidebar-width, 260px); /* Use CSS variable for sidebar width */
+  margin-left: calc(var(--sidebar-width, 260px) + 1rem);
   margin-right: auto;
   min-width: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .header {
