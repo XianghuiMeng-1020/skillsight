@@ -278,11 +278,33 @@ async def _global_exception_handler(request: Request, exc: Exception):
 def root():
     return {
         "service": "SkillSight API",
-        "version": "0.1.2-fix-template-cors",
+        "version": "0.1.3-fix-template-apply",
         "status": "ok",
         "docs": "/docs",
         "health": "/health",
     }
+
+
+@app.get("/health/templates")
+def health_templates():
+    """Diagnostic: check template files & python-docx availability."""
+    from pathlib import Path
+    base = Path(__file__).resolve().parents[1] / "data" / "templates"
+    result: dict = {"templates_dir": str(base), "exists": base.exists()}
+    if base.exists():
+        result["files"] = sorted(f.name for f in base.iterdir() if f.is_file())
+    else:
+        result["files"] = []
+    try:
+        from docx import Document
+        result["python_docx"] = "ok"
+        if result["files"]:
+            test_path = base / result["files"][0]
+            doc = Document(str(test_path))
+            result["test_open"] = f"ok ({len(doc.paragraphs)} paragraphs)"
+    except Exception as e:
+        result["python_docx"] = f"error: {e}"
+    return result
 
 
 @app.get("/__routes")

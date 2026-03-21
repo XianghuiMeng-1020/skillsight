@@ -619,10 +619,10 @@ def resume_review_apply_template(
         raise HTTPException(status_code=404, detail={"error": "template_not_found", "message": "Template file not found"}) from e
     except (RuntimeError, ImportError) as e:
         _log.exception("Template apply failed: %s", e)
-        raise HTTPException(status_code=500, detail={"error": "template_error", "message": "Failed to generate document"}) from e
+        raise HTTPException(status_code=500, detail={"error": "template_error", "message": f"Failed to generate document: {type(e).__name__}: {e}"}) from e
     except Exception as e:
         _log.exception("Unexpected error in template apply: %s", e)
-        raise HTTPException(status_code=500, detail={"error": "internal_error", "message": "Internal server error"}) from e
+        raise HTTPException(status_code=500, detail={"error": "internal_error", "message": f"{type(e).__name__}: {e}"}) from e
     b64 = base64.b64encode(doc_bytes).decode("ascii")
     filename = f"resume_enhanced_{review_id[:8]}.docx"
     db.execute(
