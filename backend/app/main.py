@@ -287,7 +287,8 @@ def root():
 
 @app.get("/health/templates")
 def health_templates():
-    """Diagnostic: check template files & python-docx availability."""
+    """Diagnostic: check template files, python-docx, and full apply flow."""
+    import io
     from pathlib import Path
     base = Path(__file__).resolve().parents[1] / "data" / "templates"
     result: dict = {"templates_dir": str(base), "exists": base.exists()}
@@ -302,8 +303,28 @@ def health_templates():
             test_path = base / result["files"][0]
             doc = Document(str(test_path))
             result["test_open"] = f"ok ({len(doc.paragraphs)} paragraphs)"
+            for p in doc.paragraphs:
+                if "{{ RESUME_CONTENT }}" in p.text or "{{ CONTENT }}" in p.text:
+                    p.runs[0].text = p.text.replace("{{ RESUME_CONTENT }}", "Test content here").replace("{{ CONTENT }}", "Test content here")
+                    for run in p.runs[1:]:
+                        run.text = ""
+            buf = io.BytesIO()
+            doc.save(buf)
+            result["test_save"] = f"ok ({buf.tell()} bytes)"
     except Exception as e:
-        result["python_docx"] = f"error: {e}"
+        import traceback
+        result["python_docx"] = f"error: {type(e).__name__}: {e}"
+        result["traceback"] = traceback.format_exc()
+
+    try:
+        from sqlalchemy import text as sa_text
+        from backend.app.db.session import get_db
+        db = next(get_db())
+        db.execute(sa_text("SELECT 1 FROM resume_templates LIMIT 1")).fetchone()
+        result["resume_templates_table"] = "ok"
+    except Exception as e:
+        result["resume_templates_table"] = f"error: {type(e).__name__}: {e}"
+
     return result
 
 
