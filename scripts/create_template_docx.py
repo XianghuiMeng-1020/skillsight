@@ -1,191 +1,74 @@
 #!/usr/bin/env python3
 """
-Create 4 professional resume template DOCX files under backend/data/templates/.
-Each template has a distinct visual style with placeholder {{ RESUME_CONTENT }}.
+Create 8 sample resume template DOCX files under backend/data/templates/.
+
+The actual export builds documents programmatically in resume_template_service.py.
+This script generates sample files using the same builders for previewing/debugging.
 """
 from pathlib import Path
 import sys
 
-try:
-    from docx import Document
-    from docx.shared import Pt, Inches, Cm, RGBColor
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.section import WD_ORIENT
-except ImportError:
-    print("python-docx is required: pip install python-docx", file=sys.stderr)
-    sys.exit(1)
+project_root = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(project_root))
 
-TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "backend" / "data" / "templates"
+TEMPLATES_DIR = project_root / "backend" / "data" / "templates"
 TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
 
+SAMPLE_CONTENT = """John Smith
+john.smith@email.com | +1 (555) 123-4567 | linkedin.com/in/johnsmith | New York, NY
 
-def _set_cell_shading(cell, hex_color: str):
-    from docx.oxml.ns import qn
-    from lxml import etree
-    tc = cell._tc
-    tc_pr = tc.get_or_add_tcPr()
-    shading = etree.SubElement(tc_pr, qn("w:shd"))
-    shading.set(qn("w:fill"), hex_color)
-    shading.set(qn("w:val"), "clear")
+SUMMARY
+Results-driven software engineer with 5+ years of experience in full-stack development.
+Passionate about building scalable applications and mentoring junior developers.
 
+EXPERIENCE
+Senior Software Engineer — TechCorp Inc. (2021 – Present)
+• Led a team of 6 engineers to deliver a microservices platform serving 2M+ users
+• Redesigned the authentication system, reducing login failures by 40%
+• Implemented CI/CD pipelines that cut deployment time from 2 hours to 15 minutes
 
-def create_professional_classic():
-    """Clean, traditional layout — finance / consulting / corporate."""
-    doc = Document()
-    style = doc.styles["Normal"]
-    font = style.font
-    font.name = "Calibri"
-    font.size = Pt(11)
-    font.color.rgb = RGBColor(0x33, 0x33, 0x33)
+Software Engineer — StartupXYZ (2019 – 2021)
+• Built RESTful APIs using Python/FastAPI handling 10K+ requests per second
+• Developed React-based dashboard used by 500+ enterprise clients
+• Reduced database query times by 60% through query optimization and indexing
 
-    section = doc.sections[0]
-    section.top_margin = Cm(2)
-    section.bottom_margin = Cm(2)
-    section.left_margin = Cm(2.5)
-    section.right_margin = Cm(2.5)
+EDUCATION
+Master of Science in Computer Science — Stanford University (2019)
+Bachelor of Science in Computer Science — UC Berkeley (2017)
 
-    h = doc.add_heading("Professional Classic Resume", level=0)
-    h.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in h.runs:
-        run.font.color.rgb = RGBColor(0x1a, 0x1a, 0x2e)
-        run.font.size = Pt(22)
+SKILLS
+• Python, JavaScript, TypeScript, Go
+• React, Next.js, FastAPI, Django
+• PostgreSQL, Redis, MongoDB
+• AWS, Docker, Kubernetes, CI/CD
+• System Design, Agile/Scrum
 
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("━" * 60)
-    run.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
-    run.font.size = Pt(8)
+CERTIFICATIONS
+• AWS Solutions Architect – Professional
+• Google Cloud Professional Data Engineer
 
-    doc.add_paragraph()
-    p = doc.add_paragraph()
-    p.add_run("{{ RESUME_CONTENT }}")
+PROJECTS
+Open-Source Resume Builder (2022)
+• Built a tool that generates ATS-friendly resumes from YAML input
+• 500+ GitHub stars, 50+ contributors
 
-    doc.save(str(TEMPLATES_DIR / "professional_classic.docx"))
-    print("  Created: professional_classic.docx")
+LANGUAGES
+• English (Native)
+• Mandarin Chinese (Fluent)
+"""
 
 
-def create_modern_tech():
-    """Contemporary design — technology / engineering / software."""
-    doc = Document()
-    style = doc.styles["Normal"]
-    font = style.font
-    font.name = "Segoe UI"
-    font.size = Pt(10.5)
-    font.color.rgb = RGBColor(0x2d, 0x2d, 0x2d)
+def create_all():
+    from backend.app.services.resume_template_service import parse_resume, _TEMPLATE_BUILDERS
 
-    section = doc.sections[0]
-    section.top_margin = Cm(1.5)
-    section.bottom_margin = Cm(1.5)
-    section.left_margin = Cm(2)
-    section.right_margin = Cm(2)
-
-    table = doc.add_table(rows=1, cols=2)
-    table.autofit = True
-    left_cell = table.cell(0, 0)
-    right_cell = table.cell(0, 1)
-
-    _set_cell_shading(left_cell, "1e293b")
-    p = left_cell.paragraphs[0]
-    run = p.add_run("MODERN TECH")
-    run.font.color.rgb = RGBColor(0xff, 0xff, 0xff)
-    run.font.size = Pt(18)
-    run.font.bold = True
-    p2 = left_cell.add_paragraph()
-    run2 = p2.add_run("Resume Template")
-    run2.font.color.rgb = RGBColor(0x94, 0xa3, 0xb8)
-    run2.font.size = Pt(11)
-
-    _set_cell_shading(right_cell, "f1f5f9")
-    pr = right_cell.paragraphs[0]
-    pr.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    run3 = pr.add_run("SkillSight")
-    run3.font.color.rgb = RGBColor(0x64, 0x74, 0x8b)
-    run3.font.size = Pt(9)
-
-    doc.add_paragraph()
-    p = doc.add_paragraph()
-    p.add_run("{{ RESUME_CONTENT }}")
-
-    doc.save(str(TEMPLATES_DIR / "modern_tech.docx"))
-    print("  Created: modern_tech.docx")
-
-
-def create_creative_portfolio():
-    """Stylish layout — marketing / design / creative roles."""
-    doc = Document()
-    style = doc.styles["Normal"]
-    font = style.font
-    font.name = "Georgia"
-    font.size = Pt(11)
-    font.color.rgb = RGBColor(0x37, 0x37, 0x37)
-
-    section = doc.sections[0]
-    section.top_margin = Cm(2)
-    section.bottom_margin = Cm(2)
-    section.left_margin = Cm(3)
-    section.right_margin = Cm(3)
-
-    h = doc.add_heading("", level=0)
-    h.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    run = h.add_run("Creative")
-    run.font.color.rgb = RGBColor(0x7c, 0x3a, 0xed)
-    run.font.size = Pt(28)
-    run2 = h.add_run(" Portfolio")
-    run2.font.color.rgb = RGBColor(0x4a, 0x4a, 0x4a)
-    run2.font.size = Pt(28)
-
-    p = doc.add_paragraph()
-    run = p.add_run("▬" * 8)
-    run.font.color.rgb = RGBColor(0x7c, 0x3a, 0xed)
-    run.font.size = Pt(14)
-
-    doc.add_paragraph()
-    p = doc.add_paragraph()
-    p.add_run("{{ RESUME_CONTENT }}")
-
-    doc.save(str(TEMPLATES_DIR / "creative_portfolio.docx"))
-    print("  Created: creative_portfolio.docx")
-
-
-def create_academic_research():
-    """Structured format — research / academia / education."""
-    doc = Document()
-    style = doc.styles["Normal"]
-    font = style.font
-    font.name = "Times New Roman"
-    font.size = Pt(12)
-    font.color.rgb = RGBColor(0x1a, 0x1a, 0x1a)
-
-    section = doc.sections[0]
-    section.top_margin = Cm(2.54)
-    section.bottom_margin = Cm(2.54)
-    section.left_margin = Cm(2.54)
-    section.right_margin = Cm(2.54)
-
-    h = doc.add_heading("Curriculum Vitae", level=0)
-    h.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    for run in h.runs:
-        run.font.color.rgb = RGBColor(0x0a, 0x2a, 0x4a)
-        run.font.size = Pt(24)
-        run.font.name = "Times New Roman"
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("─" * 50)
-    run.font.color.rgb = RGBColor(0x0a, 0x2a, 0x4a)
-    run.font.size = Pt(8)
-
-    doc.add_paragraph()
-    p = doc.add_paragraph()
-    p.add_run("{{ RESUME_CONTENT }}")
-
-    doc.save(str(TEMPLATES_DIR / "academic_research.docx"))
-    print("  Created: academic_research.docx")
+    parsed = parse_resume(SAMPLE_CONTENT)
+    for key, builder in _TEMPLATE_BUILDERS.items():
+        doc_bytes = builder(parsed)
+        out_path = TEMPLATES_DIR / f"{key}.docx"
+        out_path.write_bytes(doc_bytes)
+        print(f"  Created: {key}.docx ({len(doc_bytes)} bytes)")
 
 
 if __name__ == "__main__":
-    create_professional_classic()
-    create_modern_tech()
-    create_creative_portfolio()
-    create_academic_research()
-    print("All template DOCX files created.")
+    create_all()
+    print(f"\nAll {8} template DOCX files created in {TEMPLATES_DIR}")

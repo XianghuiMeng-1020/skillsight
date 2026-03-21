@@ -379,6 +379,10 @@ export const translations: Translations = {
   'resume.applyAndExport': { zh: '套用并导出', 'zh-TW': '套用並匯出', en: 'Apply & Export' },
   'resume.exportSuccess': { zh: '导出成功', 'zh-TW': '匯出成功', en: 'Export successful' },
   'resume.noTemplates': { zh: '暂无模板', 'zh-TW': '暫無模板', en: 'No templates available' },
+  'resume.clickToPreview': { zh: '点击预览', 'zh-TW': '點擊預覽', en: 'Click to preview' },
+  'resume.atsHigh': { zh: 'ATS 友好', 'zh-TW': 'ATS 友善', en: 'ATS Friendly' },
+  'resume.atsMedium': { zh: 'ATS 一般', 'zh-TW': 'ATS 一般', en: 'ATS Moderate' },
+  'resume.atsLow': { zh: 'ATS 受限', 'zh-TW': 'ATS 受限', en: 'ATS Limited' },
   'resume.viewHistory': { zh: '查看历史', 'zh-TW': '查看歷史', en: 'View history' },
 
   // 技能雷达图
