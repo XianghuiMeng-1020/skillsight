@@ -196,8 +196,17 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
       a.click();
       URL.revokeObjectURL(url);
       addToast('success', t('resume.exportSuccess'));
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
+    } catch (e: unknown) {
+      let msg = e instanceof Error ? e.message : String(e);
+      if (e && typeof e === 'object' && 'detail' in e) {
+        const detail = (e as { detail: unknown }).detail;
+        if (detail && typeof detail === 'object' && 'message' in detail) {
+          msg = (detail as { message: string }).message;
+        } else if (typeof detail === 'string') {
+          msg = detail;
+        }
+      }
+      console.error('[TemplateGallery] apply-template error:', e);
       addToast('error', msg);
     } finally {
       setApplying(null);

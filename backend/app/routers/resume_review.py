@@ -578,65 +578,87 @@ def resume_review_apply_template(
     ident: Identity = Depends(require_auth),
 ):
     """Fill template with review's final resume content and return DOCX as base64 for download."""
+    import traceback as _tb
+    import re as _re
+
     subject_id = ident.subject_id
-    review = _get_review_for_user(db, review_id, subject_id)
-    if not review:
-        raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
-    if review.get("status") not in ("reviewed", "enhanced", "completed"):
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "invalid_state", "message": "Complete scoring and suggestions before applying a template."},
-        )
-    doc_id = review["doc_id"]
-    base_text = get_resume_text_from_doc(db, doc_id)
-    if not base_text or len(base_text.strip()) < 50:
-        raise HTTPException(
-            status_code=400,
-            detail={"error": "no_chunks", "message": "Document content not available."},
-        )
-    rows = db.execute(
-        text("""
-            SELECT original_text, COALESCE(student_edit, suggested_text) AS replacement
-            FROM resume_suggestions
-            WHERE review_id = :rid AND status IN ('accepted', 'edited')
-            ORDER BY created_at ASC
-        """),
-        {"rid": review_id},
-    ).fetchall()
-    resume_content = base_text
-    for r in rows:
-        orig, repl = r[0], r[1]
-        if orig and repl is not None and orig in resume_content:
-            resume_content = resume_content.replace(orig, repl, 1)
+    _log.info("apply-template: review_id=%s template_id=%s user=%s", review_id, payload.template_id, subject_id)
+
     try:
+        review = _get_review_for_user(db, review_id, subject_id)
+        if not review:
+            raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+        _log.info("apply-template: review status=%s doc_id=%s", review.get("status"), review.get("doc_id"))
+
+        if review.get("status") not in ("reviewed", "enhanced", "completed"):
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "invalid_state", "message": "Complete scoring and suggestions before applying a template."},
+            )
+
+        doc_id = review["doc_id"]
+        base_text = get_resume_text_from_doc(db, doc_id)
+        _log.info("apply-template: base_text length=%d", len(base_text or ""))
+
+        if not base_text or len(base_text.strip()) < 50:
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "no_chunks", "message": "Document content not available."},
+            )
+
+        rows = db.execute(
+            text("""
+                SELECT original_text, COALESCE(student_edit, suggested_text) AS replacement
+                FROM resume_suggestions
+                WHERE review_id = :rid AND status IN ('accepted', 'edited')
+                ORDER BY created_at ASC
+            """),
+            {"rid": review_id},
+        ).fetchall()
+        _log.info("apply-template: %d accepted suggestions to apply", len(rows))
+
+        resume_content = base_text
+        for r in rows:
+            orig, repl = r[0], r[1]
+            if orig and repl is not None and orig in resume_content:
+                resume_content = resume_content.replace(orig, repl, 1)
+
+        resume_content = _re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', resume_content)
+        _log.info("apply-template: sanitized resume_content length=%d, calling template_apply", len(resume_content))
+
         doc_bytes = template_apply(
             db,
             review_id=review_id,
             template_id=payload.template_id,
             resume_content=resume_content,
         )
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail={"error": "template_not_found", "message": "Template file not found"}) from e
-    except (RuntimeError, ImportError) as e:
-        _log.exception("Template apply failed: %s", e)
-        raise HTTPException(status_code=500, detail={"error": "template_error", "message": f"Failed to generate document: {type(e).__name__}: {e}"}) from e
+        _log.info("apply-template: doc_bytes length=%d", len(doc_bytes))
+
+        b64 = base64.b64encode(doc_bytes).decode("ascii")
+        filename = f"resume_enhanced_{review_id[:8]}.docx"
+        db.execute(
+            text("UPDATE resume_reviews SET template_id = :tid, status = 'completed', updated_at = :now WHERE review_id = :rid AND user_id = :uid"),
+            {"tid": payload.template_id, "now": _now_utc(), "rid": review_id, "uid": subject_id},
+        )
+        db.commit()
+        log_audit(
+            engine,
+            subject_id=subject_id,
+            action="bff.resume.apply_template",
+            object_type="resume_review",
+            object_id=review_id,
+            status="ok",
+            detail={"template_id": payload.template_id},
+        )
+        _log.info("apply-template: success, filename=%s", filename)
+        return {"filename": filename, "content_base64": b64, "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+
+    except HTTPException:
+        raise
     except Exception as e:
-        _log.exception("Unexpected error in template apply: %s", e)
-        raise HTTPException(status_code=500, detail={"error": "internal_error", "message": f"{type(e).__name__}: {e}"}) from e
-    b64 = base64.b64encode(doc_bytes).decode("ascii")
-    filename = f"resume_enhanced_{review_id[:8]}.docx"
-    db.execute(
-        text("UPDATE resume_reviews SET template_id = :tid, status = 'completed', updated_at = :now WHERE review_id = :rid AND user_id = :uid"),
-        {"tid": payload.template_id, "now": _now_utc(), "rid": review_id, "uid": subject_id},
-    )
-    db.commit()
-    log_audit(
-        engine,
-        subject_id=subject_id,
-        action="bff.resume.apply_template",
-        object_type="resume_review",
-        object_id=review_id,
-        status="ok",
-        detail={"template_id": payload.template_id},
-    )
-    return {"filename": filename, "content_base64": b64, "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+        tb_str = _tb.format_exc()
+        _log.exception("apply-template FAILED: %s\n%s", e, tb_str)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "internal_error", "message": f"{type(e).__name__}: {e}", "traceback": tb_str},
+        ) from e
