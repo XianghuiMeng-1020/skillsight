@@ -174,6 +174,58 @@ def _seed_roles_and_skills(db):
             logger.info("Seeded %d roles from roles.json", len(roles))
 
 
+def _seed_resume_templates(db):
+    """Seed resume templates from JSON file, inserting any missing templates."""
+    import json, pathlib
+    from sqlalchemy import text
+
+    seed_file = pathlib.Path(__file__).resolve().parent.parent / "data" / "seeds" / "resume_templates.json"
+    if not seed_file.exists():
+        return
+
+    try:
+        count = db.execute(text("SELECT count(*) FROM resume_templates")).scalar() or 0
+    except Exception:
+        return
+
+    templates = json.loads(seed_file.read_text(encoding="utf-8"))
+    if count >= len(templates):
+        return
+
+    existing_files = set()
+    try:
+        rows = db.execute(text("SELECT template_file FROM resume_templates")).mappings().all()
+        existing_files = {r["template_file"] for r in rows if r.get("template_file")}
+    except Exception:
+        pass
+
+    inserted = 0
+    for t in templates:
+        tfile = t.get("template_file", "")
+        if tfile in existing_files:
+            continue
+        try:
+            db.execute(
+                text("""
+                    INSERT INTO resume_templates (name, description, industry_tags, preview_url, template_file, is_active)
+                    VALUES (:name, :description, :industry_tags::jsonb, :preview_url, :template_file, :is_active)
+                """),
+                {
+                    "name": t["name"],
+                    "description": t.get("description", ""),
+                    "industry_tags": json.dumps(t.get("industry_tags", [])),
+                    "preview_url": t.get("preview_url", ""),
+                    "template_file": tfile,
+                    "is_active": t.get("is_active", True),
+                },
+            )
+            inserted += 1
+        except Exception as ex:
+            logger.debug("resume_templates seed skip %s: %s", tfile, ex)
+    if inserted:
+        logger.info("Seeded %d new resume templates (total now: %d)", inserted, count + inserted)
+
+
 @app.on_event("startup")
 def _startup_check():
     require_production_secret()
@@ -203,6 +255,18 @@ def _startup_check():
             _db.close()
     except Exception as exc:
         logger.warning("Could not seed roles/skills: %s", exc)
+
+    # Seed resume templates from JSON if DB has fewer than expected
+    try:
+        from backend.app.db.session import SessionLocal as _SL2
+        _db2 = _SL2()
+        try:
+            _seed_resume_templates(_db2)
+            _db2.commit()
+        finally:
+            _db2.close()
+    except Exception as exc:
+        logger.warning("Could not seed resume templates: %s", exc)
 
     global _SCHEMA_HEALTH
     _SCHEMA_HEALTH = _run_schema_health_check()
