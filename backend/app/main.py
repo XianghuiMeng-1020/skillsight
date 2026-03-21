@@ -248,8 +248,12 @@ _CORS_ALLOWED_HEADERS = [
     "X-Idempotency-Key", "X-Model-Version", "X-Rubric-Version", "Accept", "Origin",
 ]
 
-# Use FastAPI's built-in CORSMiddleware with allow_origin_regex for reliable
-# preflight handling (BaseHTTPMiddleware can drop headers on unhandled errors).
+# Middleware ordering: added in reverse (last = outermost in Starlette).
+# CORSMiddleware MUST be outermost so CORS headers are always present,
+# even when inner middlewares raise unhandled errors.
+app.add_middleware(AuditMiddleware)
+if _parse_bool_env("RATE_LIMIT_ENABLED"):
+    app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https://(skillsight-\d+\.pages\.dev|[a-z0-9-]+\.skillsight-\d+\.pages\.dev|skillsight\.pages\.dev)$",
@@ -260,15 +264,21 @@ app.add_middleware(
     max_age=3600,
 )
 
-if _parse_bool_env("RATE_LIMIT_ENABLED"):
-    app.add_middleware(RateLimitMiddleware)
-app.add_middleware(AuditMiddleware)
+_main_logger = logging.getLogger("skillsight.main")
+
+@app.exception_handler(Exception)
+async def _global_exception_handler(request: Request, exc: Exception):
+    _main_logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 @app.get("/")
 def root():
     return {
         "service": "SkillSight API",
-        "version": "0.1.1-fix-scoring",
+        "version": "0.1.2-fix-template-cors",
         "status": "ok",
         "docs": "/docs",
         "health": "/health",

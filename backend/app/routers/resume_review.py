@@ -616,9 +616,13 @@ def resume_review_apply_template(
             resume_content=resume_content,
         )
     except FileNotFoundError as e:
-        if "template_not_found" in str(e):
-            raise HTTPException(status_code=404, detail={"error": "template_not_found", "message": "Template file not found"}) from e
-        raise HTTPException(status_code=404, detail={"error": "template_not_found", "message": str(e)}) from e
+        raise HTTPException(status_code=404, detail={"error": "template_not_found", "message": "Template file not found"}) from e
+    except (RuntimeError, ImportError) as e:
+        _log.exception("Template apply failed: %s", e)
+        raise HTTPException(status_code=500, detail={"error": "template_error", "message": "Failed to generate document"}) from e
+    except Exception as e:
+        _log.exception("Unexpected error in template apply: %s", e)
+        raise HTTPException(status_code=500, detail={"error": "internal_error", "message": "Internal server error"}) from e
     b64 = base64.b64encode(doc_bytes).decode("ascii")
     filename = f"resume_enhanced_{review_id[:8]}.docx"
     db.execute(
