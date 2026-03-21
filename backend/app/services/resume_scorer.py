@@ -240,7 +240,21 @@ def score_resume(
     generate = _get_llm_generate()
     model = _get_default_model()
 
+    # Use deterministic seed (hash of resume content) for scoring stability
+    import hashlib
+    content_hash = hashlib.md5(resume_text.encode("utf-8", errors="replace")).hexdigest()
+    deterministic_seed = int(content_hash[:8], 16)
+
     try:
+        raw = generate(
+            model=model,
+            prompt=user_message,
+            temperature=0.0,
+            timeout_s=SCORING_TIMEOUT,
+            seed=deterministic_seed,
+        )
+    except TypeError:
+        # Fallback for LLM clients that don't support `seed`
         raw = generate(
             model=model,
             prompt=user_message,

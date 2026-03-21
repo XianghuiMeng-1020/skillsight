@@ -27,6 +27,7 @@ def openai_generate(
     prompt: str,
     temperature: float = 0.0,
     timeout_s: int = 180,
+    seed: int | None = None,
 ) -> str:
     """
     Call OpenAI Chat Completions API (non-stream).
@@ -36,15 +37,18 @@ def openai_generate(
     if client is None:
         raise RuntimeError("OpenAI client not available (missing openai package or OPENAI_API_KEY)")
 
-    # OpenAI uses different param name; cap timeout for API
     timeout = min(timeout_s, 120)
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=temperature,
-        timeout=timeout,
-    )
+    kwargs: Dict[str, Any] = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": temperature,
+        "timeout": timeout,
+    }
+    if seed is not None:
+        kwargs["seed"] = seed
+
+    response = client.chat.completions.create(**kwargs)
     if not response.choices:
         return ""
     content = response.choices[0].message.content

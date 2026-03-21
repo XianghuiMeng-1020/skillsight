@@ -106,40 +106,64 @@ export function ScoreComparison({
       <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step4Title')}</h2>
       <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>{t('resume.step4Desc')}</p>
 
-      <div className={styles.scoreRing} style={{ marginBottom: '1rem' }}>
-        <ResponsiveContainer width="100%" height={180}>
-          <RechartsRadarChart data={radarData} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
-            <PolarGrid />
+      <div className={styles.scoreRing} style={{ marginBottom: '1rem', height: 320 }}>
+        <ResponsiveContainer width="100%" height={320}>
+          <RechartsRadarChart data={radarData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
+            <PolarGrid gridType="polygon" stroke="var(--gray-200)" />
             <PolarAngleAxis
               dataKey="labelKey"
               tickFormatter={(labelKey) => (typeof labelKey === 'string' ? t(labelKey) : String(labelKey))}
+              tick={{ fontSize: 12, fill: 'var(--gray-600)' }}
             />
-            <PolarRadiusAxis angle={90} domain={[0, 100]} />
+            <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10 }} />
             <Radar
               name={t('resume.beforeScore')}
               dataKey="initial"
-              stroke="var(--gray-400)"
-              fill="var(--gray-400)"
-              fillOpacity={0.2}
-              strokeDasharray="4 4"
+              stroke="#9ca3af"
+              fill="#9ca3af"
+              fillOpacity={0.15}
+              strokeWidth={2}
+              strokeDasharray="6 4"
+              dot={{ r: 3, fill: '#9ca3af' }}
             />
             <Radar
               name={t('resume.afterScore')}
               dataKey="final"
-              stroke="var(--primary)"
-              fill="var(--primary)"
-              fillOpacity={0.3}
+              stroke="#6366f1"
+              fill="#6366f1"
+              fillOpacity={0.25}
+              strokeWidth={2.5}
+              dot={{ r: 4, fill: '#6366f1' }}
             />
             <Tooltip
               content={({ payload }) =>
                 payload?.[0] ? (
-                  <span>
-                    {t(DIMENSION_LABEL_KEYS[payload[0].payload.dimension] || payload[0].payload.dimension)}: {t('resume.beforeScore')} {payload[0].payload.initial}, {t('resume.afterScore')} {payload[0].payload.final}
-                  </span>
+                  <div style={{
+                    background: 'var(--white)',
+                    border: '1px solid var(--gray-200)',
+                    borderRadius: 'var(--radius)',
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.825rem',
+                    boxShadow: 'var(--shadow)',
+                  }}>
+                    <strong>{t(DIMENSION_LABEL_KEYS[payload[0].payload.dimension] || payload[0].payload.dimension)}</strong>
+                    <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
+                      <span style={{ color: '#9ca3af' }}>{t('resume.beforeScore')}: {payload[0].payload.initial}</span>
+                      <span style={{ color: '#6366f1', fontWeight: 600 }}>{t('resume.afterScore')}: {payload[0].payload.final}</span>
+                      {payload[0].payload.final - payload[0].payload.initial !== 0 && (
+                        <span style={{ color: payload[0].payload.final > payload[0].payload.initial ? 'var(--success)' : 'var(--error)', fontWeight: 600 }}>
+                          {payload[0].payload.final > payload[0].payload.initial ? '+' : ''}{payload[0].payload.final - payload[0].payload.initial}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 ) : null
               }
             />
-            <Legend />
+            <Legend
+              wrapperStyle={{ paddingTop: '0.5rem', fontSize: '0.825rem' }}
+              formatter={(value: string) => <span style={{ color: 'var(--gray-700)' }}>{value}</span>}
+            />
           </RechartsRadarChart>
         </ResponsiveContainer>
       </div>

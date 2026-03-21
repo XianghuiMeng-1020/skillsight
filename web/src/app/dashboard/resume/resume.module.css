@@ -139,7 +139,6 @@
 .scoreRing {
   width: 100%;
   min-width: 300px;
-  height: 250px;
   margin: 0 auto 1rem;
 }
 
@@ -245,11 +244,17 @@
 
 .templateCard:hover {
   box-shadow: var(--shadow-lg);
+  transform: translateY(-2px);
 }
 
 .templateCard h3 {
   margin: 0 0 0.5rem 0;
   font-size: 1rem;
+}
+
+.templateCardSelected {
+  border: 2px solid var(--primary) !important;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
 }
 
 .templateTags {

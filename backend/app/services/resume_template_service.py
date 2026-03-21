@@ -93,10 +93,15 @@ def apply_template(
             text("SELECT template_file, name FROM resume_templates WHERE template_id = :tid AND is_active = TRUE LIMIT 1"),
             {"tid": template_id},
         ).mappings().first()
-        if not row:
+        if row:
+            template_file = row.get("template_file") or ""
+            template_name = row.get("name") or "resume"
+        elif template_id.startswith("__"):
+            # Builtin template fallback — derive file from template_id
+            template_file = template_id.lstrip("_") + ".docx"
+            template_name = template_id.lstrip("_").replace("_", " ").title()
+        else:
             raise FileNotFoundError("template_not_found")
-        template_file = row.get("template_file") or ""
-        template_name = row.get("name") or "resume"
 
     path = _get_template_path(template_file)
     try:

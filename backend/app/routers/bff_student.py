@@ -1732,6 +1732,45 @@ def bff_student_resume_templates(
             except Exception:
                 d["industry_tags"] = []
         templates.append(d)
+    if not templates:
+        templates = [
+            {
+                "template_id": "__professional_classic",
+                "name": "Professional Classic",
+                "description": "Clean, traditional layout suitable for finance and consulting roles.",
+                "industry_tags": ["finance", "consulting", "corporate"],
+                "preview_url": "",
+                "template_file": "professional_classic.docx",
+                "is_active": True,
+            },
+            {
+                "template_id": "__modern_tech",
+                "name": "Modern Tech",
+                "description": "Contemporary design for technology and engineering positions.",
+                "industry_tags": ["technology", "engineering", "software"],
+                "preview_url": "",
+                "template_file": "modern_tech.docx",
+                "is_active": True,
+            },
+            {
+                "template_id": "__creative_portfolio",
+                "name": "Creative Portfolio",
+                "description": "Stylish layout for marketing, design, and creative roles.",
+                "industry_tags": ["marketing", "design", "creative"],
+                "preview_url": "",
+                "template_file": "creative_portfolio.docx",
+                "is_active": True,
+            },
+            {
+                "template_id": "__academic_research",
+                "name": "Academic Research",
+                "description": "Structured format for research and academia applications.",
+                "industry_tags": ["research", "academia", "education"],
+                "preview_url": "",
+                "template_file": "academic_research.docx",
+                "is_active": True,
+            },
+        ]
     log_audit(
         engine,
         subject_id=ident.subject_id,

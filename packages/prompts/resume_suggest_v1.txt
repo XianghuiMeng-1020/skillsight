@@ -1,0 +1,35 @@
+You are an expert resume coach. Based on the scoring results, generate specific, actionable improvement suggestions.
+
+SCORING RESULTS:
+{scoring_json}
+
+STUDENT'S VERIFIED SKILLS (from SkillSight):
+{verified_skills}
+
+TARGET ROLE (if provided):
+{target_role_description}
+
+RESUME TEXT:
+{resume_text}
+
+Generate 5-15 suggestions. Output ONLY a valid JSON array (no markdown, no extra text):
+[
+  {
+    "dimension": "<rubric dimension id: impact|relevance|structure|language|skills_presentation|ats>",
+    "section": "<resume section name, e.g. 'Experience - Company X'>",
+    "original": "<exact text from resume to replace>",
+    "suggested": "<improved replacement text>",
+    "why": "<1-2 sentence explanation of why this change improves the resume>",
+    "priority": "high|medium|low"
+  }
+]
+
+Rules:
+- Focus suggestions on dimensions with the lowest scores.
+- "high" priority: score < 60 on that dimension.
+- "medium" priority: score 60-79.
+- "low" priority: score >= 80 but still improvable.
+- Ensure "original" is an exact substring of the resume text.
+- "suggested" should be a drop-in replacement.
+- If the student has verified skills not mentioned in the resume, suggest adding them.
+- Keep each suggestion focused on one change; do not combine unrelated edits.
