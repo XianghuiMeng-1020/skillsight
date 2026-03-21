@@ -318,12 +318,24 @@ def health_templates():
 
     try:
         from sqlalchemy import text as sa_text
-        from backend.app.db.session import get_db
-        db = next(get_db())
-        db.execute(sa_text("SELECT 1 FROM resume_templates LIMIT 1")).fetchone()
-        result["resume_templates_table"] = "ok"
+        from backend.app.db.session import engine as _engine
+        with _engine.connect() as conn:
+            r = conn.execute(sa_text("SELECT COUNT(*) FROM resume_templates")).scalar()
+            result["resume_templates_table"] = f"ok ({r} rows)"
     except Exception as e:
         result["resume_templates_table"] = f"error: {type(e).__name__}: {e}"
+
+    try:
+        from backend.app.services.resume_template_service import apply_template as _ta
+        from backend.app.db.session import engine as _engine2
+        from sqlalchemy.orm import Session as _Sess
+        with _Sess(_engine2) as db:
+            doc_bytes = _ta(db, review_id="test", template_id="__professional_classic", resume_content="John Doe\nSoftware Engineer\nExperience: 5 years in Python development.")
+            result["test_apply"] = f"ok ({len(doc_bytes)} bytes)"
+    except Exception as e:
+        import traceback
+        result["test_apply"] = f"error: {type(e).__name__}: {e}"
+        result["test_apply_traceback"] = traceback.format_exc()
 
     return result
 
