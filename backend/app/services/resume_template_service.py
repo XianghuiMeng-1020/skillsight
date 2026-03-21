@@ -89,19 +89,17 @@ def apply_template(
     If template_file is not provided, looks up resume_templates.template_file by template_id.
     """
     if not template_file:
-        row = db.execute(
-            text("SELECT template_file, name FROM resume_templates WHERE template_id = :tid AND is_active = TRUE LIMIT 1"),
-            {"tid": template_id},
-        ).mappings().first()
-        if row:
-            template_file = row.get("template_file") or ""
-            template_name = row.get("name") or "resume"
-        elif template_id.startswith("__"):
-            # Builtin template fallback — derive file from template_id
+        if template_id.startswith("__"):
             template_file = template_id.lstrip("_") + ".docx"
-            template_name = template_id.lstrip("_").replace("_", " ").title()
         else:
-            raise FileNotFoundError("template_not_found")
+            row = db.execute(
+                text("SELECT template_file, name FROM resume_templates WHERE template_id = :tid AND is_active = TRUE LIMIT 1"),
+                {"tid": template_id},
+            ).mappings().first()
+            if row:
+                template_file = row.get("template_file") or ""
+            else:
+                raise FileNotFoundError("template_not_found")
 
     path = _get_template_path(template_file)
     try:
