@@ -435,17 +435,27 @@ export const studentBff = {
       `/bff/student/roles${limit ? `?limit=${limit}` : ''}`
     ),
 
-  getRoleAlignment: (roleId: string, docId?: string) =>
-    bffRequest<{
+  getRoleAlignment: async (roleId: string, docId?: string) => {
+    type AlignResult = {
       role_id: string;
       role_title?: string;
       score?: number;
       status_summary?: { meet?: number; needs_strengthening?: number; missing_proof?: number };
       items?: Array<{ skill_id?: string; skill_name?: string; status?: string; achieved_level?: number; target_level?: number }>;
-    }>('/bff/student/roles/alignment', {
-      method: 'POST',
-      body: docId ? { role_id: roleId, doc_id: docId } : { role_id: roleId },
-    }),
+    };
+    try {
+      return await bffRequest<AlignResult>('/bff/student/roles/alignment', {
+        method: 'POST',
+        body: docId ? { role_id: roleId, doc_id: docId } : { role_id: roleId },
+      });
+    } catch {
+      if (!docId) throw new Error('alignment failed');
+      return bffRequest<AlignResult>('/assess/role_readiness', {
+        method: 'POST',
+        body: { role_id: roleId, doc_id: docId },
+      });
+    }
+  },
 
   upload: async (file: File, purpose: string, scope: string, token: string) => {
     const form = new FormData();
