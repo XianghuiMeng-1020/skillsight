@@ -193,15 +193,18 @@ def _check_conflict_mutual(items: List[EvidenceItem]) -> bool:
     """
     Decision 2 B3: Detect mutually exclusive labels (e.g. demonstrated vs not demonstrated)
     with comparable evidence count. Fail-closed: conflict -> reliability LOW.
+
+    Only flag conflict when the minority side has >= 40% of total evidence AND
+    at least 2 items, preventing a single weak negative from zeroing a well-supported skill.
     """
-    if len(items) < 2:
+    if len(items) < 3:
         return False
     pos = [i for i in items if i.decision in ("demonstrated", "match") and i.level >= 1]
     neg = [i for i in items if i.decision in ("not_enough_information", "no_match") or i.level == 0]
     if not pos or not neg:
         return False
-    # Both directions present with comparable evidence
-    return abs(len(pos) - len(neg)) <= 1 or (len(pos) >= 1 and len(neg) >= 1)
+    minority = min(len(pos), len(neg))
+    return minority >= 2 and minority / len(items) >= 0.4
 
 
 def aggregate_skill_level(
@@ -258,12 +261,20 @@ def aggregate_skill_level(
     # Multiple evidence -> consistency check
     is_consistent, ratio, explain = _check_consistency(items)
     if not is_consistent:
+        pos_items = [i for i in items if i.level >= 1]
+        if pos_items:
+            pos_levels = sorted([i.level for i in pos_items])
+            median_level = pos_levels[len(pos_levels) // 2]
+            pos_chunk_ids = [i.chunk_id for i in pos_items if i.chunk_id][:10]
+        else:
+            median_level = 0
+            pos_chunk_ids = []
         return AggregatedSkillLevel(
             skill_id=skill_id,
-            level=0,  # fail-closed: do not assert level when conflicting
+            level=median_level,
             reliability_level="low",
-            reliability_explain=f"Conflict: {explain}",
-            supporting_evidence_ids=[],
+            reliability_explain=f"Inconsistent evidence (using positive median): {explain}",
+            supporting_evidence_ids=pos_chunk_ids,
             needs_human_review=True,
             conflict_detected=True,
         )

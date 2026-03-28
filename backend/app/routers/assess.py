@@ -173,29 +173,34 @@ def _determine_readiness_status(
 
 def _calculate_readiness_score(items: List[Dict[str, Any]]) -> float:
     """
-    Calculate weighted readiness score.
-    meet = 100%, needs_strengthening = 50%, missing_proof = 0%
+    Calculate weighted readiness score with proportional credit:
+    - meet: 100%
+    - needs_strengthening: proportional (achieved / target), minimum 30%
+    - missing_proof (optional skill): 10%
+    - missing_proof (required skill): 0%
     """
     total_weight = 0.0
     weighted_score = 0.0
-    
+
     for item in items:
         weight = item.get("weight", 1.0)
         status = item.get("status", "missing_proof")
-        
+
         if status == "meet":
             score = 1.0
         elif status == "needs_strengthening":
-            score = 0.5
+            target = max(item.get("target_level", 1), 1)
+            achieved = max(item.get("achieved_level", 0), 0)
+            score = max(0.3, min(1.0, achieved / target))
         else:
-            score = 0.0
-        
+            score = 0.0 if item.get("required", True) else 0.1
+
         weighted_score += score * weight
         total_weight += weight
-    
+
     if total_weight == 0:
         return 0.0
-    
+
     return round(weighted_score / total_weight, 4)
 
 
@@ -645,8 +650,8 @@ def role_readiness(
                 "supporting_evidence_ids": a.supporting_evidence_ids,
                 "needs_human_review": a.needs_human_review,
             }
-            if a.needs_human_review:
-                decision = "not_enough_information"  # Fail-closed
+            if a.needs_human_review and a.level == 0:
+                decision = "not_enough_information"
 
         # Determine status (P5: meets/missing_proof/needs_strengthening)
         status = _determine_readiness_status(achieved_level, target_level, decision, required)
