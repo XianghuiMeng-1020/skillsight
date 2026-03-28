@@ -1045,28 +1045,31 @@ async def bff_role_alignment(
     breakdown = {"status_summary": result.get("status_summary", {}), "items": result.get("items", [])}
 
     request_id = str(uuid.uuid4())
-    prev = get_prev_role_readiness_snapshot(engine, ident.subject_id, payload.role_id)
-    prev_score = float(prev["score"]) if prev and prev.get("score") is not None else None
-    prev_breakdown = (prev.get("breakdown") or {}) if prev else {}
-    score_changed = prev_score is None or abs(score - prev_score) >= 0.01
-    breakdown_changed = prev_breakdown != breakdown
-    has_change = score_changed or breakdown_changed
+    try:
+        prev = get_prev_role_readiness_snapshot(engine, ident.subject_id, payload.role_id)
+        prev_score = float(prev["score"]) if prev and prev.get("score") is not None else None
+        prev_breakdown = (prev.get("breakdown") or {}) if prev else {}
+        score_changed = prev_score is None or abs(score - prev_score) >= 0.01
+        breakdown_changed = prev_breakdown != breakdown
+        has_change = score_changed or breakdown_changed
 
-    write_role_readiness_snapshot(engine, ident.subject_id, payload.role_id, score, breakdown, request_id=request_id)
-    if has_change:
-        write_change_event(
-            engine,
-            scope="student",
-            event_type="role_readiness_changed",
-            subject_id=ident.subject_id,
-            entity_key=payload.role_id,
-            before_state={"score": prev_score, "breakdown": prev_breakdown},
-            after_state={"score": score, "breakdown": breakdown},
-            diff={"changed_fields": ["score"] if score_changed else ["breakdown"], "score_delta": (score - (prev_score or 0))},
-            why={"rule_triggers": ["role_readiness_assessment"], "evidence_from_skills": [it.get("skill_id") for it in result.get("items", [])[:5] if isinstance(it, dict) and it.get("skill_id")]},
-            request_id=request_id,
-            actor_role="student",
-        )
+        write_role_readiness_snapshot(engine, ident.subject_id, payload.role_id, score, breakdown, request_id=request_id)
+        if has_change:
+            write_change_event(
+                engine,
+                scope="student",
+                event_type="role_readiness_changed",
+                subject_id=ident.subject_id,
+                entity_key=payload.role_id,
+                before_state={"score": prev_score, "breakdown": prev_breakdown},
+                after_state={"score": score, "breakdown": breakdown},
+                diff={"changed_fields": ["score"] if score_changed else ["breakdown"], "score_delta": (score - (prev_score or 0))},
+                why={"rule_triggers": ["role_readiness_assessment"], "evidence_from_skills": [it.get("skill_id") for it in result.get("items", [])[:5] if isinstance(it, dict) and it.get("skill_id")]},
+                request_id=request_id,
+                actor_role="student",
+            )
+    except Exception as exc:
+        _log.warning("role alignment snapshot/changelog write failed (non-blocking): %s", exc)
 
     if score < 0.30:
         result["refusal"] = refusal_dict(
@@ -1075,15 +1078,18 @@ async def bff_role_alignment(
             "Upload evidence for missing skills, or take interactive assessments.",
         )
 
-    log_audit(
-        engine,
-        subject_id=ident.subject_id,
-        action="bff.assess.role_readiness",
-        object_type="role",
-        object_id=payload.role_id,
-        status="ok",
-        detail={"request_id": request_id},
-    )
+    try:
+        log_audit(
+            engine,
+            subject_id=ident.subject_id,
+            action="bff.assess.role_readiness",
+            object_type="role",
+            object_id=payload.role_id,
+            status="ok",
+            detail={"request_id": request_id},
+        )
+    except Exception:
+        pass
     return result
 
 
