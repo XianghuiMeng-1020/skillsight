@@ -67,74 +67,36 @@ export default function JobsPage() {
         const items = (rolesData.items || []) as Array<Record<string, unknown>>;
         const roleIds = items.map(r => typeof r.role_id === 'string' ? r.role_id : '').filter(Boolean);
 
-        // Fetch readiness via batch endpoint (single request) with explicit doc_id
-        type BatchItem = { role_id: string; role_title: string; readiness: number };
-        let batchMap = new Map<string, BatchItem>();
+        // Fetch readiness via lightweight batch (single-pass SQL, fits in 30s timeout)
+        type BatchItem = { role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[] };
+        const batchMap = new Map<string, BatchItem>();
         if (latestDocId && roleIds.length > 0) {
           try {
             const batchRes = await studentBff.getRoleAlignmentBatch(roleIds, latestDocId);
             for (const b of (batchRes.items || [])) {
               batchMap.set(b.role_id, b);
             }
-          } catch { /* batch failed, will fall back per-role */ }
+          } catch { /* batch failed */ }
         }
 
-        const rolesWithReadiness = await Promise.all(
-          items.map(async (r): Promise<Role> => {
-            const roleId = typeof r.role_id === 'string' ? r.role_id : '';
-            const roleTitle = typeof r.role_title === 'string' ? r.role_title : '';
-            const description = typeof r.description === 'string' ? r.description : undefined;
+        const rolesWithReadiness = items.map((r): Role => {
+          const roleId = typeof r.role_id === 'string' ? r.role_id : '';
+          const roleTitle = typeof r.role_title === 'string' ? r.role_title : '';
+          const description = typeof r.description === 'string' ? r.description : undefined;
+          const b = batchMap.get(roleId);
 
-            // Use batch result if available
-            const batchItem = batchMap.get(roleId);
-            let readiness = batchItem?.readiness ?? 0;
-            let details: Array<Record<string, unknown>> = [];
-
-            // If batch gave 0 or was unavailable, try individual alignment for detailed breakdown
-            if (readiness === 0 && latestDocId) {
-              try {
-                const readinessRes = await studentBff.getRoleAlignment(roleId, latestDocId);
-                const scored = typeof readinessRes.score === 'number' ? readinessRes.score : 0;
-                readiness = Math.round(Math.max(0, Math.min(1, scored)) * 100);
-                details = Array.isArray(readinessRes.items) ? readinessRes.items : [];
-              } catch { /* keep readiness from batch */ }
-            }
-
-            const skills_total = details.length || (batchItem ? 0 : 0);
-            const skills_met = details.filter((it) => it?.status === 'meet').length;
-            const gapItems = details.filter((it) => it?.status !== 'meet');
-            const gaps = gapItems
-              .map((it) => String(it?.skill_name || it?.skill_id || ''))
-              .filter(Boolean)
-              .slice(0, 3);
-            const gapDetails: GapSkill[] = gapItems.map((it) => ({
-              skill_id: String(it?.skill_id || ''),
-              skill_name: String(it?.skill_name || it?.skill_id || ''),
-              status: String(it?.status || ''),
-              achieved_level: Number(it?.achieved_level ?? 0),
-              target_level: Number(it?.target_level ?? 2),
-            }));
-            const skillAlignment: SkillAlignment[] = details.map((it) => ({
-              skill_id: String(it?.skill_id || ''),
-              skill_name: String(it?.skill_name || it?.skill_id || ''),
-              required_level: Number(it?.target_level ?? 2),
-              current_level: Number(it?.achieved_level ?? 0),
-              status: String(it?.status || ''),
-            }));
-
-            return {
-              role_id: roleId,
-              role_title: roleTitle,
-              description,
-              readiness,
-              skills_met,
-              skills_total,
-              gaps,
-              gapDetails,
-              skillAlignment,
-            };
-          })
-        );
+          return {
+            role_id: roleId,
+            role_title: roleTitle,
+            description,
+            readiness: b?.readiness ?? 0,
+            skills_met: b?.skills_met ?? 0,
+            skills_total: b?.skills_total ?? 0,
+            gaps: b?.gaps ?? [],
+            gapDetails: [],
+            skillAlignment: [],
+          };
+        });
 
         rolesWithReadiness.sort((a, b) => b.readiness - a.readiness);
         setRoles(rolesWithReadiness);

@@ -962,7 +962,11 @@ async def bff_role_alignment_batch(
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    """Return readiness scores for multiple roles in one call (avoids N+1 from frontend)."""
+    """
+    Lightweight batch readiness: single-pass SQL instead of per-role aggregator.
+    Computes readiness from the latest skill_assessments joined with role requirements.
+    Designed to complete within Render's 30s timeout.
+    """
     role_ids = payload.role_ids[:50] if payload.role_ids else []
     doc_id = payload.doc_id
     if not doc_id:
@@ -978,25 +982,107 @@ async def bff_role_alignment_batch(
         doc_id = first_doc["doc_id"] if first_doc else None
     if not doc_id or not role_ids:
         return {"items": [], "count": 0}
-    _check_consent(db, doc_id, ident.subject_id)
 
-    from backend.app.routers.assess import role_readiness, RoleReadinessRequest
+    try:
+        _check_consent(db, doc_id, ident.subject_id)
+    except Exception:
+        return {"items": [], "count": 0}
+
+    # 1) Get ALL consented doc_ids for this user
+    doc_rows = db.execute(
+        text("SELECT DISTINCT doc_id FROM consents WHERE user_id = :sub AND status = 'granted'"),
+        {"sub": ident.subject_id},
+    ).mappings().all()
+    consented_doc_ids = [str(r["doc_id"]) for r in doc_rows]
+    if not consented_doc_ids:
+        return {"items": [], "count": 0}
+
+    # 2) Get best assessment decision + proficiency level per skill (single query)
+    from sqlalchemy.sql import bindparam
+    assess_sql = text("""
+        SELECT DISTINCT ON (sa.skill_id)
+            sa.skill_id, sa.decision,
+            COALESCE(sp.level, 0) AS level
+        FROM skill_assessments sa
+        LEFT JOIN skill_proficiency sp
+            ON sp.skill_id = sa.skill_id AND sp.doc_id = sa.doc_id
+        WHERE sa.doc_id IN :doc_ids
+        ORDER BY sa.skill_id,
+            CASE sa.decision WHEN 'demonstrated' THEN 1 WHEN 'match' THEN 1 WHEN 'mentioned' THEN 2 ELSE 3 END,
+            sa.created_at DESC
+    """).bindparams(bindparam("doc_ids", expanding=True))
+    assess_rows = db.execute(assess_sql, {"doc_ids": tuple(consented_doc_ids)}).mappings().all()
+    skill_map: Dict[str, Dict] = {}
+    for r in assess_rows:
+        skill_map[r["skill_id"]] = {"decision": r["decision"], "level": int(r["level"]) if r["level"] is not None else 0}
+
+    # 3) Get role titles
+    from sqlalchemy.sql import bindparam as bp2
+    role_title_sql = text("SELECT role_id, role_title FROM roles WHERE role_id IN :rids").bindparams(bp2("rids", expanding=True))
+    role_titles = {str(r["role_id"]): str(r["role_title"]) for r in db.execute(role_title_sql, {"rids": tuple(role_ids)}).mappings().all()}
+
+    # 4) Get ALL role requirements in one query
+    req_sql = text("""
+        SELECT rsr.role_id, rsr.skill_id, rsr.target_level, rsr.required, rsr.weight,
+               COALESCE(s.canonical_name, rsr.skill_id) AS skill_name
+        FROM role_skill_requirements rsr
+        LEFT JOIN skills s ON s.skill_id = rsr.skill_id
+        WHERE rsr.role_id IN :rids
+        ORDER BY rsr.role_id, rsr.skill_id
+    """).bindparams(bp2("rids", expanding=True))
+    req_rows = db.execute(req_sql, {"rids": tuple(role_ids)}).mappings().all()
+
+    # 5) Group requirements by role and compute readiness
+    from collections import defaultdict
+    role_reqs: Dict[str, list] = defaultdict(list)
+    for r in req_rows:
+        role_reqs[r["role_id"]].append(dict(r))
+
     items = []
     for rid in role_ids:
-        try:
-            req = RoleReadinessRequest(
-                role_id=rid,
-                doc_id=doc_id,
-                subject_id=ident.subject_id,
-                store=False,
-            )
-            result = role_readiness(req=req, db=db, ident=ident)
-            score = float(result.get("score", result.get("readiness_score", 0)))
-            role_title = result.get("role_title", "")
-            items.append({"role_id": rid, "role_title": role_title, "readiness": round(min(1, max(0, score)) * 100)})
-        except Exception as e:
-            _log.warning("Batch alignment for role %s failed: %s", rid, e)
-            items.append({"role_id": rid, "role_title": "", "readiness": 0})
+        reqs = role_reqs.get(rid, [])
+        if not reqs:
+            items.append({"role_id": rid, "role_title": role_titles.get(rid, ""), "readiness": 0})
+            continue
+
+        total_weight = 0.0
+        weighted_score = 0.0
+        meet_count = 0
+        gap_skills = []
+
+        for req_item in reqs:
+            sid = req_item["skill_id"]
+            target = int(req_item["target_level"]) if req_item["target_level"] is not None else 2
+            weight = float(req_item["weight"]) if req_item["weight"] is not None else 1.0
+            required = bool(req_item["required"])
+
+            sk = skill_map.get(sid, {})
+            decision = sk.get("decision", "")
+            achieved = sk.get("level", 0)
+
+            if decision in ("demonstrated", "match") and achieved >= target:
+                score = 1.0
+                meet_count += 1
+            elif decision in ("demonstrated", "match") and achieved > 0:
+                score = max(0.3, min(1.0, achieved / max(target, 1)))
+                gap_skills.append(req_item["skill_name"])
+            else:
+                score = 0.0 if required else 0.1
+                gap_skills.append(req_item["skill_name"])
+
+            weighted_score += score * weight
+            total_weight += weight
+
+        readiness = round((weighted_score / total_weight) * 100) if total_weight > 0 else 0
+        items.append({
+            "role_id": rid,
+            "role_title": role_titles.get(rid, ""),
+            "readiness": readiness,
+            "skills_met": meet_count,
+            "skills_total": len(reqs),
+            "gaps": gap_skills[:3],
+        })
+
     return {"items": items, "count": len(items)}
 
 

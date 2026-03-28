@@ -436,7 +436,7 @@ export const studentBff = {
     ),
 
   getRoleAlignmentBatch: (roleIds: string[], docId: string) =>
-    bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number }>; count: number }>(
+    bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[] }>; count: number }>(
       '/bff/student/roles/alignment/batch',
       { method: 'POST', body: { role_ids: roleIds, doc_id: docId } }
     ),
