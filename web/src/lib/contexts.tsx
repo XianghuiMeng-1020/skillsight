@@ -421,6 +421,7 @@ export const translations: Translations = {
   'skills.loadFailedMsg': { zh: '请确认已上传文档并登录，然后重试。', 'zh-TW': '請確認已上傳文件並登入，然後重試。', en: 'Please confirm you have uploaded documents and are logged in, then try again.' },
   'skills.networkErrorHint': { zh: '无法连接服务器，请稍后重试或联系支持。', 'zh-TW': '無法連接伺服器，請稍後重試或聯絡支援。', en: 'Cannot reach the server. Please try again later or contact support.' },
   'skills.retry': { zh: '重试', 'zh-TW': '重試', en: 'Retry' },
+  'skills.goToLogin': { zh: '前往登录', 'zh-TW': '前往登入', en: 'Go to Login' },
   'skills.noMatch': { zh: '暂无匹配技能', 'zh-TW': '暫無匹配技能', en: 'No matching skills' },
   'skills.uploadFirst': { zh: '请先', 'zh-TW': '請先', en: 'Please' },
   'skills.uploadDoc': { zh: '上传文档', 'zh-TW': '上傳文件', en: 'upload a document' },

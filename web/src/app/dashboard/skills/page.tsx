@@ -232,9 +232,16 @@ export default function SkillsProfilePage() {
                 <p style={{ marginTop: '0.5rem', fontSize: '0.813rem' }}>
                   {t('skills.loadFailedMsg')}
                 </p>
-                <button type="button" className="btn btn-secondary btn-sm" style={{ marginTop: '0.75rem' }} onClick={fetchProfile}>
-                  {t('skills.retry')}
-                </button>
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={fetchProfile}>
+                    {t('skills.retry')}
+                  </button>
+                  {!getToken() && (
+                    <Link href="/login" className="btn btn-primary btn-sm">
+                      {t('skills.goToLogin')}
+                    </Link>
+                  )}
+                </div>
               </div>
             </div>
           ) : filtered.length === 0 ? (
