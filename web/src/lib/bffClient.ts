@@ -435,6 +435,12 @@ export const studentBff = {
       `/bff/student/roles${limit ? `?limit=${limit}` : ''}`
     ),
 
+  getRoleAlignmentBatch: (roleIds: string[], docId: string) =>
+    bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number }>; count: number }>(
+      '/bff/student/roles/alignment/batch',
+      { method: 'POST', body: { role_ids: roleIds, doc_id: docId } }
+    ),
+
   getRoleAlignment: async (roleId: string, docId?: string) => {
     type AlignResult = {
       role_id: string;
