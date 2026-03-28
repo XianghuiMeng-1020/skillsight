@@ -1004,7 +1004,14 @@ async def bff_role_alignment_batch(
     assess_rows = db.execute(assess_sql, {"sub": ident.subject_id}).mappings().all()
     skill_map: Dict[str, Dict] = {}
     for r in assess_rows:
-        skill_map[r["skill_id"]] = {"decision": r["decision"], "level": int(r["level"]) if r["level"] is not None else 0}
+        decision = r["decision"] or ""
+        raw_level = int(r["level"]) if r["level"] is not None else 0
+        # If demonstrated but no proficiency level recorded, infer level 2
+        if decision in ("demonstrated", "match") and raw_level == 0:
+            raw_level = 2
+        elif decision == "mentioned" and raw_level == 0:
+            raw_level = 1
+        skill_map[r["skill_id"]] = {"decision": decision, "level": raw_level}
 
     # 3) Get role titles
     from sqlalchemy.sql import bindparam as bp2
@@ -1073,15 +1080,7 @@ async def bff_role_alignment_batch(
             "gaps": gap_skills[:3],
         })
 
-    return {
-        "items": items,
-        "count": len(items),
-        "_v": "v5",
-        "_skills_found": len(skill_map),
-        "_skill_ids": list(skill_map.keys())[:10],
-        "_skill_decisions": {k: v["decision"] for k, v in list(skill_map.items())[:10]},
-        "_role_req_ids": [r["skill_id"] for r in req_rows[:20]],
-    }
+    return {"items": items, "count": len(items)}
 
 
 @router.post("/roles/alignment")
