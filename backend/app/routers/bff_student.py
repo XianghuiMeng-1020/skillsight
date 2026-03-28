@@ -988,30 +988,20 @@ async def bff_role_alignment_batch(
     except Exception:
         return {"items": [], "count": 0}
 
-    # 1) Get ALL consented doc_ids for this user
-    doc_rows = db.execute(
-        text("SELECT DISTINCT doc_id FROM consents WHERE user_id = :sub AND status = 'granted'"),
-        {"sub": ident.subject_id},
-    ).mappings().all()
-    consented_doc_ids = [str(r["doc_id"]) for r in doc_rows]
-    if not consented_doc_ids:
-        return {"items": [], "count": 0}
-
-    # 2) Get best assessment decision + proficiency level per skill (single query)
-    from sqlalchemy.sql import bindparam
+    # 1+2) Get best assessment decision + proficiency level per skill via consented docs
     assess_sql = text("""
         SELECT DISTINCT ON (sa.skill_id)
             sa.skill_id, sa.decision,
             COALESCE(sp.level, 0) AS level
         FROM skill_assessments sa
+        JOIN consents c ON c.doc_id = sa.doc_id::text AND c.user_id = :sub AND c.status = 'granted'
         LEFT JOIN skill_proficiency sp
             ON sp.skill_id = sa.skill_id AND sp.doc_id = sa.doc_id
-        WHERE sa.doc_id::text IN :doc_ids
         ORDER BY sa.skill_id,
             CASE sa.decision WHEN 'demonstrated' THEN 1 WHEN 'match' THEN 1 WHEN 'mentioned' THEN 2 ELSE 3 END,
             sa.created_at DESC
-    """).bindparams(bindparam("doc_ids", expanding=True))
-    assess_rows = db.execute(assess_sql, {"doc_ids": tuple(consented_doc_ids)}).mappings().all()
+    """)
+    assess_rows = db.execute(assess_sql, {"sub": ident.subject_id}).mappings().all()
     skill_map: Dict[str, Dict] = {}
     for r in assess_rows:
         skill_map[r["skill_id"]] = {"decision": r["decision"], "level": int(r["level"]) if r["level"] is not None else 0}
