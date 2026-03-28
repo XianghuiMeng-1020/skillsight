@@ -1006,7 +1006,7 @@ async def bff_role_alignment_batch(
         FROM skill_assessments sa
         LEFT JOIN skill_proficiency sp
             ON sp.skill_id = sa.skill_id AND sp.doc_id = sa.doc_id
-        WHERE sa.doc_id IN :doc_ids
+        WHERE sa.doc_id::text IN :doc_ids
         ORDER BY sa.skill_id,
             CASE sa.decision WHEN 'demonstrated' THEN 1 WHEN 'match' THEN 1 WHEN 'mentioned' THEN 2 ELSE 3 END,
             sa.created_at DESC
