@@ -438,8 +438,6 @@ def _auto_assess_background(doc_id: str, subject_id: str, role: str):
         try:
             bg_ident = Identity(subject_id=subject_id, role=role, source="bearer")
 
-            from backend.app.routers.ai import _vector_pipeline_configured
-            vector_up = _vector_pipeline_configured()
             embed_ok = False
             try:
                 from backend.app.routers.chunks import embed_document_chunks
@@ -447,20 +445,7 @@ def _auto_assess_background(doc_id: str, subject_id: str, role: str):
                 embed_ok = True
                 _log.info("auto-assess background: embedded chunks for doc %s", doc_id)
             except Exception as exc:
-                _log.warning("auto-assess background: embed failed for doc %s: %s", doc_id, exc)
-
-            if not embed_ok and vector_up:
-                _log.warning("auto-assess background: skipping assessment for doc %s (embed failed while vector store active)", doc_id)
-                log_audit(
-                    engine,
-                    subject_id=subject_id,
-                    action="bff.student.documents.auto_assess",
-                    object_type="document",
-                    object_id=doc_id,
-                    status="error",
-                    detail={"message": "embed_failed_skipped_assessment"},
-                )
-                return
+                _log.warning("auto-assess background: embed failed for doc %s: %s — continuing with DB chunks fallback", doc_id, exc)
 
             result = _run_auto_assess_for_doc(bg_db, doc_id, bg_ident)
             log_audit(

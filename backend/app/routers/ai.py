@@ -402,11 +402,10 @@ def ai_demonstration(
     # Build skill text for prompt
     skill_text = f"{skill.get('canonical_name', '')} — {skill.get('definition', '')}"
     
-    # Get relevant evidence chunks via vector search
+    # Get relevant evidence chunks via vector search, with DB fallback
     chunks = _search_relevant_chunks(skill_text, req.doc_id, k=req.k, min_score=req.min_score)
 
-    # DB fallback only when vector stack unavailable (offline demo); never random first-N when Qdrant is up but empty
-    if not chunks and not _vector_pipeline_configured():
+    if not chunks:
         db_chunks = _get_chunks_for_doc(db, req.doc_id, limit=max(req.k, 20))
         chunks = [{"chunk_id": str(c["chunk_id"]),
                    "snippet": c.get("chunk_text") or c.get("snippet", ""),
@@ -496,10 +495,10 @@ def ai_proficiency(
     # Build skill text for prompt
     skill_text = f"{skill.get('canonical_name', '')} — {skill.get('definition', '')}"
     
-    # Get relevant evidence chunks
+    # Get relevant evidence chunks, with DB fallback
     chunks = _search_relevant_chunks(skill_text, req.doc_id, k=req.k, min_score=req.min_score)
 
-    if not chunks and not _vector_pipeline_configured():
+    if not chunks:
         db_chunks = _get_chunks_for_doc(db, req.doc_id, limit=max(req.k, 20))
         chunks = [{"chunk_id": str(c["chunk_id"]),
                    "snippet": c.get("chunk_text") or c.get("snippet", ""),

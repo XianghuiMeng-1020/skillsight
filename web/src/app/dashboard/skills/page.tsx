@@ -62,6 +62,8 @@ export default function SkillsProfilePage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [reassessing, setReassessing] = useState(false);
+  const [reassessMsg, setReassessMsg] = useState<string | null>(null);
   const highlightedRef = useRef<HTMLDivElement | null>(null);
 
   const fetchProfile = async () => {
@@ -87,6 +89,38 @@ export default function SkillsProfilePage() {
       setProfile(null);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleReassess = async () => {
+    setReassessing(true);
+    setReassessMsg(null);
+    try {
+      const docsData = await studentBff.getDocuments(10);
+      const docs = (docsData as { items?: Array<{ doc_id?: string }> }).items || [];
+      if (docs.length === 0) {
+        setReassessMsg(t('skills.noDocsToAssess') as string);
+        setReassessing(false);
+        return;
+      }
+      let ok = 0;
+      for (const doc of docs) {
+        if (!doc.doc_id) continue;
+        try {
+          const r = await studentBff.autoAssessDocument(doc.doc_id);
+          if (r?.status === 'accepted') ok += 1;
+        } catch { /* skip */ }
+      }
+      if (ok > 0) {
+        setReassessMsg((t('skills.reassessQueued') as string)?.replace('{n}', String(ok)) ?? `Queued ${ok} doc(s).`);
+        setTimeout(() => fetchProfile(), 90_000);
+      } else {
+        setReassessMsg(t('skills.reassessFailed') as string);
+      }
+    } catch {
+      setReassessMsg(t('skills.reassessFailed') as string);
+    } finally {
+      setReassessing(false);
     }
   };
 
@@ -142,6 +176,14 @@ export default function SkillsProfilePage() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleReassess}
+              disabled={reassessing || !getToken()}
+              style={{ opacity: reassessing ? 0.6 : 1 }}
+            >
+              {reassessing ? '⏳' : '🔄'} {reassessing ? t('skills.reassessing') : t('skills.reassess')}
+            </button>
             <Link href="/export" className="btn btn-secondary btn-sm">
               📄 {t('skills.exportStatement')}
             </Link>
@@ -152,6 +194,11 @@ export default function SkillsProfilePage() {
         </div>
 
         <div className="page-content">
+          {reassessMsg && (
+            <div className="alert" style={{ marginBottom: '1rem', background: 'var(--primary-50)', border: '1px solid var(--primary)', borderRadius: '0.5rem', padding: '0.75rem 1rem', fontSize: '0.875rem' }}>
+              ℹ️ {reassessMsg}
+            </div>
+          )}
           {/* Documents summary */}
           {profile && (
             <div className="card" style={{ marginBottom: '1.5rem' }}>
