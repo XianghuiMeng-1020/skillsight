@@ -1073,7 +1073,15 @@ async def bff_role_alignment_batch(
             "gaps": gap_skills[:3],
         })
 
-    return {"items": items, "count": len(items), "_v": "v4", "_skills_found": len(skill_map)}
+    return {
+        "items": items,
+        "count": len(items),
+        "_v": "v5",
+        "_skills_found": len(skill_map),
+        "_skill_ids": list(skill_map.keys())[:10],
+        "_skill_decisions": {k: v["decision"] for k, v in list(skill_map.items())[:10]},
+        "_role_req_ids": [r["skill_id"] for r in req_rows[:20]],
+    }
 
 
 @router.post("/roles/alignment")
