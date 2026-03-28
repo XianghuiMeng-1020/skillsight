@@ -960,8 +960,10 @@ export interface Achievement {
   id: string;
   name: string;
   nameEn: string;
+  nameZhTW: string;
   description: string;
   descriptionEn: string;
+  descriptionZhTW: string;
   icon: string;
   category: 'assessment' | 'learning' | 'milestone' | 'special';
   progress: number;
@@ -979,23 +981,26 @@ export interface AchievementState {
 
 const DEFAULT_ACHIEVEMENTS: Achievement[] = [
   // 评估成就
-  { id: 'first_assessment', name: '初次尝试', nameEn: 'First Try', description: '完成第一次评估', descriptionEn: 'Complete your first assessment', icon: '🎯', category: 'assessment', progress: 0, target: 1, unlocked: false, rarity: 'common' },
-  { id: 'comm_master', name: '沟通达人', nameEn: 'Communication Master', description: '沟通能力评估获得80分以上', descriptionEn: 'Score 80+ on communication assessment', icon: '🎙️', category: 'assessment', progress: 0, target: 80, unlocked: false, rarity: 'rare' },
-  { id: 'code_ninja', name: '代码忍者', nameEn: 'Code Ninja', description: '编程评估获得90分以上', descriptionEn: 'Score 90+ on programming assessment', icon: '💻', category: 'assessment', progress: 0, target: 90, unlocked: false, rarity: 'epic' },
-  { id: 'writer', name: '文字工匠', nameEn: 'Word Smith', description: '写作评估获得85分以上', descriptionEn: 'Score 85+ on writing assessment', icon: '✍️', category: 'assessment', progress: 0, target: 85, unlocked: false, rarity: 'rare' },
-  { id: 'triple_threat', name: '三栖能手', nameEn: 'Triple Threat', description: '三项评估均达到75分以上', descriptionEn: 'Score 75+ on all three assessments', icon: '🏆', category: 'assessment', progress: 0, target: 3, unlocked: false, rarity: 'legendary' },
-  
+  { id: 'first_assessment', name: '初次尝试', nameEn: 'First Try', nameZhTW: '初次嘗試', description: '完成第一次评估', descriptionEn: 'Complete your first assessment', descriptionZhTW: '完成第一次評估', icon: '🎯', category: 'assessment', progress: 0, target: 1, unlocked: false, rarity: 'common' },
+  { id: 'comm_master', name: '沟通达人', nameEn: 'Communication Master', nameZhTW: '溝通達人', description: '沟通能力评估获得80分以上', descriptionEn: 'Score 80+ on communication assessment', descriptionZhTW: '溝通能力評估獲得80分以上', icon: '🎙️', category: 'assessment', progress: 0, target: 80, unlocked: false, rarity: 'rare' },
+  { id: 'code_ninja', name: '代码忍者', nameEn: 'Code Ninja', nameZhTW: '代碼忍者', description: '编程评估获得90分以上', descriptionEn: 'Score 90+ on programming assessment', descriptionZhTW: '編程評估獲得90分以上', icon: '💻', category: 'assessment', progress: 0, target: 90, unlocked: false, rarity: 'epic' },
+  { id: 'writer', name: '文字工匠', nameEn: 'Word Smith', nameZhTW: '文字工匠', description: '写作评估获得85分以上', descriptionEn: 'Score 85+ on writing assessment', descriptionZhTW: '寫作評估獲得85分以上', icon: '✍️', category: 'assessment', progress: 0, target: 85, unlocked: false, rarity: 'rare' },
+  { id: 'triple_threat', name: '三栖能手', nameEn: 'Triple Threat', nameZhTW: '三棲能手', description: '三项评估均达到75分以上', descriptionEn: 'Score 75+ on all three assessments', descriptionZhTW: '三項評估均達到75分以上', icon: '🏆', category: 'assessment', progress: 0, target: 3, unlocked: false, rarity: 'legendary' },
+
   // 学习成就
-  { id: 'skill_seeker', name: '技能探索者', nameEn: 'Skill Seeker', description: '解锁5项技能', descriptionEn: 'Unlock 5 skills', icon: '🔍', category: 'learning', progress: 0, target: 5, unlocked: false, rarity: 'common' },
-  { id: 'document_master', name: '文档达人', nameEn: 'Document Master', description: '上传10份证据文档', descriptionEn: 'Upload 10 evidence documents', icon: '📚', category: 'learning', progress: 0, target: 10, unlocked: false, rarity: 'rare' },
-  
+  { id: 'skill_seeker', name: '技能探索者', nameEn: 'Skill Seeker', nameZhTW: '技能探索者', description: '解锁5项技能', descriptionEn: 'Unlock 5 skills', descriptionZhTW: '解鎖5項技能', icon: '🔍', category: 'learning', progress: 0, target: 5, unlocked: false, rarity: 'common' },
+  { id: 'document_master', name: '文档达人', nameEn: 'Document Master', nameZhTW: '文件達人', description: '上传10份证据文档', descriptionEn: 'Upload 10 evidence documents', descriptionZhTW: '上傳10份證據文件', icon: '📚', category: 'learning', progress: 0, target: 10, unlocked: false, rarity: 'rare' },
+
   // 里程碑
-  { id: 'week_streak', name: '持续进步', nameEn: 'On a Roll', description: '连续7天登录', descriptionEn: '7-day login streak', icon: '🔥', category: 'milestone', progress: 0, target: 7, unlocked: false, rarity: 'rare' },
-  { id: 'perfectionist', name: '完美主义者', nameEn: 'Perfectionist', description: '任意评估获得100分', descriptionEn: 'Score 100 on any assessment', icon: '💯', category: 'milestone', progress: 0, target: 100, unlocked: false, rarity: 'legendary' },
-  
+  { id: 'week_streak', name: '持续进步', nameEn: 'On a Roll', nameZhTW: '持續進步', description: '连续7天登录', descriptionEn: '7-day login streak', descriptionZhTW: '連續7天登錄', icon: '🔥', category: 'milestone', progress: 0, target: 7, unlocked: false, rarity: 'rare' },
+  { id: 'perfectionist', name: '完美主义者', nameEn: 'Perfectionist', nameZhTW: '完美主義者', description: '任意评估获得100分', descriptionEn: 'Score 100 on any assessment', descriptionZhTW: '任意評估獲得100分', icon: '💯', category: 'milestone', progress: 0, target: 100, unlocked: false, rarity: 'legendary' },
+
   // 特殊成就
-  { id: 'early_bird', name: '早起鸟', nameEn: 'Early Bird', description: '在早上6点前完成评估', descriptionEn: 'Complete assessment before 6 AM', icon: '🌅', category: 'special', progress: 0, target: 1, unlocked: false, rarity: 'epic' },
-  { id: 'night_owl', name: '夜猫子', nameEn: 'Night Owl', description: '在凌晨12点后完成评估', descriptionEn: 'Complete assessment after midnight', icon: '🦉', category: 'special', progress: 0, target: 1, unlocked: false, rarity: 'epic' },
+  { id: 'early_bird', name: '早起鸟', nameEn: 'Early Bird', nameZhTW: '早起鳥', description: '在早上6点前完成评估', descriptionEn: 'Complete assessment before 6 AM', descriptionZhTW: '在早上6點前完成評估', icon: '🌅', category: 'special', progress: 0, target: 1, unlocked: false, rarity: 'epic' },
+  { id: 'night_owl', name: '夜猫子', nameEn: 'Night Owl', nameZhTW: '夜貓子', description: '在凌晨12点后完成评估', descriptionEn: 'Complete assessment after midnight', descriptionZhTW: '在凌晨12點後完成評估', icon: '🦉', category: 'special', progress: 0, target: 1, unlocked: false, rarity: 'epic' },
+
+  // 社交分享成就 (P3)
+  { id: 'share_master', name: '分享达人', nameEn: 'Share Master', nameZhTW: '分享達人', description: '分享技能档案给朋友', descriptionEn: 'Share your skills profile with others', descriptionZhTW: '分享技能檔案給朋友', icon: '📤', category: 'special', progress: 0, target: 1, unlocked: false, rarity: 'rare' },
 ];
 
 export function useAchievements() {
@@ -1104,6 +1109,33 @@ export function useAchievements() {
     setRecentUnlock(null);
   }, []);
 
+  // Unlock share_master achievement (called after successful share)
+  const unlockShareAchievement = useCallback(() => {
+    setAchievements(prev => {
+      const exists = prev.find(a => a.id === 'share_master');
+      if (!exists || exists.unlocked) return prev;
+
+      const updated = prev.map(a =>
+        a.id === 'share_master'
+          ? { ...a, unlocked: true, unlockedAt: new Date().toISOString(), progress: 1 }
+          : a
+      );
+
+      // Show notification
+      const achievement = updated.find(a => a.id === 'share_master');
+      if (achievement) {
+        setRecentUnlock(achievement);
+      }
+
+      // Persist to localStorage
+      try {
+        localStorage.setItem('skillsight-achievements', JSON.stringify(updated));
+      } catch {}
+
+      return updated;
+    });
+  }, []);
+
   const totalPoints = achievements.filter(a => a.unlocked).reduce((sum, a) => {
     const points = { common: 10, rare: 25, epic: 50, legendary: 100 };
     return sum + points[a.rarity];
@@ -1116,6 +1148,7 @@ export function useAchievements() {
     updateProgress,
     checkAssessmentAchievements,
     dismissRecentUnlock,
+    unlockShareAchievement,
   };
 }
 

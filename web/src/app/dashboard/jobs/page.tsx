@@ -49,6 +49,7 @@ export default function JobsPage() {
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [recommendedCourses, setRecommendedCourses] = useState<RecommendedCourse[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
+  const [expandedGaps, setExpandedGaps] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const token = getToken();
@@ -284,15 +285,40 @@ export default function JobsPage() {
                         <td>
                           {role.gaps.length > 0 ? (
                             <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                              {role.gaps.slice(0, 2).map((gap, i) => (
+                              {(expandedGaps.has(role.role_id) ? role.gaps : role.gaps.slice(0, 2)).map((gap, i) => (
                                 <span key={i} className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
                                   {gap}
                                 </span>
                               ))}
-                              {role.gaps.length > 2 && (
-                                <span className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
+                              {role.gaps.length > 2 && !expandedGaps.has(role.role_id) && (
+                                <button
+                                  className="badge badge-neutral"
+                                  style={{ fontSize: '0.7rem', cursor: 'pointer', border: 'none', background: 'var(--gray-200)' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedGaps(prev => new Set([...prev, role.role_id]));
+                                  }}
+                                  title={t('jobs.clickToExpand')}
+                                >
                                   +{role.gaps.length - 2} {t('jobs.more')}
-                                </span>
+                                </button>
+                              )}
+                              {role.gaps.length > 2 && expandedGaps.has(role.role_id) && (
+                                <button
+                                  className="badge badge-neutral"
+                                  style={{ fontSize: '0.7rem', cursor: 'pointer', border: 'none', background: 'var(--gray-200)' }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedGaps(prev => {
+                                      const next = new Set(prev);
+                                      next.delete(role.role_id);
+                                      return next;
+                                    });
+                                  }}
+                                  title={t('jobs.clickToCollapse')}
+                                >
+                                  ▲
+                                </button>
                               )}
                             </div>
                           ) : (
@@ -327,9 +353,48 @@ export default function JobsPage() {
                 </div>
                 <div className="modal-body">
                   {selectedRole.description && (
-                    <p style={{ color: 'var(--gray-600)', marginBottom: '1.25rem', fontSize: '0.875rem', lineHeight: 1.6 }}>
-                      {selectedRole.description}
-                    </p>
+                    <div style={{ marginBottom: '1.25rem', fontSize: '0.875rem', lineHeight: 1.6 }}>
+                      {(() => {
+                        // Parse description into structured sections
+                        const lines = selectedRole.description.split('\n').filter(l => l.trim());
+                        const sections: { title?: string; items: string[] }[] = [];
+                        let currentSection: { title?: string; items: string[] } = { items: [] };
+                        
+                        for (const line of lines) {
+                          const trimmed = line.trim();
+                          if (trimmed.match(/^(Employer|Location|About the Role|What You Will Do|What You Should Have|Overview|Our Mission|About|Role Responsibilities):/i)) {
+                            if (currentSection.items.length > 0 || currentSection.title) {
+                              sections.push(currentSection);
+                            }
+                            currentSection = { title: trimmed.replace(/:$/, ''), items: [] };
+                          } else if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*')) {
+                            currentSection.items.push(trimmed.replace(/^[•\-*]\s*/, ''));
+                          } else if (trimmed) {
+                            currentSection.items.push(trimmed);
+                          }
+                        }
+                        if (currentSection.items.length > 0 || currentSection.title) {
+                          sections.push(currentSection);
+                        }
+                        
+                        return sections.map((section, idx) => (
+                          <div key={idx} style={{ marginBottom: '0.75rem' }}>
+                            {section.title && (
+                              <div style={{ fontWeight: 600, color: 'var(--gray-700)', marginBottom: '0.25rem' }}>
+                                {section.title}
+                              </div>
+                            )}
+                            {section.items.length > 0 && (
+                              <ul style={{ margin: 0, paddingLeft: '1.25rem', color: 'var(--gray-600)' }}>
+                                {section.items.map((item, i) => (
+                                  <li key={i} style={{ marginBottom: '0.15rem' }}>{item}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ));
+                      })()}
+                    </div>
                   )}
                   <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                     <div style={{ fontSize: '3rem', fontWeight: 700, color: `var(--${getReadinessColor(selectedRole.readiness)})` }}>

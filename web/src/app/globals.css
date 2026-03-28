@@ -813,7 +813,7 @@ a:hover {
   margin-bottom: 1rem;
 }
 
-.stat-icon.green { background: linear-gradient(135deg, var(--sage-light), var(--sage)); }
+.stat-icon.green { background: linear-gradient(135deg, #4ade80, #16a34a); }
 .stat-icon.blue { background: linear-gradient(135deg, var(--teal-light), var(--teal)); }
 .stat-icon.yellow { background: linear-gradient(135deg, var(--peach-light), var(--peach)); }
 .stat-icon.purple { background: linear-gradient(135deg, var(--coral-50), var(--coral-light)); }

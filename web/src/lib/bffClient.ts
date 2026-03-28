@@ -710,4 +710,23 @@ export const studentBff = {
       }>;
       total: number;
     }>(`/bff/student/resume-reviews?limit=${limit}&offset=${offset}`),
+
+  // Share bonus API (P3)
+  recordShare: (data: { share_type: string; platform?: string }) =>
+    bffRequest<{
+      success: boolean;
+      points_earned: number;
+      new_achievement_unlocked?: string;
+      message: string;
+    }>('/actions/share', {
+      method: 'POST',
+      body: data,
+    }),
+
+  getShareStatus: () =>
+    bffRequest<{
+      has_shared: boolean;
+      total_shares: number;
+      last_share_at?: string;
+    }>('/actions/share/status'),
 };

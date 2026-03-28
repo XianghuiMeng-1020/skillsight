@@ -140,7 +140,7 @@ export default function StudentDashboard() {
   const [showResumeReviewAgent, setShowResumeReviewAgent] = useState(false);
   const [leaderboard, setLeaderboard] = useState<{ my_rank: number | null; my_points: number; top: Array<{ rank: number; points: number }> } | null>(null);
 
-  const { achievements, totalPoints, recentUnlock, dismissRecentUnlock } = useAchievements();
+  const { achievements, totalPoints, recentUnlock, dismissRecentUnlock, unlockShareAchievement } = useAchievements();
 
   const fetchData = async () => {
     setLoading(true);
@@ -271,10 +271,11 @@ export default function StudentDashboard() {
             >
               🏆 {totalPoints} {t('achievements.points')}
             </button>
-            <ShareButton 
+            <ShareButton
               userName={userName}
               skills={skills.map(s => ({ name: s.canonical_name, level: s.level }))}
               overallScore={Math.round(skills.reduce((sum, s) => sum + s.level * 25, 0) / Math.max(skills.length, 1))}
+              onShareSuccess={unlockShareAchievement}
             />
             <Link href="/dashboard/upload" className="btn btn-primary">
               📤 {t('dashboard.uploadEvidence')}

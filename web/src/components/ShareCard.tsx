@@ -3,14 +3,16 @@
 import { useState, useRef, useCallback } from 'react';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
 import { logger } from '@/lib/logger';
+import { studentBff } from '@/lib/bffClient';
 
 interface ShareButtonProps {
   userName: string;
   skills: { name: string; level: number }[];
   overallScore: number;
+  onShareSuccess?: () => void;
 }
 
-export function ShareButton({ userName, skills, overallScore }: ShareButtonProps) {
+export function ShareButton({ userName, skills, overallScore, onShareSuccess }: ShareButtonProps) {
   const { t } = useLanguage();
   const [showModal, setShowModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -19,12 +21,29 @@ export function ShareButton({ userName, skills, overallScore }: ShareButtonProps
     setShowModal(true);
   };
 
+  const recordShareBonus = async (shareType: string, platform?: string) => {
+    try {
+      const response = await studentBff.recordShare({ share_type: shareType, platform });
+      if (response.points_earned > 0 && response.new_achievement_unlocked) {
+        // Show success notification for achievement unlock
+        logger.info('Share achievement unlocked!', response);
+        // Notify parent component to unlock achievement locally
+        onShareSuccess?.();
+      }
+    } catch (err) {
+      // Silently fail - don't block user for share tracking
+      logger.error('Failed to record share bonus', err);
+    }
+  };
+
   const handleCopyLink = async () => {
     const shareUrl = window.location.origin + '/dashboard';
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      // Record share bonus
+      await recordShareBonus('profile', 'copy_link');
     } catch (err) {
       logger.error('Failed to copy', err);
     }
@@ -38,6 +57,8 @@ export function ShareButton({ userName, skills, overallScore }: ShareButtonProps
           text: t('share.nativeShareText').replace('{{name}}', userName).replace('{{score}}', String(overallScore)),
           url: window.location.origin + '/dashboard',
         });
+        // Record share bonus after successful native share
+        await recordShareBonus('profile', 'native');
       } catch (err) {
         logger.error('Share failed', err);
       }
@@ -318,9 +339,9 @@ function ShareModal({
             }}
           >
             {copied ? (
-              <>✓ 已复制链接</>
+              <>✓ {t('share.copied')}</>
             ) : (
-              <>🔗 复制分享链接</>
+              <>🔗 {t('share.copyShareLink')}</>
             )}
           </button>
 
@@ -342,7 +363,7 @@ function ShareModal({
               gap: '0.5rem',
             }}
           >
-            📷 下载为图片
+            📷 {t('share.downloadImage')}
           </button>
 
           {typeof navigator !== 'undefined' && 'share' in navigator && (
@@ -364,7 +385,7 @@ function ShareModal({
                 gap: '0.5rem',
               }}
             >
-              📤 更多分享选项
+              📤 {t('share.moreOptions')}
             </button>
           )}
         </div>

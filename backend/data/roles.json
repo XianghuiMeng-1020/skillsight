@@ -1571,5 +1571,125 @@
         "weight": 1.0
       }
     ]
+  },
+  {
+    "role_id": "HKU.ROLE.HK.0000.v1",
+    "role_title": "数据分析实习生 - 汇丰银行",
+    "description": "Employer: HSBC Hong Kong\nLocation: Hong Kong\n\nAbout the Role:\nJoin HSBC's Data Analytics team as an intern and gain hands-on experience in financial data analysis. You will work with large datasets to support business decisions across retail banking, wealth management, and commercial banking segments.\n\nWhat You Will Do:\n• Analyze customer transaction patterns and identify trends\n• Build predictive models for customer segmentation\n• Create dashboards and visualizations for stakeholders\n• Support risk assessment and fraud detection initiatives\n• Collaborate with cross-functional teams in APAC region\n\nWhat You Should Have:\n• Strong foundation in Python, SQL, and data visualization tools\n• Understanding of statistical analysis and machine learning basics\n• Excellent communication skills in English; Cantonese/Mandarin is a plus\n• Currently pursuing a degree in Data Science, Statistics, Computer Science, or related fields",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.PYTHON.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.SQL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.DATA_ANALYSIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.DATA_VIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.STATISTICS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.TEAMWORK.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.HK.0001.v1",
+    "role_title": "软件工程师 - 腾讯",
+    "description": "Employer: Tencent\nLocation: Shenzhen / Hong Kong (Hybrid)\n\nAbout the Role:\nJoin Tencent's engineering team to build scalable systems serving hundreds of millions of users. You will work on WeChat ecosystem products, cloud services, or gaming platforms.\n\nWhat You Will Do:\n• Design and implement backend services for high-traffic applications\n• Optimize system performance and reliability\n• Collaborate with product and design teams on feature development\n• Write clean, maintainable code with comprehensive testing\n• Participate in code reviews and technical discussions\n\nWhat You Should Have:\n• Proficiency in Python, Go, or C++\n• Solid understanding of data structures and algorithms\n• Experience with distributed systems and microservices\n• Strong problem-solving skills and attention to detail\n• Bachelor's degree in Computer Science or related field",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.PYTHON.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.SQL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.DATA_STRUCTURES.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.TEAMWORK.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.HK.0002.v1",
+    "role_title": "商业分析师 - 德勤",
+    "description": "Employer: Deloitte Hong Kong\nLocation: Hong Kong Central\n\nAbout the Role:\nJoin Deloitte's Consulting practice as a Business Analyst. Work with leading financial services and TMT clients on transformation projects, data-driven strategy, and digital initiatives.\n\nWhat You Will Do:\n• Conduct market research and competitive analysis\n• Analyze business processes and identify optimization opportunities\n• Build financial models and forecasting tools\n• Prepare client presentations and deliverables\n• Support project management and stakeholder communication\n\nWhat You Should Have:\n• Strong analytical and quantitative skills\n• Proficiency in Excel, SQL, and data visualization (Tableau/PowerBI)\n• Excellent written and verbal communication in English and Chinese\n• Business acumen and understanding of Hong Kong/China markets\n• Degree in Business, Economics, Data Science, or related fields",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.DATA_ANALYSIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.SQL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.EXCEL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.DATA_VIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.TEAMWORK.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.CN.0000.v1",
+    "role_title": "数据科学家 - 阿里巴巴",
+    "description": "Employer: Alibaba Group\nLocation: Hangzhou / Shanghai\n\nAbout the Role:\nJoin Alibaba's Data Science team to work on recommendation systems, search algorithms, and large-scale machine learning applications across e-commerce, logistics, and cloud computing.\n\nWhat You Will Do:\n• Develop and deploy machine learning models for business applications\n• Analyze user behavior and optimize product features\n• Build data pipelines and ETL processes for large-scale datasets\n• Collaborate with engineering teams on model deployment\n• Present findings to business stakeholders\n\nWhat You Should Have:\n• Strong programming skills in Python and SQL\n• Experience with machine learning frameworks (PyTorch, TensorFlow)\n• Understanding of statistics and experimental design\n• Experience with big data technologies (Spark, Hadoop)\n• Master's or PhD in Computer Science, Statistics, or related field preferred",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.PYTHON.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.SQL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.ML.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.STATISTICS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.DATA_ANALYSIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.HK.0003.v1",
+    "role_title": "产品经理 - 字节跳动",
+    "description": "Employer: ByteDance\nLocation: Hong Kong / Shenzhen\n\nAbout the Role:\nJoin ByteDance's Product team to shape the future of content platforms and enterprise SaaS products. Work in a fast-paced environment with opportunities to impact millions of users.\n\nWhat You Will Do:\n• Define product roadmap and prioritize features based on user needs\n• Analyze product metrics and user feedback to drive improvements\n• Collaborate with engineering, design, and operations teams\n• Conduct competitive analysis and market research\n• Write PRDs and communicate requirements to development teams\n\nWhat You Should Have:\n• Strong analytical skills and data-driven mindset\n• Experience with SQL, data analysis, and A/B testing\n• Excellent communication and cross-functional collaboration skills\n• Understanding of mobile app ecosystems and user experience\n• Degree in Business, Engineering, or related field",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.DATA_ANALYSIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.SQL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.TEAMWORK.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.HK.0004.v1",
+    "role_title": "量化分析师 - 摩根士丹利",
+    "description": "Employer: Morgan Stanley\nLocation: Hong Kong\n\nAbout the Role:\nJoin Morgan Stanley's Quantitative Finance team in Hong Kong. Work on pricing models, risk analytics, and algorithmic trading strategies for the Asia-Pacific markets.\n\nWhat You Will Do:\n• Develop and implement quantitative models for derivatives pricing\n• Analyze market data and build trading strategies\n• Support risk management and regulatory reporting\n• Collaborate with traders and structurers on new products\n• Research and implement machine learning techniques for finance\n\nWhat You Should Have:\n• Strong quantitative skills in mathematics and statistics\n• Proficiency in Python, C++, or R\n• Understanding of financial markets and derivatives\n• Experience with numerical methods and Monte Carlo simulation\n• Master's or PhD in Mathematics, Physics, Engineering, or related field",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.PYTHON.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.STATISTICS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.DATA_ANALYSIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.CN.0001.v1",
+    "role_title": "机器学习工程师 - 华为",
+    "description": "Employer: Huawei\nLocation: Shenzhen / Hong Kong\n\nAbout the Role:\nJoin Huawei's AI and Machine Learning team to work on cutting-edge technologies in computer vision, NLP, and recommendation systems for consumer and enterprise products.\n\nWhat You Will Do:\n• Design and implement ML models for real-world applications\n• Optimize model performance for edge devices and cloud deployment\n• Build and maintain ML infrastructure and pipelines\n• Collaborate with research teams on model innovation\n• Write technical documentation and support model deployment\n\nWhat You Should Have:\n• Strong programming skills in Python and C++\n• Deep understanding of deep learning frameworks (PyTorch, MindSpore)\n• Experience with model optimization and deployment\n• Knowledge of computer vision or NLP techniques\n• Bachelor's or Master's in Computer Science, AI, or related field",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.PYTHON.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.ML.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.DATA_STRUCTURES.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.TEAMWORK.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.HK.0005.v1",
+    "role_title": "风险分析师 - 中银香港",
+    "description": "Employer: Bank of China (Hong Kong)\nLocation: Hong Kong\n\nAbout the Role:\nJoin BOCHK's Risk Management team to support credit risk, market risk, and operational risk analytics for one of Hong Kong's largest banks.\n\nWhat You Will Do:\n• Analyze credit portfolios and build risk rating models\n• Monitor market risk exposures and VaR calculations\n• Support regulatory reporting and stress testing\n• Develop risk dashboards and management reports\n• Collaborate with business units on risk assessments\n\nWhat You Should Have:\n• Strong analytical and quantitative skills\n• Proficiency in SQL, Python, and Excel/VBA\n• Understanding of risk management concepts and Basel regulations\n• Excellent communication skills in English and Chinese\n• Degree in Finance, Risk Management, Statistics, or related field",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.DATA_ANALYSIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.SQL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.STATISTICS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.EXCEL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.CN.0002.v1",
+    "role_title": "前端工程师 - 美团",
+    "description": "Employer: Meituan\nLocation: Beijing / Shanghai\n\nAbout the Role:\nJoin Meituan's frontend engineering team to build user-facing applications serving millions of daily active users across food delivery, travel, and local services.\n\nWhat You Will Do:\n• Develop responsive web applications and mobile interfaces\n• Optimize frontend performance and user experience\n• Collaborate with backend engineers on API design\n• Implement data visualization components and dashboards\n• Stay current with modern frontend technologies and best practices\n\nWhat You Should Have:\n• Proficiency in JavaScript/TypeScript, HTML, CSS\n• Experience with React, Vue, or similar frameworks\n• Understanding of frontend performance optimization\n• Experience with data visualization libraries (D3, ECharts)\n• Bachelor's degree in Computer Science or related field",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.DATA_STRUCTURES.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.DATA_VIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.TEAMWORK.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
+  },
+  {
+    "role_id": "HKU.ROLE.HK.0006.v1",
+    "role_title": "咨询顾问 - 麦肯锡",
+    "description": "Employer: McKinsey & Company\nLocation: Hong Kong\n\nAbout the Role:\nJoin McKinsey as a Business Analyst / Junior Associate. Work with leading companies in Asia on strategy, operations, and digital transformation projects across financial services, technology, and consumer sectors.\n\nWhat You Will Do:\n• Conduct rigorous analysis of complex business problems\n• Build financial models and develop strategic recommendations\n• Create compelling presentations for C-suite executives\n• Lead workstreams and manage client relationships\n• Collaborate with diverse teams across Asia-Pacific\n\nWhat You Should Have:\n• Exceptional analytical and problem-solving abilities\n• Strong quantitative skills and comfort with data analysis\n• Excellent communication in English; Asian languages are a plus\n• Leadership experience and team collaboration skills\n• Outstanding academic record from top university",
+    "skills_required": [
+      {"skill_id": "HKU.SKILL.DATA_ANALYSIS.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.EXCEL.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.COMMUNICATION.v1", "target_level": 2, "required": true, "weight": 1.0},
+      {"skill_id": "HKU.SKILL.TEAMWORK.v1", "target_level": 2, "required": true, "weight": 1.0}
+    ]
   }
 ]

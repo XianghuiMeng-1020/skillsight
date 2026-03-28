@@ -454,3 +454,129 @@ def list_action_templates(ident: Identity = Depends(require_auth)) -> Dict[str, 
         "count": len(templates),
         "items": templates,
     }
+
+
+# ============================================================
+# Achievement Share Bonus API (P3)
+# ============================================================
+
+class ShareRecordRequest(BaseModel):
+    share_type: str = Field(default="profile", description="Type of share: profile, achievement, etc.")
+    platform: Optional[str] = Field(default=None, description="Platform shared to: wechat, linkedin, etc.")
+
+
+class ShareRecordResponse(BaseModel):
+    success: bool
+    points_earned: int
+    new_achievement_unlocked: Optional[str] = None
+    message: str
+
+
+@router.post("/share", response_model=ShareRecordResponse)
+def record_share(
+    req: ShareRecordRequest,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+) -> ShareRecordResponse:
+    """
+    Record a share action and award points.
+    First share earns 25 points (rare achievement) and unlocks 'share_master' achievement.
+    """
+    user_id = ident.sub
+
+    try:
+        # Check if user has already shared (check share_events table)
+        check_sql = text("""
+            SELECT COUNT(*) as share_count
+            FROM share_events
+            WHERE user_id = :user_id
+        """)
+        result = db.execute(check_sql, {"user_id": user_id}).mappings().first()
+        share_count = result["share_count"] if result else 0
+
+        # Record this share event
+        insert_sql = text("""
+            INSERT INTO share_events (user_id, share_type, platform, created_at)
+            VALUES (:user_id, :share_type, :platform, :created_at)
+        """)
+        db.execute(insert_sql, {
+            "user_id": user_id,
+            "share_type": req.share_type,
+            "platform": req.platform,
+            "created_at": _now_utc(),
+        })
+        db.commit()
+
+        # Award points for first share only
+        points_earned = 0
+        new_achievement = None
+
+        if share_count == 0:
+            # First share - award rare achievement points (25)
+            points_earned = 25
+            new_achievement = "share_master"
+
+            # Try to unlock achievement in database (if achievements table exists)
+            try:
+                unlock_sql = text("""
+                    INSERT INTO user_achievements (user_id, achievement_id, unlocked_at, points)
+                    VALUES (:user_id, :achievement_id, :unlocked_at, :points)
+                    ON CONFLICT (user_id, achievement_id) DO NOTHING
+                """)
+                db.execute(unlock_sql, {
+                    "user_id": user_id,
+                    "achievement_id": "share_master",
+                    "unlocked_at": _now_utc(),
+                    "points": points_earned,
+                })
+                db.commit()
+            except Exception as exc:
+                _log.warning("Failed to record achievement unlock: %s", exc)
+                # Continue - frontend will handle localStorage achievement tracking
+
+        return ShareRecordResponse(
+            success=True,
+            points_earned=points_earned,
+            new_achievement_unlocked=new_achievement,
+            message="Share recorded successfully" if share_count > 0 else "First share! Achievement unlocked!",
+        )
+
+    except Exception as exc:
+        _log.error("Failed to record share: %s", exc)
+        # Still return success - don't block user for share tracking failure
+        return ShareRecordResponse(
+            success=True,
+            points_earned=0,
+            message="Share completed",
+        )
+
+
+@router.get("/share/status")
+def get_share_status(
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+) -> Dict[str, Any]:
+    """Get user's share status and history."""
+    user_id = ident.sub
+
+    try:
+        sql = text("""
+            SELECT COUNT(*) as total_shares,
+                   MAX(created_at) as last_share_at
+            FROM share_events
+            WHERE user_id = :user_id
+        """)
+        result = db.execute(sql, {"user_id": user_id}).mappings().first()
+
+        return {
+            "has_shared": (result["total_shares"] or 0) > 0,
+            "total_shares": result["total_shares"] or 0,
+            "last_share_at": result["last_share_at"],
+        }
+    except Exception as exc:
+        _log.warning("Failed to get share status: %s", exc)
+        return {
+            "has_shared": False,
+            "total_shares": 0,
+            "last_share_at": None,
+        }

@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import ApiStatus from './ApiStatus';
-import { useLanguage } from '@/lib/contexts';
+import { useLanguage, type Language } from '@/lib/contexts';
 import { clearToken } from '@/lib/bffClient';
 
 // SkillSight Logo - 代表技能洞察与成长的创意设计
@@ -85,8 +85,9 @@ const settingsNav: NavItem[] = [
 ];
 
 export default function Sidebar() {
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const pathname = usePathname();
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -200,20 +201,51 @@ export default function Sidebar() {
         <div style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--gray-100)' }}>
           <ApiStatus />
         </div>
-        <div className="user-info">
+        <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--gray-100)' }}>
+          {([['zh', '简'], ['zh-TW', '繁'], ['en', 'EN']] as [Language, string][]).map(([lang, label]) => (
+            <button
+              key={lang}
+              onClick={() => setLanguage(lang)}
+              style={{
+                flex: 1,
+                padding: '0.25rem 0',
+                fontSize: '0.75rem',
+                fontWeight: language === lang ? 600 : 400,
+                borderRadius: '6px',
+                border: 'none',
+                cursor: 'pointer',
+                background: language === lang ? 'var(--hku-green)' : 'var(--gray-100)',
+                color: language === lang ? 'white' : 'var(--gray-600)',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div
+          className="user-info"
+          style={{ cursor: 'pointer' }}
+          onClick={() => router.push('/settings')}
+          title={t('settings.pageTitle')}
+        >
           <div className="user-avatar">{user?.avatar || 'U'}</div>
           <div className="user-details">
             <div className="user-name">{user?.name || t('common.loading')}</div>
             <div className="user-role">{isAdmin ? t('user.administrator') : t('user.student')}</div>
           </div>
-          <button 
+          <button
             className="btn btn-ghost btn-sm"
             style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.375rem 0.5rem' }}
             onClick={handleLogout}
             title={t('action.signOut')}
             aria-label={t('action.signOut')}
           >
-            <span aria-hidden>🚪</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16,17 21,12 16,7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
             <span>{t('action.signOut')}</span>
           </button>
         </div>

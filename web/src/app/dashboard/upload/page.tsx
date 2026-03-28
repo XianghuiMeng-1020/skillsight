@@ -218,9 +218,56 @@ export default function UploadPage() {
               <div className="alert-content">
                 <div className="alert-title">{t('upload.failed')}</div>
                 <p>{error}</p>
+                {!getToken() && (
+                  <a
+                    href="/login"
+                    style={{
+                      display: 'inline-block',
+                      marginTop: '0.5rem',
+                      padding: '0.375rem 0.75rem',
+                      borderRadius: '8px',
+                      background: 'var(--hku-green)',
+                      color: 'white',
+                      fontWeight: 500,
+                      fontSize: '0.875rem',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    {t('upload.goToLogin')}
+                  </a>
+                )}
               </div>
             </div>
           )}
+
+          {/* Suggested Uploads Card */}
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="card-header">
+              <h3 className="card-title">{t('upload.suggestedTitle')}</h3>
+            </div>
+            <div className="card-content">
+              <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>
+                {t('upload.suggestedSubtitle')}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
+                <div style={{ padding: '1rem', background: 'var(--hku-green-50)', borderRadius: 'var(--radius)', border: '1px solid var(--hku-green)' }}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📚</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>{t('upload.suggestedCourseOutline')}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>{t('upload.suggestedCourseOutlineDesc')}</div>
+                </div>
+                <div style={{ padding: '1rem', background: 'var(--warning-light)', borderRadius: 'var(--radius)', border: '1px solid var(--warning)' }}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📝</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>{t('upload.suggestedAssignments')}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>{t('upload.suggestedAssignmentsDesc')}</div>
+                </div>
+                <div style={{ padding: '1rem', background: 'var(--info-light)', borderRadius: 'var(--radius)', border: '1px solid var(--info)' }}>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📄</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.875rem', marginBottom: '0.25rem' }}>{t('upload.suggestedCV')}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>{t('upload.suggestedCVDesc')}</div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
             {/* Main Upload Area */}

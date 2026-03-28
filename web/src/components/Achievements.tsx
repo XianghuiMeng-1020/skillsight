@@ -57,6 +57,19 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
   const progress = Math.min((achievement.progress / achievement.target) * 100, 100);
   const locale = getDateLocale(language);
 
+  // Get localized name and description based on current language
+  const getLocalizedName = () => {
+    if (language === 'en') return achievement.nameEn;
+    if (language === 'zh-TW') return achievement.nameZhTW;
+    return achievement.name; // zh (simplified)
+  };
+
+  const getLocalizedDescription = () => {
+    if (language === 'en') return achievement.descriptionEn;
+    if (language === 'zh-TW') return achievement.descriptionZhTW;
+    return achievement.description; // zh (simplified)
+  };
+
   if (compact) {
     return (
       <div
@@ -77,7 +90,7 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
         </span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 600, fontSize: '0.875rem', color: achievement.unlocked ? style.text : '#78716c' }}>
-            {achievement.name}
+            {getLocalizedName()}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#a8a29e' }}>
             {achievement.unlocked ? t('achievements.unlocked') : `${Math.round(progress)}%`}
@@ -140,10 +153,10 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
               marginBottom: '0.25rem',
             }}
           >
-            {achievement.name}
+            {getLocalizedName()}
           </div>
           <div style={{ fontSize: '0.813rem', color: '#78716c', lineHeight: 1.4 }}>
-            {achievement.description}
+            {getLocalizedDescription()}
           </div>
         </div>
         <span
@@ -307,10 +320,23 @@ interface AchievementNotificationProps {
 }
 
 export function AchievementNotification({ achievement, onDismiss }: AchievementNotificationProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   if (!achievement) return null;
 
   const style = rarityStyleMap[achievement.rarity];
+
+  // Get localized name and description based on current language
+  const getLocalizedName = () => {
+    if (language === 'en') return achievement.nameEn;
+    if (language === 'zh-TW') return achievement.nameZhTW;
+    return achievement.name; // zh (simplified)
+  };
+
+  const getLocalizedDescription = () => {
+    if (language === 'en') return achievement.descriptionEn;
+    if (language === 'zh-TW') return achievement.descriptionZhTW;
+    return achievement.description; // zh (simplified)
+  };
 
   return (
     <div
@@ -364,9 +390,9 @@ export function AchievementNotification({ achievement, onDismiss }: AchievementN
             {t('achievements.notification')}
           </div>
           <div style={{ fontWeight: 700, fontSize: '1rem', color: '#1c1917', marginBottom: '0.25rem' }}>
-            {achievement.name}
+            {getLocalizedName()}
           </div>
-          <div style={{ fontSize: '0.813rem', color: '#57534e' }}>{achievement.description}</div>
+          <div style={{ fontSize: '0.813rem', color: '#57534e' }}>{getLocalizedDescription()}</div>
         </div>
         <button
           onClick={onDismiss}
