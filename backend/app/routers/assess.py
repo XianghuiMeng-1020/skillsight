@@ -733,50 +733,47 @@ def role_readiness(
 
     # P5: Write skill_assessment_snapshots + change_log when aggregator used and level/reliability changed
     if use_aggregator and req.subject_id:
-        request_id = str(uuid.uuid4())
-        for sid, agg in aggregated.items():
-            prev = get_prev_skill_snapshot(engine, req.subject_id, sid)
-            curr_state = {
-                "level": agg.level,
-                "label": f"level_{agg.level}",
-                "reliability_level": agg.reliability_level,
-                "supporting_evidence_ids": agg.supporting_evidence_ids,
-            }
-            prev_level = prev.get("level") if prev else None
-            prev_ev = (prev.get("evidence") or []) if prev else []
-            curr_ev_ids = set(agg.supporting_evidence_ids)
-            prev_ev_ids = set(
-                e.get("chunk_id") if isinstance(e, dict) else e for e in prev_ev if e
-            )
-            changed = (
-                prev_level != agg.level
-                or prev_ev_ids != curr_ev_ids
-            )
-            if changed:
-                write_skill_snapshot(
-                    engine,
-                    req.subject_id,
-                    sid,
-                    label=curr_state["label"],
-                    rationale=agg.reliability_explain,
-                    level=agg.level,
-                    evidence=[{"chunk_id": c} for c in agg.supporting_evidence_ids[:10]],
-                    request_id=request_id,
-                    model_info={"aggregator": "p5", "reliability": agg.reliability_level},
+        try:
+            request_id = str(uuid.uuid4())
+            for sid, agg in aggregated.items():
+                prev = get_prev_skill_snapshot(engine, req.subject_id, sid)
+                prev_level = prev.get("level") if prev else None
+                prev_ev = (prev.get("evidence") or []) if prev else []
+                curr_ev_ids = set(agg.supporting_evidence_ids)
+                prev_ev_ids = set(
+                    e.get("chunk_id") if isinstance(e, dict) else e for e in prev_ev if e
                 )
-                write_change_event(
-                    engine,
-                    scope="student",
-                    event_type="skill_level_changed",
-                    subject_id=req.subject_id,
-                    entity_key=sid,
-                    before_state={"level": prev_level, "evidence_count": len(prev_ev_ids)},
-                    after_state={"level": agg.level, "evidence_count": len(curr_ev_ids), "reliability_level": agg.reliability_level},
-                    diff={"level_delta": (agg.level - (prev_level or 0))},
-                    why={"rule_triggers": ["skill_level_aggregator"], "supporting_evidence_ids": agg.supporting_evidence_ids[:5]},
-                    request_id=request_id,
-                    actor_role="system",
+                changed = (
+                    prev_level != agg.level
+                    or prev_ev_ids != curr_ev_ids
                 )
+                if changed:
+                    write_skill_snapshot(
+                        engine,
+                        req.subject_id,
+                        sid,
+                        label=f"level_{agg.level}",
+                        rationale=agg.reliability_explain,
+                        level=agg.level,
+                        evidence=[{"chunk_id": c} for c in agg.supporting_evidence_ids[:10]],
+                        request_id=request_id,
+                        model_info={"aggregator": "p5", "reliability": agg.reliability_level},
+                    )
+                    write_change_event(
+                        engine,
+                        scope="student",
+                        event_type="skill_level_changed",
+                        subject_id=req.subject_id,
+                        entity_key=sid,
+                        before_state={"level": prev_level, "evidence_count": len(prev_ev_ids)},
+                        after_state={"level": agg.level, "evidence_count": len(curr_ev_ids), "reliability_level": agg.reliability_level},
+                        diff={"level_delta": (agg.level - (prev_level or 0))},
+                        why={"rule_triggers": ["skill_level_aggregator"], "supporting_evidence_ids": agg.supporting_evidence_ids[:5]},
+                        request_id=request_id,
+                        actor_role="system",
+                    )
+        except Exception as exc:
+            _log.warning("P5 snapshot/changelog write failed (non-blocking): %s", exc)
 
     return result
 
