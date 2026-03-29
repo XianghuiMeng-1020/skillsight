@@ -4,7 +4,7 @@ services:
     runtime: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: .
-    plan: starter
+    plan: standard
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -45,7 +45,7 @@ services:
       - key: DB_MAX_OVERFLOW
         value: "15"
       - key: WEB_CONCURRENCY
-        value: "2"
+        value: "4"
     healthCheckPath: /health
     numInstances: 1
 
