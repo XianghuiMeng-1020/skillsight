@@ -300,14 +300,6 @@ if not _os.getenv("SKILLSIGHT_ENV", "").strip().lower() in ("production", "prod"
 
 
 def _origin_allowed(origin: str) -> bool:
-    # #region agent log
-    import json as _json, os as _os2
-    _log_data = {"origin": origin, "raw_list": _CORS_ORIGINS_RAW, "env_cors": _os2.getenv("CORS_ALLOWED_ORIGINS", "NOT_SET"), "timestamp": __import__('time').time()}
-    _log_line = _json.dumps({"sessionId":"41a014","runId":"debug_run_1","hypothesisId":"B","location":"main.py:302","message":"CORS origin check","data":_log_data}, ensure_ascii=False)
-    try:
-        with open("/Users/mrealsalvatore/Desktop/项目备份/skillsight/.cursor/debug-41a014.log", "a") as _f: _f.write(_log_line + "\n")
-    except: pass
-    # #endregion
     if not origin:
         return False
     if origin in _CORS_ORIGINS_RAW:
@@ -326,16 +318,6 @@ _CORS_ALLOWED_HEADERS = [
 app.add_middleware(AuditMiddleware)
 if _parse_bool_env("RATE_LIMIT_ENABLED"):
     app.add_middleware(RateLimitMiddleware)
-
-# #region agent log
-import json as _json2
-_log_data2 = {"cors_origins_raw": _CORS_ORIGINS_RAW, "cors_patterns": [str(p.pattern) for p in _CORS_PATTERNS], "env": __import__('os').getenv("SKILLSIGHT_ENV", "NOT_SET")}
-_log_line2 = _json2.dumps({"sessionId":"41a014","runId":"debug_run_1","hypothesisId":"A","location":"main.py:318","message":"CORS middleware init","data":_log_data2}, ensure_ascii=False)
-try:
-    with open("/Users/mrealsalvatore/Desktop/项目备份/skillsight/.cursor/debug-41a014.log", "a") as _f2: _f2.write(_log_line2 + "\n")
-except: pass
-# #endregion
-
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r"^https://(skillsight-\d+\.pages\.dev|[a-z0-9-]+\.skillsight-\d+\.pages\.dev|skillsight\.pages\.dev)$",
@@ -347,53 +329,6 @@ app.add_middleware(
 )
 
 _main_logger = logging.getLogger("skillsight.main")
-
-# #region agent log - Request logging middleware for CORS debugging
-class DebugRequestMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        import json as _json3, time as _time3
-        origin = request.headers.get("origin", "NO_ORIGIN")
-        method = request.method
-        path = request.url.path
-        _log_data3 = {"origin": origin, "method": method, "path": path, "headers": dict(request.headers)}
-        _log_line3 = _json3.dumps({"sessionId":"41a014","runId":"debug_run_1","hypothesisId":"D","location":"main.py:335","message":"Request received","data":_log_data3, "timestamp": _time3.time()}, ensure_ascii=False)
-        try:
-            with open("/Users/mrealsalvatore/Desktop/项目备份/skillsight/.cursor/debug-41a014.log", "a") as _f3: _f3.write(_log_line3 + "\n")
-        except: pass
-        response = await call_next(request)
-        _log_data4 = {"origin": origin, "method": method, "path": path, "status": response.status_code}
-        _log_line4 = _json3.dumps({"sessionId":"41a014","runId":"debug_run_1","hypothesisId":"D","location":"main.py:343","message":"Response sent","data":_log_data4, "timestamp": _time3.time()}, ensure_ascii=False)
-        try:
-            with open("/Users/mrealsalvatore/Desktop/项目备份/skillsight/.cursor/debug-41a014.log", "a") as _f4: _f4.write(_log_line4 + "\n")
-        except: pass
-        return response
-
-app.add_middleware(DebugRequestMiddleware)
-# #endregion
-
-# #region agent log - Manual OPTIONS handler for CORS preflight debugging
-@app.options("/{path:path}")
-async def options_handler(path: str, request: Request):
-    origin = request.headers.get("origin", "")
-    method = request.headers.get("access-control-request-method", "")
-    headers = request.headers.get("access-control-request-headers", "")
-    response = Response(content="")
-    response.headers["X-Debug-Options-Received"] = "true"
-    response.headers["X-Debug-Origin"] = origin
-    response.headers["X-Debug-Request-Method"] = method
-    response.headers["X-Debug-Request-Headers"] = headers
-    response.headers["X-Debug-Origin-Allowed"] = str(_origin_allowed(origin))
-    if _origin_allowed(origin):
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = ", ".join(_CORS_ALLOWED_HEADERS)
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Max-Age"] = "3600"
-        response.headers["X-Debug-CORS-Applied"] = "true"
-    else:
-        response.headers["X-Debug-CORS-Applied"] = "false"
-    return response
-# #endregion
 
 @app.exception_handler(Exception)
 async def _global_exception_handler(request: Request, exc: Exception):
@@ -479,23 +414,9 @@ def __routes():
     ])
 
 @app.get("/health")
-def health(request: Request = None):
-    # Re-check schema on each request so DB fixes (migrations / manual SQL) show up without redeploy.
+def health():
     live = _run_schema_health_check()
-    # #region agent log - CORS debug info in response headers
-    headers = {}
-    if request:
-        origin = request.headers.get("origin", "NO_ORIGIN")
-        headers["X-Debug-Origin-Received"] = origin
-        headers["X-Debug-CORS-Origins-Config"] = str(_CORS_ORIGINS_RAW)
-        headers["X-Debug-Origin-Allowed"] = str(_origin_allowed(origin))
-        headers["X-Debug-CORS-Env"] = __import__('os').getenv("CORS_ALLOWED_ORIGINS", "NOT_SET")
-        headers["X-Debug-Server-Time"] = str(__import__('time').time())
-    # #endregion
-    return JSONResponse(
-        content={"status": "ok", "ok": True, "schema": live},
-        headers=headers
-    )
+    return {"status": "ok", "ok": True, "schema": live}
 
 
 @app.get("/health/schema")

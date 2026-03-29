@@ -128,33 +128,49 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
   );
 }
 
-// API helper with toast notifications
+// API helper with toast notifications and network retry
+const API_RETRY_ATTEMPTS = 3;
+const API_RETRY_DELAYS = [2000, 4000];
+
 export async function apiCall<T>(
   url: string,
   options?: RequestInit,
   toast?: ToastContextType
 ): Promise<T> {
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
+  let lastError: unknown;
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: 'Request failed' }));
-      const message = error.detail || `Error: ${response.status}`;
-      toast?.addToast('error', message);
-      throw new Error(message);
-    }
+  for (let attempt = 0; attempt < API_RETRY_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
 
-    return response.json();
-  } catch (error) {
-    if (error instanceof Error && !error.message.includes('Error:')) {
-      toast?.addToast('error', 'Network error. Please check your connection.');
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: 'Request failed' }));
+        const message = error.detail || `Error: ${response.status}`;
+        toast?.addToast('error', message);
+        throw new Error(message);
+      }
+
+      return response.json();
+    } catch (error) {
+      lastError = error;
+      const isNetworkError =
+        error instanceof TypeError &&
+        (error.message === 'Failed to fetch' || error.message?.includes('fetch'));
+      if (!isNetworkError || attempt === API_RETRY_ATTEMPTS - 1) {
+        if (error instanceof Error && !error.message.includes('Error:')) {
+          toast?.addToast('error', 'Network error. Server may be waking up, please try again.');
+        }
+        throw error;
+      }
+      const delay = API_RETRY_DELAYS[attempt] ?? 4000;
+      await new Promise((r) => setTimeout(r, delay));
     }
-    throw error;
   }
+  throw lastError;
 }

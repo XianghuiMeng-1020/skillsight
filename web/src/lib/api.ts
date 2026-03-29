@@ -9,6 +9,9 @@ export interface ApiError {
   status?: number;
 }
 
+const RETRY_ATTEMPTS = 3;
+const RETRY_DELAYS_MS = [2000, 4000];
+
 export class ApiClient {
   private baseUrl: string;
 
@@ -21,23 +24,37 @@ export class ApiClient {
     options?: RequestInit
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
-    });
+    let lastError: unknown;
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ 
-        detail: `Request failed with status ${response.status}` 
-      }));
-      throw new Error(error.detail || 'Request failed');
+    for (let attempt = 0; attempt < RETRY_ATTEMPTS; attempt++) {
+      try {
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...options?.headers,
+          },
+        });
+
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ 
+            detail: `Request failed with status ${response.status}` 
+          }));
+          throw new Error(error.detail || 'Request failed');
+        }
+
+        return response.json();
+      } catch (e) {
+        lastError = e;
+        const isNetworkError =
+          e instanceof TypeError &&
+          (e.message === 'Failed to fetch' || e.message?.includes('fetch'));
+        if (!isNetworkError || attempt === RETRY_ATTEMPTS - 1) throw e;
+        const delay = RETRY_DELAYS_MS[attempt] ?? 4000;
+        await new Promise((r) => setTimeout(r, delay));
+      }
     }
-
-    return response.json();
+    throw lastError;
   }
 
   // Documents
