@@ -1,11 +1,20 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
 import { studentBff, getToken, BffError } from '@/lib/bffClient';
+import SkillAssessmentProgress from '@/components/SkillAssessmentProgress';
+
+interface AssessmentTask {
+  docId: string;
+  docName: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  progress: number;
+  startedAt: number;
+}
 
 interface EvidenceItem {
   chunk_id: string;
@@ -64,7 +73,10 @@ export default function SkillsProfilePage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [reassessing, setReassessing] = useState(false);
   const [reassessMsg, setReassessMsg] = useState<string | null>(null);
+  const [assessmentTasks, setAssessmentTasks] = useState<AssessmentTask[]>([]);
+  const [showProgress, setShowProgress] = useState(false);
   const highlightedRef = useRef<HTMLDivElement | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchProfile = async () => {
     setLoading(true);
@@ -92,17 +104,105 @@ export default function SkillsProfilePage() {
     }
   };
 
+  // 轮询检查评估进度
+  const startPolling = useCallback((tasks: AssessmentTask[]) => {
+    // 清除之前的轮询
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+
+    let elapsedSeconds = 0;
+    const estimatedTotalTime = tasks.length * 30; // 每个文档估计30秒
+
+    pollingIntervalRef.current = setInterval(() => {
+      elapsedSeconds += 2;
+
+      setAssessmentTasks((prevTasks) => {
+        const updatedTasks = prevTasks.map((task, index) => {
+          // 计算该任务应该完成的进度
+          const taskStartTime = index * 30; // 每个任务间隔30秒开始
+          const taskElapsed = Math.max(0, elapsedSeconds - taskStartTime);
+          const taskProgress = Math.min(100, (taskElapsed / 30) * 100);
+
+          // 确定状态
+          let status: AssessmentTask['status'] = task.status;
+          if (taskElapsed < 0) {
+            status = 'pending';
+          } else if (taskProgress >= 100) {
+            status = 'completed';
+          } else if (taskElapsed > 0) {
+            status = 'processing';
+          }
+
+          return {
+            ...task,
+            progress: taskProgress,
+            status,
+          };
+        });
+
+        // 检查是否全部完成
+        const allCompleted = updatedTasks.every((t) => t.status === 'completed');
+        if (allCompleted && pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+
+          // 延迟后刷新技能列表
+          setTimeout(() => {
+            fetchProfile();
+          }, 2000);
+        }
+
+        return updatedTasks;
+      });
+    }, 2000); // 每2秒更新一次
+
+    // 设置超时（2分钟后停止轮询）
+    setTimeout(() => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+        // 强制刷新
+        fetchProfile();
+      }
+    }, 120_000);
+  }, []);
+
+  // 清理轮询
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
+
   const handleReassess = async () => {
     setReassessing(true);
     setReassessMsg(null);
     try {
       const docsData = await studentBff.getDocuments(10);
-      const docs = (docsData as { items?: Array<{ doc_id?: string }> }).items || [];
+      const docs = (docsData as { items?: Array<{ doc_id?: string; filename?: string }> }).items || [];
       if (docs.length === 0) {
         setReassessMsg(t('skills.noDocsToAssess') as string);
         setReassessing(false);
         return;
       }
+
+      // 初始化评估任务
+      const tasks: AssessmentTask[] = docs
+        .filter((doc): doc is { doc_id: string; filename?: string } => !!doc.doc_id)
+        .map((doc) => ({
+          docId: doc.doc_id,
+          docName: doc.filename || `Document ${doc.doc_id.slice(0, 8)}`,
+          status: 'pending',
+          progress: 0,
+          startedAt: Date.now(),
+        }));
+
+      setAssessmentTasks(tasks);
+      setShowProgress(true);
+
       let ok = 0;
       for (const doc of docs) {
         if (!doc.doc_id) continue;
@@ -111,14 +211,18 @@ export default function SkillsProfilePage() {
           if (r?.status === 'accepted') ok += 1;
         } catch { /* skip */ }
       }
+
       if (ok > 0) {
         setReassessMsg((t('skills.reassessQueued') as string)?.replace('{n}', String(ok)) ?? `Queued ${ok} doc(s).`);
-        setTimeout(() => fetchProfile(), 90_000);
+        // 开始轮询进度
+        startPolling(tasks);
       } else {
         setReassessMsg(t('skills.reassessFailed') as string);
+        setShowProgress(false);
       }
     } catch {
       setReassessMsg(t('skills.reassessFailed') as string);
+      setShowProgress(false);
     } finally {
       setReassessing(false);
     }
@@ -199,6 +303,19 @@ export default function SkillsProfilePage() {
               ℹ️ {reassessMsg}
             </div>
           )}
+
+          {/* 技能评估进度条 */}
+          {showProgress && assessmentTasks.length > 0 && (
+            <SkillAssessmentProgress
+              tasks={assessmentTasks}
+              onComplete={() => {
+                setShowProgress(false);
+                fetchProfile();
+              }}
+              onClose={() => setShowProgress(false)}
+            />
+          )}
+
           {/* Documents summary */}
           {profile && (
             <div className="card" style={{ marginBottom: '1.5rem' }}>

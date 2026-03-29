@@ -581,6 +581,26 @@ export const translations: Translations = {
   'settings.signOut': { zh: '🚪 退出登录', 'zh-TW': '🚪 登出', en: '🚪 Sign Out' },
   'settings.administrator': { zh: '管理员', 'zh-TW': '管理員', en: 'Administrator' },
 
+  // 技能评估进度
+  'assessmentProgress.title': { zh: '正在评估技能...', 'zh-TW': '正在評估技能...', en: 'Assessing Skills...' },
+  'assessmentProgress.overallProgress': { zh: '总体进度', 'zh-TW': '總體進度', en: 'Overall Progress' },
+  'assessmentProgress.completed': { zh: '已完成', 'zh-TW': '已完成', en: 'Completed' },
+  'assessmentProgress.processing': { zh: '处理中', 'zh-TW': '處理中', en: 'Processing' },
+  'assessmentProgress.pending': { zh: '等待中', 'zh-TW': '等待中', en: 'Pending' },
+  'assessmentProgress.analyzing': { zh: 'AI正在分析文档...', 'zh-TW': 'AI正在分析文件...', en: 'AI is analyzing document...' },
+  'assessmentProgress.done': { zh: '✨ 分析完成！', 'zh-TW': '✨ 分析完成！', en: '✨ Analysis complete!' },
+  'assessmentProgress.waiting': { zh: '等待开始...', 'zh-TW': '等待開始...', en: 'Waiting to start...' },
+  'assessmentProgress.helperAllDone': { zh: '🎉 太棒了！所有文档都评估完成啦～', 'zh-TW': '🎉 太棒了！所有文件都評估完成啦～', en: '🎉 Awesome! All documents have been assessed!' },
+  'assessmentProgress.helperProcessing': { zh: '🐱 正在努力分析 {n} 个文档，稍等片刻哦～', 'zh-TW': '🐱 正在努力分析 {n} 個文件，稍等片刻哦～', en: '🐱 Working hard on {n} documents, just a moment!' },
+  'assessmentProgress.helperPending': { zh: '😺 还有 {n} 个文档在排队，马上就到！', 'zh-TW': '😺 還有 {n} 個文件在排隊，馬上就到！', en: '😺 {n} documents in queue, coming up soon!' },
+  'assessmentProgress.helperWorking': { zh: '🐱  SkillSight 正在认真工作呢～', 'zh-TW': '🐱 SkillSight 正在認真工作呢～', en: '🐱 SkillSight is working hard!' },
+  'assessmentProgress.allDone': { zh: '🎉 评估完成！', 'zh-TW': '🎉 評估完成！', en: '🎉 Assessment Complete!' },
+  'assessmentProgress.viewSkills': { zh: '查看我的技能', 'zh-TW': '查看我的技能', en: 'View My Skills' },
+  'assessmentProgress.cuteMessage1': { zh: '哇！你的技能档案已经准备好了，快去看看吧 ✨', 'zh-TW': '哇！你的技能檔案已經準備好了，快去看看吧 ✨', en: 'Wow! Your skill profile is ready, go check it out ✨' },
+  'assessmentProgress.cuteMessage2': { zh: 'SkillSight 已经帮你分析完所有证据啦，准备好发现新技能了吗？🌟', 'zh-TW': 'SkillSight 已經幫你分析完所有證據啦，準備好發現新技能了嗎？🌟', en: 'SkillSight has analyzed all your evidence. Ready to discover new skills? 🌟' },
+  'assessmentProgress.cuteMessage3': { zh: '太厉害了！文档分析完毕，你的技能地图已更新 🗺️', 'zh-TW': '太厲害了！文件分析完畢，你的技能地圖已更新 🗺️', en: 'Amazing! Document analysis complete, your skill map is updated 🗺️' },
+  'assessmentProgress.cuteMessage4': { zh: '叮咚～评估完成！快去看看 SkillSight 发现了你哪些隐藏技能 🔍', 'zh-TW': '叮咚～評估完成！快去看看 SkillSight 發現了你哪些隱藏技能 🔍', en: 'Ding dong~ Assessment complete! Go see what hidden skills SkillSight found 🔍' },
+
   // 登录页
   'login.subtitle': { zh: 'HKU 技能与职业透明系统', 'zh-TW': 'HKU 技能與職業透明系統', en: 'HKU Skills-to-Jobs Transparency System' },
   'login.student': { zh: '👨‍🎓 学生', 'zh-TW': '👨‍🎓 學生', en: '👨‍🎓 Student' },
