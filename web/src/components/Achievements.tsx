@@ -424,3 +424,309 @@ export function AchievementNotification({ achievement, onDismiss }: AchievementN
     </div>
   );
 }
+
+// 成就弹窗组件
+interface AchievementsModalProps {
+  onClose: () => void;
+}
+
+export function AchievementsModal({ onClose }: AchievementsModalProps) {
+  const { t } = useLanguage();
+  const { achievements, totalPoints } = useAchievements();
+
+  const unlockedCount = achievements.filter((a) => a.unlocked).length;
+  const categories = ['assessment', 'learning', 'milestone', 'special'] as const;
+
+  // 点击背景关闭弹窗
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div
+      onClick={handleBackdropClick}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '1rem',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: 'white',
+          borderRadius: '20px',
+          maxWidth: '600px',
+          width: '100%',
+          maxHeight: '85vh',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        {/* 头部 */}
+        <div
+          style={{
+            padding: '1.25rem 1.5rem',
+            borderBottom: '1px solid var(--gray-100)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'linear-gradient(135deg, rgba(254,243,199,0.3), rgba(253,230,138,0.2))',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <span
+              style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1.25rem',
+                boxShadow: '0 2px 8px rgba(251, 191, 36, 0.3)',
+              }}
+            >
+              🏆
+            </span>
+            <div>
+              <h3 style={{ fontWeight: 700, fontSize: '1.125rem', color: '#92400e', margin: 0 }}>
+                {t('achievements.system')}
+              </h3>
+              <p style={{ fontSize: '0.75rem', color: '#a8a29e', margin: '0.125rem 0 0 0' }}>
+                {unlockedCount} / {achievements.length} {t('achievements.unlocked')}
+              </p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <span
+              style={{
+                fontWeight: 700,
+                color: '#b45309',
+                background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+                padding: '0.5rem 1rem',
+                borderRadius: '10px',
+                fontSize: '0.9375rem',
+                boxShadow: '0 2px 8px rgba(251, 191, 36, 0.2)',
+              }}
+            >
+              {totalPoints} {t('achievements.points')}
+            </span>
+            <button
+              onClick={onClose}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                fontSize: '1.5rem',
+                cursor: 'pointer',
+                color: 'var(--gray-400)',
+                lineHeight: 1,
+                padding: '0.25rem',
+                borderRadius: '8px',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--gray-100)';
+                e.currentTarget.style.color = 'var(--gray-600)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--gray-400)';
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+
+        {/* 内容区域 */}
+        <div
+          style={{
+            padding: '1.5rem',
+            overflowY: 'auto',
+            flex: 1,
+          }}
+        >
+          {categories.map((category) => {
+            const categoryAchievements = achievements.filter((a) => a.category === category);
+            if (categoryAchievements.length === 0) return null;
+
+            return (
+              <div key={category} style={{ marginBottom: '1.5rem' }}>
+                <h4
+                  style={{
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    color: '#57534e',
+                    marginBottom: '0.75rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    padding: '0.5rem 0.75rem',
+                    background: 'var(--gray-50)',
+                    borderRadius: '8px',
+                  }}
+                >
+                  {categoryIcons[category]}
+                  {t(categoryLabelKeys[category])}
+                </h4>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
+                    gap: '0.75rem',
+                  }}
+                >
+                  {categoryAchievements.map((achievement) => (
+                    <AchievementItem key={achievement.id} achievement={achievement} />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 底部 */}
+        <div
+          style={{
+            padding: '1rem 1.5rem',
+            borderTop: '1px solid var(--gray-100)',
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '1rem',
+            background: 'var(--gray-50)',
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              padding: '0.625rem 1.5rem',
+              borderRadius: '10px',
+              border: '1px solid var(--gray-200)',
+              background: 'white',
+              color: 'var(--gray-600)',
+              fontWeight: 500,
+              fontSize: '0.875rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--sage)';
+              e.currentTarget.style.color = 'var(--sage-dark)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--gray-200)';
+              e.currentTarget.style.color = 'var(--gray-600)';
+            }}
+          >
+            {t('common.close')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 成就项组件（用于弹窗内）
+interface AchievementItemProps {
+  achievement: Achievement;
+}
+
+function AchievementItem({ achievement }: AchievementItemProps) {
+  const { t, language } = useLanguage();
+  const style = rarityStyleMap[achievement.rarity];
+
+  const getLocalizedName = () => {
+    if (language === 'zh') return achievement.name;
+    if (language === 'zh-TW') return achievement.nameZhTW || achievement.name;
+    return achievement.nameEn || achievement.name;
+  };
+
+  const getLocalizedDescription = () => {
+    if (language === 'zh') return achievement.description;
+    if (language === 'zh-TW') return achievement.descriptionZhTW || achievement.description;
+    return achievement.descriptionEn || achievement.description;
+  };
+
+  return (
+    <div
+      style={{
+        background: achievement.unlocked ? style.bg : '#f5f5f4',
+        border: `1px solid ${achievement.unlocked ? style.border : '#e7e5e4'}`,
+        borderRadius: '12px',
+        padding: '0.875rem',
+        opacity: achievement.unlocked ? 1 : 0.6,
+        transition: 'all 0.2s ease',
+        boxShadow: achievement.unlocked ? style.glow : 'none',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+        <div
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            background: achievement.unlocked
+              ? 'rgba(255,255,255,0.6)'
+              : 'var(--gray-200)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1.25rem',
+            flexShrink: 0,
+          }}
+        >
+          {achievement.unlocked ? achievement.icon : '🔒'}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 600,
+              color: style.text,
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              marginBottom: '0.25rem',
+            }}
+          >
+            {t(rarityLabelKeys[achievement.rarity])}
+          </div>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: '0.875rem',
+              color: achievement.unlocked ? '#1c1917' : '#a8a29e',
+              marginBottom: '0.25rem',
+              lineHeight: 1.3,
+            }}
+          >
+            {getLocalizedName()}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#78716c', lineHeight: 1.4 }}>
+            {getLocalizedDescription()}
+          </div>
+          {achievement.unlocked && achievement.unlockedAt && (
+            <div
+              style={{
+                marginTop: '0.5rem',
+                fontSize: '0.6875rem',
+                color: '#a8a29e',
+              }}
+            >
+              {new Date(achievement.unlockedAt).toLocaleDateString()}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

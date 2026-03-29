@@ -9,7 +9,7 @@ import { LearningPathCard } from '@/components/LearningPath';
 import { ShareButton } from '@/components/ShareCard';
 import { AgentChat } from '@/components/AgentChat';
 
-const AchievementsPanel = dynamic(() => import('@/components/Achievements').then(m => ({ default: m.AchievementsPanel })), { ssr: false });
+const AchievementsModal = dynamic(() => import('@/components/Achievements').then(m => ({ default: m.AchievementsModal })), { ssr: false });
 import { useToast } from '@/components/Toast';
 import { useAchievements } from '@/lib/hooks';
 import { studentBff, getToken, type ProfileResponse } from '@/lib/bffClient';
@@ -254,7 +254,7 @@ export default function StudentDashboard() {
           </div>
           <div className="page-actions" style={{ display: 'flex', gap: '0.75rem' }}>
             <button
-              onClick={() => setShowAchievements(!showAchievements)}
+              onClick={() => setShowAchievements(true)}
               style={{
                 padding: '0.625rem 1rem',
                 borderRadius: '10px',
@@ -267,6 +267,15 @@ export default function StudentDashboard() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.5rem',
+                transition: 'all 0.2s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--sage)';
+                e.currentTarget.style.background = 'var(--sage-50)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E7E5E4';
+                e.currentTarget.style.background = 'white';
               }}
             >
               🏆 {totalPoints} {t('achievements.points')}
@@ -301,23 +310,31 @@ export default function StudentDashboard() {
           <div className="stats-grid">
             <div className="stat-card" title={t('dashboard.statDocsTip')}>
               <div className="stat-icon green">📄</div>
-              <div className="stat-value">{documents.length}</div>
-              <div className="stat-label">{t('dashboard.docsUploaded')}</div>
+              <div className="stat-content">
+                <div className="stat-value">{documents.length}</div>
+                <div className="stat-label">{t('dashboard.docsUploaded')}</div>
+              </div>
             </div>
             <div className="stat-card" title={t('dashboard.statVerifiedTip')}>
               <div className="stat-icon green">✓</div>
-              <div className="stat-value">{skills.filter(s => s.status === 'verified').length}</div>
-              <div className="stat-label">{t('dashboard.skillsVerified')}</div>
+              <div className="stat-content">
+                <div className="stat-value">{skills.filter(s => s.status === 'verified').length}</div>
+                <div className="stat-label">{t('dashboard.skillsVerified')}</div>
+              </div>
             </div>
             <div className="stat-card" title={t('dashboard.statProgressTip')}>
               <div className="stat-icon yellow">○</div>
-              <div className="stat-value">{skills.filter(s => s.status === 'pending').length}</div>
-              <div className="stat-label">{t('dashboard.inProgress')}</div>
+              <div className="stat-content">
+                <div className="stat-value">{skills.filter(s => s.status === 'pending').length}</div>
+                <div className="stat-label">{t('dashboard.inProgress')}</div>
+              </div>
             </div>
             <div className="stat-card" title={t('dashboard.statJobsTip')}>
               <div className="stat-icon purple">🎯</div>
-              <div className="stat-value">{jobsMatchedCount}</div>
-              <div className="stat-label">{t('dashboard.jobsMatched')}</div>
+              <div className="stat-content">
+                <div className="stat-value">{jobsMatchedCount}</div>
+                <div className="stat-label">{t('dashboard.jobsMatched')}</div>
+              </div>
             </div>
           </div>
 
@@ -575,11 +592,9 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* 成就面板（可折叠） */}
+          {/* 成就弹窗 */}
           {showAchievements && (
-            <div style={{ marginTop: '1.5rem' }}>
-              <AchievementsPanel />
-            </div>
+            <AchievementsModal onClose={() => setShowAchievements(false)} />
           )}
 
           {/* 学习路径推荐 - 动态版 */}
