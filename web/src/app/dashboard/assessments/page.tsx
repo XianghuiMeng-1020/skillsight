@@ -453,7 +453,7 @@ export default function AssessmentsPage() {
                           }}
                         >
                           <div style={{ fontSize: '0.875rem', color: 'var(--gray-700)' }}>
-                            <strong>{formatAssessmentType(item.assessment_type)}</strong> · {item.skill_id}
+                            <strong>{formatAssessmentType(item.assessment_type)}</strong> · {(item.skill_id || '').replace(/^HKU\.SKILL\./i, '').replace(/\.v\d+$/i, '').replace(/_/g, ' ')}
                           </div>
                           <div style={{ fontSize: '0.8125rem', color: 'var(--gray-500)' }}>
                             {t('common.score')}: {Math.round(item.score || 0)}
@@ -552,7 +552,10 @@ export default function AssessmentsPage() {
                     {activeTab === 'communication' && t('assessmentsList.descComm')}
                     {activeTab === 'programming' && t('assessmentsList.descProg')}
                     {activeTab === 'writing' && t('assessmentsList.descWriting')}
-                    {(activeTab === 'data_analysis' || activeTab === 'problem_solving' || activeTab === 'presentation') && t('assessmentsList.comingSoonHint')}
+                    {activeTab === 'data_analysis' && t('assessmentsList.dataAnalysisDesc')}
+                    {activeTab === 'problem_solving' && t('assessmentsList.problemSolvingDesc')}
+                    {activeTab === 'presentation' && t('assessmentsList.presentationDesc')}
+                    {(activeTab === 'data_analysis' || activeTab === 'problem_solving' || activeTab === 'presentation') && ` (Beta)`}
                   </p>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxWidth: '400px', margin: '0 auto' }}>

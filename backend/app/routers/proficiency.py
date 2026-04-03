@@ -78,6 +78,7 @@ def list_proficiency(
     latest_per_skill: bool = Query(default=True, description="if true, return newest row per skill_id"),
     limit: int = Query(default=200, ge=1, le=1000),
     db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
 ) -> Dict[str, Any]:
     try:
         insp = inspect(engine)

@@ -53,7 +53,7 @@ export function FloatingAssessmentWidget() {
         type="button"
         className={styles.fab}
         onClick={ctx.isOpen ? ctx.closeWidget : handleOpen}
-        aria-label={ctx.isOpen ? 'Close assessment assistant' : 'Open assessment assistant'}
+        aria-label={ctx.isOpen ? t('assistant.closeWidget') : t('assistant.openWidget')}
         aria-expanded={ctx.isOpen}
       >
         <span className={styles.fabIcon}>🤖</span>
@@ -63,7 +63,7 @@ export function FloatingAssessmentWidget() {
       <div
         className={`${styles.panel} ${ctx.isOpen ? styles.panelOpen : ''}`}
         role="dialog"
-        aria-label="Assessment assistant"
+        aria-label={t('assistant.widgetTitle')}
         aria-hidden={!ctx.isOpen}
       >
         <div className={styles.panelInner}>
@@ -78,9 +78,21 @@ export function FloatingAssessmentWidget() {
             <div className={styles.chatWrapper}>
               {!hasContext && (
                 <div className={styles.contextHint}>
-                  <p>{t('agent.noContextHint') as string}</p>
+                  <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🤖</div>
+                  <p style={{ fontWeight: 500, marginBottom: '0.5rem' }}>{t('agent.noContextHint') as string}</p>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '0.75rem' }}>
+                    <Link href="/dashboard/assessments" style={{ padding: '0.375rem 0.75rem', background: 'var(--coral-light, #fecdd3)', borderRadius: '8px', fontSize: '0.8125rem', textDecoration: 'none', color: 'var(--gray-800)' }}>
+                      🎙️ {t('assess.communication')}
+                    </Link>
+                    <Link href="/dashboard/assessments" style={{ padding: '0.375rem 0.75rem', background: 'var(--sage-light, #d4e6da)', borderRadius: '8px', fontSize: '0.8125rem', textDecoration: 'none', color: 'var(--gray-800)' }}>
+                      💻 {t('assess.programming')}
+                    </Link>
+                    <Link href="/dashboard/assessments" style={{ padding: '0.375rem 0.75rem', background: 'var(--peach-light, #fde8c8)', borderRadius: '8px', fontSize: '0.8125rem', textDecoration: 'none', color: 'var(--gray-800)' }}>
+                      ✍️ {t('assess.writing')}
+                    </Link>
+                  </div>
                   <Link href="/dashboard/assessments" className={styles.contextHintLink}>
-                    {t('agent.noContextLink') as string}
+                    {t('agent.noContextLink') as string} →
                   </Link>
                 </div>
               )}

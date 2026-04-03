@@ -11,7 +11,9 @@
     "test:e2e:headed": "playwright test tests/e2e/student_golden_path.spec.ts --headed",
     "test:e2e:workflows": "playwright test tests/e2e/student_workflows_full.spec.ts --reporter=list",
     "test:e2e:workflows:prod": "npm run build && E2E_USE_PROD=1 playwright test tests/e2e/student_workflows_full.spec.ts --reporter=list",
-    "test:e2e:i18n-screenshots": "playwright test tests/e2e/i18n_route_screenshot_regression.spec.ts --reporter=list"
+    "test:e2e:i18n-screenshots": "playwright test tests/e2e/i18n_route_screenshot_regression.spec.ts --reporter=list",
+    "test:unit": "vitest run tests/unit",
+    "test:unit:watch": "vitest watch tests/unit"
   },
   "dependencies": {
     "html-to-image": "^1.11.13",
@@ -23,11 +25,16 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
-    "typescript": "5.9.3"
+    "jsdom": "^29.0.1",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.2"
   }
 }

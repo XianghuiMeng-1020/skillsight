@@ -332,6 +332,8 @@ _main_logger = logging.getLogger("skillsight.main")
 
 @app.exception_handler(Exception)
 async def _global_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, HTTPException):
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
     _main_logger.exception("Unhandled exception on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,

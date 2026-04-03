@@ -22,7 +22,7 @@ export default function Error({
       <div style={{ maxWidth: '420px', textAlign: 'center' }}>
         <h1 style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>{t('error.somethingWrong')}</h1>
         <p style={{ color: 'var(--gray-600)', marginBottom: '1.5rem' }}>
-          We encountered an error. You can try again or return to the dashboard.
+          {t('error.description')}
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button

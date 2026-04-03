@@ -272,6 +272,8 @@ export function useCodeExecutor(): CodeExecutorState & CodeExecutorActions {
       script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
       script.async = true;
       
+      document.head.appendChild(script);
+
       await new Promise<void>((resolve, reject) => {
         script.onload = async () => {
           try {
@@ -290,8 +292,6 @@ export function useCodeExecutor(): CodeExecutorState & CodeExecutorActions {
         };
         script.onerror = reject;
       });
-
-      document.head.appendChild(script);
     } catch (err) {
       logger.error('Failed to load Pyodide', err);
     }
@@ -1075,11 +1075,11 @@ export function useAchievements() {
     });
   }, []);
 
+  const assessmentScoresRef = useRef<Record<string, number>>({});
+
   const checkAssessmentAchievements = useCallback((type: 'communication' | 'programming' | 'writing' | 'data_analysis' | 'problem_solving' | 'presentation', score: number) => {
-    // 首次评估
     updateProgress('first_assessment', 1);
     
-    // 类型相关成就
     if (type === 'communication' && score >= 80) {
       updateProgress('comm_master', score);
     }
@@ -1090,18 +1090,36 @@ export function useAchievements() {
       updateProgress('writer', score);
     }
     
-    // 满分成就
     if (score === 100) {
       updateProgress('perfectionist', 100);
     }
     
-    // 时间相关成就
+    // Track scores for triple_threat (3 types all >= 75)
+    assessmentScoresRef.current[type] = Math.max(assessmentScoresRef.current[type] || 0, score);
+    const tripleTypes = ['communication', 'programming', 'writing'] as const;
+    const tripleCount = tripleTypes.filter(t => (assessmentScoresRef.current[t] || 0) >= 75).length;
+    if (tripleCount > 0) {
+      updateProgress('triple_threat', tripleCount);
+    }
+    
     const hour = new Date().getHours();
     if (hour < 6) {
       updateProgress('early_bird', 1);
     }
-    if (hour >= 0 && hour < 4) {
+    if (hour >= 0 && hour < 5) {
       updateProgress('night_owl', 1);
+    }
+  }, [updateProgress]);
+
+  const checkSkillAchievements = useCallback((skillCount: number) => {
+    if (skillCount > 0) {
+      updateProgress('skill_seeker', Math.min(skillCount, 5));
+    }
+  }, [updateProgress]);
+
+  const checkDocumentAchievements = useCallback((docCount: number) => {
+    if (docCount > 0) {
+      updateProgress('document_master', Math.min(docCount, 10));
     }
   }, [updateProgress]);
 
@@ -1147,6 +1165,8 @@ export function useAchievements() {
     recentUnlock,
     updateProgress,
     checkAssessmentAchievements,
+    checkSkillAchievements,
+    checkDocumentAchievements,
     dismissRecentUnlock,
     unlockShareAchievement,
   };
@@ -1219,7 +1239,7 @@ export function useLearningPath() {
                 'Content-Type': 'application/json',
                 Authorization: `Bearer ${token}`,
               },
-              body: JSON.stringify({ skill_ids: gaps.map(g => g.skill).length > 0 ? undefined : undefined }),
+              body: JSON.stringify({ skill_ids: gaps.map(g => g.skill) }),
             }
           );
           if (res.ok) {

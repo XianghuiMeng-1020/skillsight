@@ -40,7 +40,7 @@ export default function Home() {
     setMounted(true);
     try {
       const user = localStorage.getItem('user');
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('skillsight_token');
       if (user && token) {
         try {
           const userData = JSON.parse(user);
@@ -51,7 +51,7 @@ export default function Home() {
         }
       } else {
         localStorage.removeItem('user');
-        localStorage.removeItem('auth_token');
+        localStorage.removeItem('skillsight_token');
         router.push('/login');
       }
     } catch (e) {

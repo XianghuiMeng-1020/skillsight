@@ -599,7 +599,7 @@ export const studentBff = {
   getCareerSummary: () =>
     bffRequest<CareerSummaryResponse>('/bff/student/career-summary'),
 
-  getJobMatches: async (): Promise<{ count: number; items: Array<{ role_id: string; role_title: string; readiness: number }> }> => {
+  getJobMatches: async (): Promise<{ count: number; items: Array<{ role_id: string; role_title: string; readiness: number; gaps: string[]; skills_met: number; skills_total: number }> }> => {
     const [rolesData, docsData] = await Promise.all([
       bffRequest<{ items: unknown[] }>('/bff/student/roles?limit=20'),
       bffRequest<{ items: Array<{ doc_id?: string }> }>('/bff/student/documents?limit=1').catch(() => ({ items: [] })),
@@ -609,7 +609,7 @@ export const studentBff = {
     if (!latestDocId || !roles.length) return { count: 0, items: [] };
 
     const roleIds = roles.map(r => r.role_id ?? '').filter(Boolean);
-    const batch = await bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number }> }>(
+    const batch = await bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[] }> }>(
       '/bff/student/roles/alignment/batch',
       { method: 'POST', body: { role_ids: roleIds, doc_id: latestDocId } }
     );
@@ -618,9 +618,9 @@ export const studentBff = {
       .map(r => {
         const id = r.role_id ?? '';
         const b = byId.get(id);
-        return b ? { role_id: id, role_title: b.role_title || (r.role_title ?? ''), readiness: b.readiness } : null;
+        return b ? { role_id: id, role_title: b.role_title || (r.role_title ?? ''), readiness: b.readiness, gaps: b.gaps ?? [], skills_met: b.skills_met ?? 0, skills_total: b.skills_total ?? 0 } : null;
       })
-      .filter((x): x is { role_id: string; role_title: string; readiness: number } => x !== null && x.readiness >= 60);
+      .filter((x): x is { role_id: string; role_title: string; readiness: number; gaps: string[]; skills_met: number; skills_total: number } => x !== null && x.readiness >= 60);
     return { count: matched.length, items: matched };
   },
 

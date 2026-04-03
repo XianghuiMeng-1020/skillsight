@@ -15,6 +15,9 @@ web/.next/
 web/out/
 web/.env.local
 
+# Root env
+.env
+
 # OS
 .DS_Store
 Thumbs.db

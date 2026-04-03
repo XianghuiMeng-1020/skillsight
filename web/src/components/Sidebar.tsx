@@ -65,6 +65,7 @@ const studentNav: NavItem[] = [
   { icon: '🎯', labelKey: 'dashboard.jobs', hintKey: 'nav.hint.jobs', href: '/dashboard/jobs' },
   { icon: '📝', labelKey: 'dashboard.assessments', hintKey: 'nav.hint.assessments', href: '/dashboard/assessments' },
   { icon: '📄', labelKey: 'nav.resume', hintKey: 'nav.hint.resume', href: '/dashboard/resume' },
+  { icon: '📚', labelKey: 'learning.path', hintKey: 'nav.hint.skills', href: '/dashboard/learning' },
   { icon: '📜', labelKey: 'changelog.navLabel', hintKey: 'nav.hint.changeLog', href: '/dashboard/change-log' },
 ];
 

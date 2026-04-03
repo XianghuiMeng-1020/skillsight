@@ -37,7 +37,8 @@ export function ShareButton({ userName, skills, overallScore, onShareSuccess }: 
   };
 
   const handleCopyLink = async () => {
-    const shareUrl = window.location.origin + '/dashboard';
+    const userId = (() => { try { const u = localStorage.getItem('user'); return u ? JSON.parse(u).id || JSON.parse(u).subject_id || '' : ''; } catch { return ''; } })();
+    const shareUrl = userId ? `${window.location.origin}/profile/${encodeURIComponent(userId)}` : `${window.location.origin}/dashboard`;
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);

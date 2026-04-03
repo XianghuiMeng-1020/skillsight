@@ -112,7 +112,53 @@ export default function JobsPage() {
   const handleSelectRole = async (role: Role) => {
     setSelectedRole(role);
     setRecommendedCourses([]);
-    if (role.gapDetails.length > 0) {
+
+    // Lazy-fetch real alignment data if not yet loaded
+    if (role.skillAlignment.length === 0) {
+      try {
+        const docsData = await studentBff.getDocuments(1).catch(() => ({ items: [] as Array<{ doc_id?: string }> }));
+        const latestDocId = ((docsData as { items?: Array<{ doc_id?: string }> }).items || [])[0]?.doc_id;
+        const alignment = await studentBff.getRoleAlignment(role.role_id, latestDocId);
+        const items = (alignment.items || []) as Array<{ skill_id?: string; skill_name?: string; status?: string; achieved_level?: number; target_level?: number }>;
+
+        const gapDetails: GapSkill[] = items
+          .filter(s => s.status !== 'meet')
+          .map(s => ({
+            skill_id: s.skill_id || '',
+            skill_name: s.skill_name || s.skill_id || '',
+            status: s.status || 'missing_proof',
+            achieved_level: s.achieved_level ?? 0,
+            target_level: s.target_level ?? 3,
+          }));
+
+        const skillAlignment: SkillAlignment[] = items.map(s => ({
+          skill_id: s.skill_id || '',
+          skill_name: s.skill_name || s.skill_id || '',
+          required_level: s.target_level ?? 3,
+          current_level: s.achieved_level ?? 0,
+          status: s.status || 'missing_proof',
+        }));
+
+        const updatedRole: Role = { ...role, gapDetails, skillAlignment };
+        setSelectedRole(updatedRole);
+        setRoles(prev => prev.map(r => r.role_id === role.role_id ? updatedRole : r));
+
+        if (gapDetails.length > 0) {
+          setCoursesLoading(true);
+          try {
+            const gapSkillIds = gapDetails.map((g) => g.skill_id).filter(Boolean);
+            const res = await studentBff.getCourseRecommendations(role.role_id, gapSkillIds);
+            setRecommendedCourses((res.items || []) as RecommendedCourse[]);
+          } catch {
+            setRecommendedCourses([]);
+          } finally {
+            setCoursesLoading(false);
+          }
+        }
+      } catch {
+        // alignment fetch failed; modal still shows readiness summary
+      }
+    } else if (role.gapDetails.length > 0) {
       setCoursesLoading(true);
       try {
         const gapSkillIds = role.gapDetails.map((g) => g.skill_id);
@@ -168,7 +214,7 @@ export default function JobsPage() {
                   <p style={{ fontSize: '0.875rem' }}>{t('jobs.uploadFirst')}</p>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
                   {roles.slice(0, 3).sort((a, b) => b.readiness - a.readiness).map((role, i) => (
                     <div 
                       key={role.role_id}
@@ -222,6 +268,7 @@ export default function JobsPage() {
                   {t('jobs.loadingRoles')}
                 </div>
               ) : (
+                <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 <table className="table">
                   <thead>
                     <tr>
@@ -309,6 +356,7 @@ export default function JobsPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
           </div>

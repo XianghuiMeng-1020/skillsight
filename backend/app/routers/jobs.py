@@ -23,6 +23,8 @@ def _now_utc():
 
 @router.get("")
 def list_jobs(db: Session = Depends(get_db), limit: int = 50, ident: Identity = Depends(require_auth)):
+    if ident.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin can list all jobs")
     try:
         rows = db.execute(
             text("SELECT * FROM jobs ORDER BY created_at DESC LIMIT :limit"),
@@ -59,7 +61,10 @@ def get_job(job_id: str, db: Session = Depends(get_db), ident: Identity = Depend
 def retry_job(job_id: str, db: Session = Depends(get_db), ident: Identity = Depends(require_auth)):
     """
     Retry a failed job by resetting its status to 'pending' and enqueuing it.
+    Only admin can retry jobs.
     """
+    if ident.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin can retry jobs")
     try:
         # Get job details
         row = db.execute(
@@ -106,7 +111,10 @@ def enqueue_doc_job(doc_id: str, db: Session = Depends(get_db), ident: Identity 
     """
     Create and enqueue a new job for a document.
     Useful for manually triggering embedding generation.
+    Only admin can enqueue jobs.
     """
+    if ident.role != "admin":
+        raise HTTPException(status_code=403, detail="Only admin can enqueue jobs")
     try:
         # Verify document exists
         doc = db.execute(

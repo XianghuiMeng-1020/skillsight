@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from fastapi import HTTPException
 
-from backend.app.security import Identity, get_identity, issue_token, _is_dev_login_allowed
+from backend.app.security import Identity, get_identity, require_auth, issue_token, _is_dev_login_allowed
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -29,11 +29,11 @@ def dev_login(payload: DevLoginReq) -> Dict[str, Any]:
 
 
 @router.get("/whoami")
-def whoami(ident: Identity = Depends(get_identity)) -> Dict[str, Any]:
+def whoami(ident: Identity = Depends(require_auth)) -> Dict[str, Any]:
     return {"subject_id": ident.subject_id, "role": ident.role, "source": ident.source}
 
 
 @router.get("/me")
-def me(ident: Identity = Depends(get_identity)) -> Dict[str, Any]:
+def me(ident: Identity = Depends(require_auth)) -> Dict[str, Any]:
     """Alias for /auth/whoami for API consistency."""
     return {"subject_id": ident.subject_id, "role": ident.role, "source": ident.source}

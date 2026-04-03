@@ -45,9 +45,11 @@ def list_assessments(
         if doc_id:
             sql = text(f"SELECT {', '.join(want)} FROM skill_assessments WHERE doc_id = :doc_id ORDER BY created_at DESC LIMIT :limit")
             rows = db.execute(sql, {"doc_id": doc_id, "limit": limit}).mappings().all()
-        else:
+        elif ident.role == "admin":
             sql = text(f"SELECT {', '.join(want)} FROM skill_assessments ORDER BY created_at DESC LIMIT :limit")
             rows = db.execute(sql, {"limit": limit}).mappings().all()
+        else:
+            raise HTTPException(status_code=400, detail="doc_id is required for non-admin users")
         
         items = []
         for r in rows:
