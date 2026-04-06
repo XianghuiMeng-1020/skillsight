@@ -2,6 +2,7 @@
 
 import { useAchievements, Achievement } from '@/lib/hooks';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
+import { fmt2 } from '@/lib/formatNumber';
 
 const rarityStyleMap: Record<Achievement['rarity'], { bg: string; border: string; text: string; glow: string }> = {
   common: {
@@ -93,7 +94,7 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
             {getLocalizedName()}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#a8a29e' }}>
-            {achievement.unlocked ? t('achievements.unlocked') : `${Math.round(progress)}%`}
+            {achievement.unlocked ? t('achievements.unlocked') : `${fmt2(Math.round(progress))}%`}
           </div>
         </div>
         {achievement.unlocked && (
@@ -256,7 +257,7 @@ export function AchievementsPanel() {
         </h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <span style={{ fontSize: '0.875rem', color: '#78716c' }}>
-            {unlockedCount} / {achievements.length} {t('achievements.unlocked')}
+            {fmt2(unlockedCount)} / {fmt2(achievements.length)} {t('achievements.unlocked')}
           </span>
           <span
             style={{
@@ -268,7 +269,7 @@ export function AchievementsPanel() {
               fontSize: '0.875rem',
             }}
           >
-            {totalPoints} {t('achievements.points')}
+            {fmt2(totalPoints)} {t('achievements.points')}
           </span>
         </div>
       </div>
@@ -503,7 +504,7 @@ export function AchievementsModal({ onClose }: AchievementsModalProps) {
                 {t('achievements.system')}
               </h3>
               <p style={{ fontSize: '0.75rem', color: '#a8a29e', margin: '0.125rem 0 0 0' }}>
-                {unlockedCount} / {achievements.length} {t('achievements.unlocked')}
+                {fmt2(unlockedCount)} / {fmt2(achievements.length)} {t('achievements.unlocked')}
               </p>
             </div>
           </div>
@@ -519,7 +520,7 @@ export function AchievementsModal({ onClose }: AchievementsModalProps) {
                 boxShadow: '0 2px 8px rgba(251, 191, 36, 0.2)',
               }}
             >
-              {totalPoints} {t('achievements.points')}
+              {fmt2(totalPoints)} {t('achievements.points')}
             </span>
             <button
               onClick={onClose}

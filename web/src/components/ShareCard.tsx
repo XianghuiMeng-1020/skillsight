@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from 'react';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
 import { logger } from '@/lib/logger';
 import { studentBff } from '@/lib/bffClient';
+import { fmt2 } from '@/lib/formatNumber';
 
 interface ShareButtonProps {
   userName: string;
@@ -55,7 +56,7 @@ export function ShareButton({ userName, skills, overallScore, onShareSuccess }: 
       try {
         await navigator.share({
           title: `${userName}${t('share.profileOf')}`,
-          text: t('share.nativeShareText').replace('{{name}}', userName).replace('{{score}}', String(overallScore)),
+          text: t('share.nativeShareText').replace('{{name}}', userName).replace('{{score}}', fmt2(overallScore)),
           url: window.location.origin + '/dashboard',
         });
         // Record share bonus after successful native share
@@ -254,7 +255,7 @@ function ShareModal({
               <div style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.25rem' }}>
                 {t('share.overallScore')}
               </div>
-              <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>{overallScore}%</div>
+              <div style={{ fontSize: '2.5rem', fontWeight: 800 }}>{fmt2(overallScore)}%</div>
             </div>
 
             {/* 技能列表 */}

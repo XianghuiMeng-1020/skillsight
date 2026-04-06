@@ -99,6 +99,9 @@ function ResumePageContent() {
       <main className={styles.main} style={sidebarOffset}>
         <header className={styles.header}>
           <h1 className={styles.pageTitle}>{t('resume.pageTitle')}</h1>
+          <p className={styles.disclaimer} role="note">
+            {t('resume.disclaimer')}
+          </p>
           <nav className={styles.stepNav} role="list" aria-label="Steps">
             {STEPS.map((s, i) => {
               const stepNum = i + 1;

@@ -8,6 +8,7 @@ import { useToast } from '@/components/Toast';
 import { getToken, studentBff } from '@/lib/bffClient';
 import { useAssessmentWidget } from '@/lib/AssessmentWidgetContext';
 import { useAudioRecorder, useWhisperTranscriber, useAchievements } from '@/lib/hooks';
+import { fmt2 } from '@/lib/formatNumber';
 
 type AssessmentType =
   | 'communication'
@@ -401,7 +402,7 @@ export default function AssessmentsPage() {
                     style={{ ['--score' as string]: (getEvaluation().overall_score as number) ?? (getEvaluation().score as number) ?? 0 }}
                   >
                     <div className="score-circle-inner">
-                      <div className="score-value">{Math.round((getEvaluation().overall_score as number) || (getEvaluation().score as number) || 0)}</div>
+                      <div className="score-value">{fmt2((getEvaluation().overall_score as number) || (getEvaluation().score as number) || 0)}</div>
                       <div className="score-label">{t('common.score')}</div>
                     </div>
                   </div>
@@ -456,7 +457,7 @@ export default function AssessmentsPage() {
                             <strong>{formatAssessmentType(item.assessment_type)}</strong> · {(item.skill_id || '').replace(/^HKU\.SKILL\./i, '').replace(/\.v\d+$/i, '').replace(/_/g, ' ')}
                           </div>
                           <div style={{ fontSize: '0.8125rem', color: 'var(--gray-500)' }}>
-                            {t('common.score')}: {Math.round(item.score || 0)}
+                            {t('common.score')}: {fmt2(item.score || 0)}
                           </div>
                         </div>
                       ))}

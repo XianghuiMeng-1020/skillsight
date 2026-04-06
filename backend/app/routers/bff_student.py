@@ -1070,7 +1070,7 @@ async def bff_role_alignment_batch(
             weighted_score += score * weight
             total_weight += weight
 
-        readiness = round((weighted_score / total_weight) * 100) if total_weight > 0 else 0
+        readiness = round((weighted_score / total_weight) * 100, 2) if total_weight > 0 else 0
         items.append({
             "role_id": rid,
             "role_title": role_titles.get(rid, ""),

@@ -656,7 +656,8 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
   return (
     <>
       <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step5Title')}</h2>
-      <p style={{ color: 'var(--gray-600)', marginBottom: '1.25rem' }}>{t('resume.step5Desc')}</p>
+      <p style={{ color: 'var(--gray-600)', marginBottom: '0.35rem' }}>{t('resume.step5Desc')}</p>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--gray-600)', marginBottom: '1.25rem' }}>{t('resume.atsFullName')}</p>
 
       <div className={styles.templateGrid}>
         {displayTemplates.map((tmpl) => {

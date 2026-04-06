@@ -13,6 +13,7 @@ import {
 import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
 import { studentBff } from '@/lib/bffClient';
+import { fmt2 } from '@/lib/formatNumber';
 import styles from './resume.module.css';
 
 const DIMENSION_KEYS = ['impact', 'relevance', 'structure', 'language', 'skills_presentation', 'ats'] as const;
@@ -23,6 +24,15 @@ const DIMENSION_LABEL_KEYS: Record<string, string> = {
   language: 'resume.dimensionLanguage',
   skills_presentation: 'resume.dimensionSkills',
   ats: 'resume.dimensionAts',
+};
+
+const DIMENSION_DESC_KEYS: Record<string, string> = {
+  impact: 'resume.dimensionDescImpact',
+  relevance: 'resume.dimensionDescRelevance',
+  structure: 'resume.dimensionDescStructure',
+  language: 'resume.dimensionDescLanguage',
+  skills_presentation: 'resume.dimensionDescSkills',
+  ats: 'resume.dimensionDescAts',
 };
 
 interface RubricScoreCardProps {
@@ -97,7 +107,19 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
   return (
     <>
       <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step2Title')}</h2>
-      <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>{t('resume.step2Desc')}</p>
+      <p style={{ color: 'var(--gray-600)', marginBottom: '0.5rem' }}>{t('resume.step2Desc')}</p>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>{t('resume.atsFullName')}</p>
+      <div style={{ marginBottom: '1.25rem', padding: '0.75rem 1rem', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)', background: 'var(--white)' }}>
+        <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.78rem', lineHeight: 1.5, color: 'var(--gray-600)' }}>
+          {DIMENSION_KEYS.map((key) => (
+            <li key={key} style={{ marginBottom: '0.35rem' }}>
+              <strong>{t(DIMENSION_LABEL_KEYS[key])}</strong>
+              {' — '}
+              {t(DIMENSION_DESC_KEYS[key])}
+            </li>
+          ))}
+        </ul>
+      </div>
 
       <div className={styles.scoreRing}>
         <ResponsiveContainer width="100%" height={250}>
@@ -119,7 +141,7 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
               content={({ payload }) =>
                 payload?.[0] ? (
                   <span>
-                    {t(DIMENSION_LABEL_KEYS[payload[0].payload.dimension] || payload[0].payload.dimension)}: {payload[0].value}
+                    {t(DIMENSION_LABEL_KEYS[payload[0].payload.dimension] || payload[0].payload.dimension)}: {fmt2(Number(payload[0].value))}
                   </span>
                 ) : null
               }
@@ -128,7 +150,7 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
         </ResponsiveContainer>
       </div>
       <p className={styles.scoreRingValue} style={{ color: ringColor, marginBottom: '1.5rem' }}>
-        {t('resume.totalScore')}: {Math.round(totalNum)}/100
+        {t('resume.totalScore')}: {fmt2(totalNum)}/100
       </p>
 
       <div>
@@ -141,12 +163,12 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
             <div key={key} className={styles.dimensionCard}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
                 <span style={{ fontWeight: 600 }}>{t(DIMENSION_LABEL_KEYS[key] || key)}</span>
-                <span style={{ fontWeight: 600 }}>{score}</span>
+                <span style={{ fontWeight: 600 }}>{fmt2(score)}</span>
               </div>
               <div className={styles.dimensionBar}>
                 <div
                   className={styles.dimensionBarFill}
-                  style={{ width: `${score}%`, background: fillColor }}
+                  style={{ width: `${Math.min(100, Math.max(0, score))}%`, background: fillColor }}
                 />
               </div>
               {comment && <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--gray-600)' }}>{comment}</p>}

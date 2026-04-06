@@ -190,7 +190,7 @@ def _compute_weighted_total(scores: Dict[str, Any], rubric: Dict[str, Any]) -> f
         if isinstance(data, dict) and "score" in data:
             w = weights.get(dim_id, 0)
             total += w * float(data["score"])
-    return round(total, 1)
+    return round(total, 2)
 
 
 def score_resume(

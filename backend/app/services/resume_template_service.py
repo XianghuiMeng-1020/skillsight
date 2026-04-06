@@ -107,8 +107,46 @@ def _looks_like_contact(line: str) -> bool:
     return False
 
 
+def _normalize_resume_text(text: str) -> str:
+    """Improve structure from mixed PDF/DOCX extraction: split very long lines, cap blank runs.
+
+    Limitations (future work if export quality must match original layout):
+    - Chunk order follows DB ``idx``/``created_at``; complex PDFs (multi-column, scanned) may extract out of reading order.
+    - Image-only PDFs need OCR; not handled here.
+    - Suggestion application uses substring replace; multiple similar spans can reduce match reliability across mixed uploads.
+    Consider: MIME-specific parsers, reading-order heuristics, OCR pipeline, or structured DOCX round-trips before ``parse_resume``.
+    """
+    if not text or not text.strip():
+        return text
+    out_lines: List[str] = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s:
+            out_lines.append("")
+            continue
+        if len(s) > 400:
+            parts = re.split(r"(?<=[.!?])\s+", s)
+            for p in parts:
+                if p.strip():
+                    out_lines.append(p.strip())
+        else:
+            out_lines.append(s)
+    collapsed: List[str] = []
+    blank_run = 0
+    for line in out_lines:
+        if not line.strip():
+            blank_run += 1
+            if blank_run <= 2:
+                collapsed.append("")
+        else:
+            blank_run = 0
+            collapsed.append(line)
+    return "\n".join(collapsed).strip()
+
+
 def parse_resume(text: str) -> ParsedResume:
     """Split resume plain-text into name, contact lines, and titled sections."""
+    text = _normalize_resume_text(text)
     lines = text.splitlines()
     result = ParsedResume()
 

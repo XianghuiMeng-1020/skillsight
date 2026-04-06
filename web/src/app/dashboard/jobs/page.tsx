@@ -4,6 +4,12 @@ import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { studentBff, getToken } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
+import { fmt2 } from '@/lib/formatNumber';
+
+/** Clamp readiness to [0,100] for progress bar width (API may return decimals). */
+function rwPct(n: number): number {
+  return Math.min(100, Math.max(0, n));
+}
 
 interface GapSkill {
   skill_id: string;
@@ -236,18 +242,18 @@ export default function JobsPage() {
                       <h4 style={{ marginBottom: '0.5rem' }}>{role.role_title}</h4>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
                         <span style={{ fontSize: '1.5rem', fontWeight: 700, color: `var(--${getReadinessColor(role.readiness)})` }}>
-                          {role.readiness}%
+                          {fmt2(role.readiness)}%
                         </span>
                         <span style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>{t('jobs.ready')}</span>
                       </div>
                       <div className="progress" style={{ marginBottom: '0.5rem' }}>
                         <div 
                           className={`progress-bar ${getReadinessColor(role.readiness)}`}
-                          style={{ width: `${role.readiness}%` }}
+                          style={{ width: `${rwPct(role.readiness)}%` }}
                         ></div>
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-                        {role.skills_met}/{role.skills_total} {t('jobs.skillsMet')}
+                        {fmt2(role.skills_met)}/{fmt2(role.skills_total)} {t('jobs.skillsMet')}
                       </div>
                     </div>
                   ))}
@@ -289,13 +295,13 @@ export default function JobsPage() {
                             <div className="progress" style={{ width: '100px' }}>
                               <div 
                                 className={`progress-bar ${getReadinessColor(role.readiness)}`}
-                                style={{ width: `${role.readiness}%` }}
+                                style={{ width: `${rwPct(role.readiness)}%` }}
                               ></div>
                             </div>
-                            <span style={{ fontWeight: 600 }}>{role.readiness}%</span>
+                            <span style={{ fontWeight: 600 }}>{fmt2(role.readiness)}%</span>
                           </div>
                         </td>
-                        <td>{role.skills_met}/{role.skills_total}</td>
+                        <td>{fmt2(role.skills_met)}/{fmt2(role.skills_total)}</td>
                         <td>
                           <span className={`badge badge-${getReadinessColor(role.readiness)}`}>
                             {getReadinessLabel(role.readiness)}
@@ -418,13 +424,13 @@ export default function JobsPage() {
                   )}
                   <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                     <div style={{ fontSize: '3rem', fontWeight: 700, color: `var(--${getReadinessColor(selectedRole.readiness)})` }}>
-                      {selectedRole.readiness}%
+                      {fmt2(selectedRole.readiness)}%
                     </div>
                     <div style={{ color: 'var(--gray-500)' }}>{t('jobs.readyForRole')}</div>
                     <div className="progress" style={{ marginTop: '1rem', height: '12px' }}>
                       <div 
                         className={`progress-bar ${getReadinessColor(selectedRole.readiness)}`}
-                        style={{ width: `${selectedRole.readiness}%` }}
+                        style={{ width: `${rwPct(selectedRole.readiness)}%` }}
                       ></div>
                     </div>
                   </div>
@@ -434,13 +440,13 @@ export default function JobsPage() {
                     <div style={{ display: 'flex', gap: '1rem', marginBottom: '0.5rem' }}>
                       <div style={{ flex: 1, padding: '1rem', background: 'var(--success-light)', borderRadius: 'var(--radius)' }}>
                         <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--success)' }}>
-                          {selectedRole.skills_met}
+                          {fmt2(selectedRole.skills_met)}
                         </div>
                         <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)' }}>{t('jobs.skillsMetLabel')}</div>
                       </div>
                       <div style={{ flex: 1, padding: '1rem', background: 'var(--error-light)', borderRadius: 'var(--radius)' }}>
                         <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--error)' }}>
-                          {selectedRole.skills_total - selectedRole.skills_met}
+                          {fmt2(selectedRole.skills_total - selectedRole.skills_met)}
                         </div>
                         <div style={{ fontSize: '0.875rem', color: 'var(--gray-600)' }}>{t('jobs.skillsNeeded')}</div>
                       </div>

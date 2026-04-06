@@ -14,6 +14,7 @@ import {
 import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
 import { studentBff } from '@/lib/bffClient';
+import { fmt2 } from '@/lib/formatNumber';
 import styles from './resume.module.css';
 
 const DIMENSION_KEYS = ['impact', 'relevance', 'structure', 'language', 'skills_presentation', 'ats'] as const;
@@ -98,13 +99,14 @@ export function ScoreComparison({
     labelKey: DIMENSION_LABEL_KEYS[key] || key,
   }));
 
-  const delta = totalFinal - totalInitial;
+  const delta = Math.round((totalFinal - totalInitial) * 100) / 100;
   const improved = delta > 0;
 
   return (
     <>
       <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step4Title')}</h2>
-      <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>{t('resume.step4Desc')}</p>
+      <p style={{ color: 'var(--gray-600)', marginBottom: '0.5rem' }}>{t('resume.step4Desc')}</p>
+      <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginBottom: '1rem', lineHeight: 1.45 }}>{t('resume.step4RadarLineLegend')}</p>
 
       <div className={styles.scoreRing} style={{ marginBottom: '1rem', height: 320 }}>
         <ResponsiveContainer width="100%" height={320}>
@@ -148,11 +150,11 @@ export function ScoreComparison({
                   }}>
                     <strong>{t(DIMENSION_LABEL_KEYS[payload[0].payload.dimension] || payload[0].payload.dimension)}</strong>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
-                      <span style={{ color: '#9ca3af' }}>{t('resume.beforeScore')}: {payload[0].payload.initial}</span>
-                      <span style={{ color: '#6366f1', fontWeight: 600 }}>{t('resume.afterScore')}: {payload[0].payload.final}</span>
+                      <span style={{ color: '#9ca3af' }}>{t('resume.beforeScore')}: {fmt2(Number(payload[0].payload.initial))}</span>
+                      <span style={{ color: '#6366f1', fontWeight: 600 }}>{t('resume.afterScore')}: {fmt2(Number(payload[0].payload.final))}</span>
                       {payload[0].payload.final - payload[0].payload.initial !== 0 && (
                         <span style={{ color: payload[0].payload.final > payload[0].payload.initial ? 'var(--success)' : 'var(--error)', fontWeight: 600 }}>
-                          {payload[0].payload.final > payload[0].payload.initial ? '+' : ''}{payload[0].payload.final - payload[0].payload.initial}
+                          {payload[0].payload.final > payload[0].payload.initial ? '+' : ''}{fmt2(Math.round((payload[0].payload.final - payload[0].payload.initial) * 100) / 100)}
                         </span>
                       )}
                     </div>
@@ -171,21 +173,21 @@ export function ScoreComparison({
       <div className={styles.comparisonGrid} style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
         <div style={{ textAlign: 'center', padding: '1rem', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)' }}>
           <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--gray-600)' }}>{t('resume.beforeScore')}</p>
-          <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>{Math.round(totalInitial)}</p>
+          <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>{fmt2(totalInitial)}</p>
         </div>
         <div style={{ textAlign: 'center', padding: '1rem', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)' }}>
           <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--gray-600)' }}>{t('resume.afterScore')}</p>
           <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, color: improved ? 'var(--success)' : 'var(--gray-700)' }}>
-            {Math.round(totalFinal)}
+            {fmt2(totalFinal)}
           </p>
         </div>
       </div>
 
-      {delta !== 0 && (
+      {Math.abs(delta) > 0.005 && (
         <p style={{ color: improved ? 'var(--success)' : 'var(--gray-600)', fontWeight: 600, marginBottom: '1rem' }}>
           {improved
-            ? (t('resume.improvement')?.replace('{n}', String(delta)) ?? `+${delta} points`)
-            : (t('resume.scoreChange') ?? `Score change: ${delta} points`)}
+            ? (t('resume.improvement')?.replace('{n}', fmt2(delta)) ?? `+${fmt2(delta)} points`)
+            : (t('resume.scoreChange') ?? `Score change: ${fmt2(delta)} points`)}
         </p>
       )}
 
@@ -199,20 +201,20 @@ export function ScoreComparison({
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                 <span style={{ fontWeight: 600 }}>{dimLabel}</span>
                 <span>
-                  {init} → <strong style={{ color: fin >= init ? 'var(--success)' : 'var(--gray-700)' }}>{fin}</strong>
+                  {fmt2(init)} → <strong style={{ color: fin >= init ? 'var(--success)' : 'var(--gray-700)' }}>{fmt2(fin)}</strong>
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }} role="group" aria-label={`${dimLabel}: ${t('resume.beforeScore')} ${init}, ${t('resume.afterScore')} ${fin}`}>
                 <div className={styles.dimensionBar} style={{ flex: 1 }} role="progressbar" aria-valuenow={init} aria-valuemin={0} aria-valuemax={100} aria-label={`${dimLabel} ${t('resume.beforeScore')}`}>
                   <div
                     className={styles.dimensionBarFill}
-                    style={{ width: `${init}%`, background: 'var(--gray-300)' }}
+                    style={{ width: `${Math.min(100, Math.max(0, init))}%`, background: 'var(--gray-300)' }}
                   />
                 </div>
                 <div className={styles.dimensionBar} style={{ flex: 1 }} role="progressbar" aria-valuenow={fin} aria-valuemin={0} aria-valuemax={100} aria-label={`${dimLabel} ${t('resume.afterScore')}`}>
                   <div
                     className={styles.dimensionBarFill}
-                    style={{ width: `${fin}%`, background: 'var(--primary)' }}
+                    style={{ width: `${Math.min(100, Math.max(0, fin))}%`, background: 'var(--primary)' }}
                   />
                 </div>
               </div>

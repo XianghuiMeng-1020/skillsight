@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
+import { fmt2 } from '@/lib/formatNumber';
 
 interface Skill {
   skill_id: string;
@@ -18,6 +19,10 @@ interface JobMatch {
   gaps: string[];
   skills_met: number;
   skills_total: number;
+}
+
+function readinessNum(r: number): number {
+  return typeof r === 'number' && !Number.isNaN(r) ? r : 0;
 }
 
 interface SkillJobGraphProps {
@@ -155,6 +160,21 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
           {t('dashboard.hoverToConnect')}
         </span>
       </div>
+      <div style={{ padding: '0 1.5rem', marginTop: '-0.25rem', marginBottom: '0.5rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', fontSize: '0.75rem', color: 'var(--gray-600)' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ width: 22, height: 0, borderTop: '2px dashed var(--peach, #F9CE9C)' }} aria-hidden />
+            {t('dashboard.graphLegendGap')}
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+            <span style={{ width: 22, height: 0, borderTop: '2px solid var(--sage, #98B8A8)' }} aria-hidden />
+            {t('dashboard.graphLegendMet')}
+          </span>
+        </div>
+        <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', lineHeight: 1.45, color: 'var(--gray-500)' }}>
+          {t('dashboard.graphConnectionHelp')}
+        </p>
+      </div>
       <div className="card-content" style={{ padding: '1rem 1.5rem 1.5rem' }}>
         <div
           ref={containerRef}
@@ -237,8 +257,8 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
                       }}
                     />
                   </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', minWidth: '32px', textAlign: 'right' }}>
-                    {pct}%
+                  <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', minWidth: '40px', textAlign: 'right' }}>
+                    {fmt2(pct)}%
                   </span>
                 </div>
               );
@@ -253,6 +273,7 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative', zIndex: 2 }}>
             {sortedJobs.length > 0 ? sortedJobs.map((job) => {
               const isHovered = hoveredJob === job.role_id;
+              const rNum = readinessNum(job.readiness);
               return (
                 <div
                   key={job.role_id}
@@ -289,14 +310,14 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
                     style={{
                       fontSize: '0.75rem',
                       fontWeight: 600,
-                      color: getReadinessColor(job.readiness),
-                      background: `${getReadinessColor(job.readiness)}18`,
+                      color: getReadinessColor(rNum),
+                      background: `${getReadinessColor(rNum)}18`,
                       padding: '0.2rem 0.5rem',
                       borderRadius: '6px',
                       flexShrink: 0,
                     }}
                   >
-                    {job.readiness}%
+                    {fmt2(rNum)}%
                   </span>
                 </div>
               );

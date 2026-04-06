@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { fmt2 } from '@/lib/formatNumber';
 
 export const SkillSightLogo = ({ size = 28 }: { size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -62,7 +63,7 @@ export const ScoreCircle = ({ score, label, color = '#E18182' }: { score: number
           justifyContent: 'center',
           flexDirection: 'column'
         }}>
-          <span style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1C1917' }}>{score}</span>
+          <span style={{ fontSize: '1.75rem', fontWeight: 700, color: '#1C1917' }}>{fmt2(animatedScore)}</span>
         </div>
       </div>
       <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
@@ -78,11 +79,11 @@ export const ScoreBar = ({ label, score, icon, color }: { label: string; score: 
       <span style={{ fontSize: '0.875rem', color: '#44403C', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <span>{icon}</span> {label}
       </span>
-      <span style={{ fontSize: '0.875rem', fontWeight: 600, color }}>{score}/100</span>
+      <span style={{ fontSize: '0.875rem', fontWeight: 600, color }}>{fmt2(score)}/100</span>
     </div>
     <div style={{ height: '8px', background: '#E7E5E4', borderRadius: '9999px', overflow: 'hidden' }}>
       <div style={{
-        width: `${score}%`,
+        width: `${Math.min(100, Math.max(0, score))}%`,
         height: '100%',
         background: `linear-gradient(90deg, ${color}80, ${color})`,
         borderRadius: '9999px',

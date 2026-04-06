@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useLanguage } from '@/lib/contexts';
+import { fmt2 } from '@/lib/formatNumber';
 
 interface AssessmentTask {
   docId: string;
@@ -370,7 +371,7 @@ export function SkillAssessmentProgress({ tasks, onComplete, onClose }: SkillAss
               {t('assessmentProgress.overallProgress')}
             </span>
             <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#854d0e' }}>
-              {Math.round(displayProgress)}%
+              {fmt2(displayProgress)}%
             </span>
           </div>
           <div
@@ -385,7 +386,7 @@ export function SkillAssessmentProgress({ tasks, onComplete, onClose }: SkillAss
             <div
               style={{
                 height: '100%',
-                width: `${displayProgress}%`,
+                width: `${Math.min(100, Math.max(0, displayProgress))}%`,
                 background: 'linear-gradient(90deg, #fbbf24, #f59e0b)',
                 borderRadius: '10px',
                 transition: 'width 0.3s ease',
@@ -415,7 +416,7 @@ export function SkillAssessmentProgress({ tasks, onComplete, onClose }: SkillAss
               color: '#a8a29e',
             }}
           >
-            <span>{completedCount}/{tasks.length} {t('assessmentProgress.completed')}</span>
+            <span>{fmt2(completedCount)}/{fmt2(tasks.length)} {t('assessmentProgress.completed')}</span>
             <span>
               {processingCount > 0 && `⏳ ${processingCount} ${t('assessmentProgress.processing')}`}
               {pendingCount > 0 && ` ⏸️ ${pendingCount} ${t('assessmentProgress.pending')}`}
@@ -460,7 +461,7 @@ export function SkillAssessmentProgress({ tasks, onComplete, onClose }: SkillAss
                 width: '40px',
                 height: '40px',
                 borderRadius: '50%',
-                background: `conic-gradient(${getStatusColor(currentTask.status)} ${currentTask.progress * 3.6}deg, #e5e7eb 0deg)`,
+                background: `conic-gradient(${getStatusColor(currentTask.status)} ${Math.min(100, Math.max(0, currentTask.progress)) * 3.6}deg, #e5e7eb 0deg)`,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -470,7 +471,7 @@ export function SkillAssessmentProgress({ tasks, onComplete, onClose }: SkillAss
                 flexShrink: 0,
               }}
             >
-              {Math.round(currentTask.progress)}%
+              {fmt2(currentTask.progress)}%
             </div>
           </div>
         )}

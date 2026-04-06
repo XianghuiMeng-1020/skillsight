@@ -8,6 +8,7 @@ import { useLanguage } from '@/lib/contexts';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/bffClient';
 import { SkillSightLogo, ScoreCircle, ScoreBar, LevelBadge } from './AssessComponents';
+import { fmt2 } from '@/lib/formatNumber';
 
 type AssessmentType =
   | 'communication'
@@ -1400,7 +1401,7 @@ export default function AssessPage() {
                                   width: '60px',
                                   height: '60px',
                                   borderRadius: '50%',
-                                  background: `conic-gradient(#98B8A8 ${aiFeedback.overall * 3.6}deg, #E7E5E4 0deg)`,
+                                  background: `conic-gradient(#98B8A8 ${Math.min(100, Math.max(0, aiFeedback.overall)) * 3.6}deg, #E7E5E4 0deg)`,
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
@@ -1416,7 +1417,7 @@ export default function AssessPage() {
                                     fontWeight: 700,
                                     color: '#1C1917',
                                   }}>
-                                    {aiFeedback.overall}
+                                    {fmt2(aiFeedback.overall)}
                                   </div>
                                 </div>
                               </div>
@@ -1438,7 +1439,7 @@ export default function AssessPage() {
                                       <span style={{ fontSize: '0.875rem' }}>{item.icon}</span>
                                       {item.label}
                                     </span>
-                                    <span style={{ fontWeight: 600, color: item.color }}>{item.score}</span>
+                                    <span style={{ fontWeight: 600, color: item.color }}>{fmt2(item.score)}</span>
                                   </div>
                                   <div style={{
                                     height: '4px',
@@ -1447,7 +1448,7 @@ export default function AssessPage() {
                                     overflow: 'hidden',
                                   }}>
                                     <div style={{
-                                      width: `${item.score}%`,
+                                      width: `${Math.min(100, Math.max(0, item.score))}%`,
                                       height: '100%',
                                       background: item.color,
                                       borderRadius: '9999px',

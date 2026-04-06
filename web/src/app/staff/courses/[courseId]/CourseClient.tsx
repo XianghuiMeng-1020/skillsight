@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { staffBff } from '@/lib/bffClient';
+import { fmt2 } from '@/lib/formatNumber';
 
 interface SkillSummary {
   skill_id: string;
@@ -110,16 +111,16 @@ export default function CourseDetailPage() {
                 </div>
                 <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#60a5fa' }}>{skill.evidence_count}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#60a5fa' }}>{fmt2(skill.evidence_count)}</div>
                     <div style={{ fontSize: 12, color: '#64748b' }}>Evidence Items</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#34d399' }}>{skill.demonstrated_count}</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: '#34d399' }}>{fmt2(skill.demonstrated_count)}</div>
                     <div style={{ fontSize: 12, color: '#64748b' }}>Demonstrated</div>
                   </div>
                   <div>
                     <div style={{ fontSize: 20, fontWeight: 700, color: '#e2e8f0' }}>
-                      {skill.evidence_count > 0 ? Math.round((skill.demonstrated_count / skill.evidence_count) * 100) : 0}%
+                      {skill.evidence_count > 0 ? fmt2((skill.demonstrated_count / skill.evidence_count) * 100) : fmt2(0)}%
                     </div>
                     <div style={{ fontSize: 12, color: '#64748b' }}>Coverage</div>
                   </div>

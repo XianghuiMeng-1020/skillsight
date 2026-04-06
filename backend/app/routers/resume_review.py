@@ -480,6 +480,37 @@ def resume_review_rescore(
     review = _get_review_for_user(db, review_id, subject_id)
     if not review:
         raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+    # After template export, status is "completed"; returning to step 4 must not fail — reuse stored scores.
+    if review.get("status") == "completed":
+        final_scores = review.get("final_scores")
+        total_final = review.get("total_final")
+        if isinstance(final_scores, str):
+            try:
+                final_scores = json.loads(final_scores)
+            except Exception:
+                final_scores = None
+        if isinstance(final_scores, dict) and final_scores and total_final is not None:
+            initial_total = float(review.get("total_initial") or 0)
+            initial_scores = review.get("initial_scores")
+            if isinstance(initial_scores, str):
+                try:
+                    initial_scores = json.loads(initial_scores)
+                except Exception:
+                    initial_scores = {}
+            if not isinstance(initial_scores, dict):
+                initial_scores = {}
+            improvements: Dict[str, int] = {}
+            for k, v in final_scores.items():
+                if isinstance(v, dict) and "score" in v:
+                    prev = initial_scores.get(k, {})
+                    prev_s = prev.get("score", 0) if isinstance(prev, dict) else 0
+                    improvements[k] = int(v["score"]) - int(prev_s)
+            return {
+                "final_scores": final_scores,
+                "total_final": float(total_final),
+                "total_initial": initial_total,
+                "improvements": improvements,
+            }
     if review.get("status") not in ("reviewed", "enhanced"):
         raise HTTPException(
             status_code=400,

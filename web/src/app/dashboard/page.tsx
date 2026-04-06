@@ -13,6 +13,7 @@ const AchievementsModal = dynamic(() => import('@/components/Achievements').then
 import { useAchievements } from '@/lib/hooks';
 import { studentBff, getToken, type ProfileResponse } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
+import { fmt2 } from '@/lib/formatNumber';
 
 interface Document {
   doc_id: string;
@@ -131,7 +132,7 @@ export default function StudentDashboard() {
               {t('dashboard.visionPitch')}
             </p>
           </div>
-          <div className="page-actions" style={{ display: 'flex', gap: '0.75rem' }}>
+          <div className="page-actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               onClick={() => setShowAchievements(true)}
               style={{
@@ -157,12 +158,41 @@ export default function StudentDashboard() {
                 e.currentTarget.style.background = 'white';
               }}
             >
-              🏆 {totalPoints} {t('achievements.points')}
+              🏆 {fmt2(totalPoints)} {t('achievements.points')}
             </button>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                flexWrap: 'wrap',
+                padding: '0.5rem 0.75rem',
+                borderRadius: '10px',
+                border: '1px solid var(--sage-light, #98B8A8)',
+                background: 'linear-gradient(135deg, rgba(152,184,168,0.12), rgba(201,221,227,0.08))',
+                maxWidth: 'min(100%, 36rem)',
+              }}
+            >
+              <span style={{ fontSize: '1.25rem', lineHeight: 1 }} aria-hidden>🤖</span>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--gray-900)', flex: '1 1 12rem' }}>
+                {t('dashboard.agentGreeting')}
+              </span>
+              <Link href="/dashboard/assessments" className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}>
+                {t('dashboard.startAssessment')}
+              </Link>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowResumeReviewAgent(true)}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {t('dashboard.reviewResume')}
+              </button>
+            </div>
             <ShareButton
               userName={userName}
               skills={skills.map(s => ({ name: s.canonical_name, level: s.level }))}
-              overallScore={Math.round(skills.reduce((sum, s) => sum + s.level * 25, 0) / Math.max(skills.length, 1))}
+              overallScore={Math.round((skills.reduce((sum, s) => sum + s.level * 25, 0) / Math.max(skills.length, 1)) * 100) / 100}
               onShareSuccess={unlockShareAchievement}
             />
             <Link href="/dashboard/upload" className="btn btn-primary">
@@ -206,28 +236,28 @@ export default function StudentDashboard() {
                   <div className="stat-card" title={t('dashboard.statDocsTip')}>
                     <div className="stat-icon green">📄</div>
                     <div className="stat-content">
-                      <div className="stat-value">{documents.length}</div>
+                      <div className="stat-value">{fmt2(documents.length)}</div>
                       <div className="stat-label">{t('dashboard.docsUploaded')}</div>
                     </div>
                   </div>
                   <div className="stat-card" title={t('dashboard.statVerifiedTip')}>
                     <div className="stat-icon green">✓</div>
                     <div className="stat-content">
-                      <div className="stat-value">{skills.filter(s => s.status === 'verified').length}</div>
+                      <div className="stat-value">{fmt2(skills.filter(s => s.status === 'verified').length)}</div>
                       <div className="stat-label">{t('dashboard.skillsVerified')}</div>
                     </div>
                   </div>
                   <div className="stat-card" title={t('dashboard.statProgressTip')}>
                     <div className="stat-icon yellow">○</div>
                     <div className="stat-content">
-                      <div className="stat-value">{skills.filter(s => s.status === 'pending').length}</div>
+                      <div className="stat-value">{fmt2(skills.filter(s => s.status === 'pending').length)}</div>
                       <div className="stat-label">{t('dashboard.inProgress')}</div>
                     </div>
                   </div>
                   <div className="stat-card" title={t('dashboard.statJobsTip')}>
                     <div className="stat-icon purple">🎯</div>
                     <div className="stat-content">
-                      <div className="stat-value">{jobsMatchedCount}</div>
+                      <div className="stat-value">{fmt2(jobsMatchedCount)}</div>
                       <div className="stat-label">{t('dashboard.jobsMatched')}</div>
                     </div>
                   </div>
@@ -316,53 +346,7 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* ── Section 2: AI Agent greeting card (unchanged) ── */}
-          <div
-            className="card"
-            style={{
-              marginBottom: '1.5rem',
-              background: 'linear-gradient(135deg, rgba(152,184,168,0.12), rgba(201,221,227,0.08))',
-              border: '1px solid var(--sage-light, #98B8A8)',
-            }}
-          >
-            <div className="card-content" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
-              <div
-                style={{
-                  width: 56,
-                  height: 56,
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, var(--sage), var(--sage-dark))',
-                  color: 'white',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '1.75rem',
-                  flexShrink: 0,
-                }}
-              >
-                🤖
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: '1rem', fontWeight: 500, color: 'var(--gray-900)' }}>
-                  {t('dashboard.agentGreeting')}
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
-                <Link href="/dashboard/assessments" className="btn btn-primary btn-sm">
-                  {t('dashboard.startAssessment')}
-                </Link>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => setShowResumeReviewAgent(true)}
-                >
-                  {t('dashboard.reviewResume')}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Section 3: Skills ↔ Jobs connection diagram ── */}
+          {/* ── Section 2: Skills ↔ Jobs connection diagram ── */}
           <div style={{ marginBottom: '1.5rem' }}>
             <SkillJobGraph skills={skills} jobMatches={jobMatches} />
           </div>

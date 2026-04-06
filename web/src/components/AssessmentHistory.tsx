@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useLocalStorage } from '@/lib/hooks';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
+import { fmt2 } from '@/lib/formatNumber';
 
 interface AssessmentRecord {
   id: string;
@@ -143,7 +144,7 @@ export function AssessmentHistory({ onSelectRecord }: AssessmentHistoryProps) {
                     fontWeight: 700,
                     color: config.color
                   }}>
-                    {record.score}
+                    {fmt2(record.score)}
                   </div>
                   <div style={{
                     fontSize: '0.75rem',
