@@ -3,7 +3,7 @@
     "name": "Professional Classic",
     "description": "Clean single-column layout with centered header and horizontal rules. ATS-friendly design ideal for traditional industries.",
     "industry_tags": ["finance", "consulting", "corporate"],
-    "preview_url": "",
+    "preview_url": "/resume-templates/professional_classic.png",
     "template_file": "professional_classic.docx",
     "is_active": true
   },
@@ -11,7 +11,7 @@
     "name": "Modern Tech",
     "description": "Two-column layout with dark sidebar for skills and contact. Contemporary design popular on LinkedIn for tech roles.",
     "industry_tags": ["technology", "engineering", "software"],
-    "preview_url": "",
+    "preview_url": "/resume-templates/modern_tech.png",
     "template_file": "modern_tech.docx",
     "is_active": true
   },
@@ -19,7 +19,7 @@
     "name": "Creative Portfolio",
     "description": "Bold purple accents with large first-letter styling and Georgia serif font. Expressive layout for creative professionals.",
     "industry_tags": ["marketing", "design", "creative"],
-    "preview_url": "",
+    "preview_url": "/resume-templates/creative_portfolio.png",
     "template_file": "creative_portfolio.docx",
     "is_active": true
   },
@@ -27,7 +27,7 @@
     "name": "Academic CV",
     "description": "Formal Curriculum Vitae format with Times New Roman and structured indentation. Standard for academic and research positions.",
     "industry_tags": ["research", "academia", "education"],
-    "preview_url": "",
+    "preview_url": "/resume-templates/academic_research.png",
     "template_file": "academic_research.docx",
     "is_active": true
   },
@@ -35,7 +35,7 @@
     "name": "Executive",
     "description": "Premium navy and gold design with Cambria font and generous spacing. Refined elegance for senior leadership roles.",
     "industry_tags": ["leadership", "executive", "management"],
-    "preview_url": "",
+    "preview_url": "/resume-templates/executive.png",
     "template_file": "executive.docx",
     "is_active": true
   },
@@ -43,7 +43,7 @@
     "name": "Minimalist Clean",
     "description": "Ultra-clean monochrome layout with maximum whitespace and Calibri Light font. Lets your content speak for itself.",
     "industry_tags": ["any industry", "startup", "modern"],
-    "preview_url": "",
+    "preview_url": "/resume-templates/minimalist_clean.png",
     "template_file": "minimalist_clean.docx",
     "is_active": true
   },
@@ -51,7 +51,7 @@
     "name": "Corporate Elegance",
     "description": "Teal header block with single-column body layout. ATS-friendly corporate style for business and operations roles.",
     "industry_tags": ["business", "operations", "corporate"],
-    "preview_url": "",
+    "preview_url": "/resume-templates/corporate_elegance.png",
     "template_file": "corporate_elegance.docx",
     "is_active": true
   },
@@ -59,7 +59,7 @@
     "name": "Fresh Graduate",
     "description": "Compact layout with blue header bar, skills-first ordering, and inline skill formatting. Designed for students and early-career professionals.",
     "industry_tags": ["entry-level", "student", "internship"],
-    "preview_url": "",
+    "preview_url": "/resume-templates/fresh_graduate.png",
     "template_file": "fresh_graduate.docx",
     "is_active": true
   }

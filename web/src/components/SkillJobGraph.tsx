@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, type FocusEvent } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
@@ -121,6 +121,15 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
     setConnectedSkills(new Set());
   }, []);
 
+  const handleJobRowBlur = useCallback(
+    (e: FocusEvent<HTMLDivElement>) => {
+      const next = e.relatedTarget as Node | null;
+      if (next && e.currentTarget.contains(next)) return;
+      handleJobLeave();
+    },
+    [handleJobLeave],
+  );
+
   const getBarColor = (level: number) => {
     if (level >= 3) return 'var(--success, #16a34a)';
     if (level >= 2) return 'var(--sage, #98B8A8)';
@@ -182,6 +191,7 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
         >
           {/* SVG overlay */}
           <svg
+            aria-hidden
             style={{
               position: 'absolute',
               inset: 0,
@@ -278,8 +288,11 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
                 <div
                   key={job.role_id}
                   ref={(el) => { if (el) jobRefs.current.set(job.role_id, el); }}
+                  tabIndex={0}
                   onMouseEnter={() => handleJobHover(job.role_id)}
                   onMouseLeave={handleJobLeave}
+                  onFocus={() => handleJobHover(job.role_id)}
+                  onBlur={handleJobRowBlur}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

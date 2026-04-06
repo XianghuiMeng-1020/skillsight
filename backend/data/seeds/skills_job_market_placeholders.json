@@ -1,0 +1,92 @@
+[
+  {
+    "skill_id": "HKU.SKILL.R.v1",
+    "canonical_name": "R Programming",
+    "aliases": ["R", "R language"],
+    "definition": "Ability to use R for data analysis, visualization, and statistical computing.",
+    "evidence_rules": "Evidence includes R code, scripts, or analysis outputs.",
+    "level_rubric": {"0": "No R artifact.", "1": "Basic scripts with guidance.", "2": "Independent analysis and visualization.", "3": "Reproducible workflows, packages."},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.SQL.v1",
+    "canonical_name": "SQL and Databases",
+    "aliases": ["SQL", "database"],
+    "definition": "Ability to query and manage relational databases using SQL.",
+    "evidence_rules": "Evidence includes queries, schema design, or database artifacts.",
+    "level_rubric": {"0": "No database evidence.", "1": "Simple SELECT with guidance.", "2": "Joins, aggregation, basic design.", "3": "Complex queries, optimization."},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.STATISTICS.v1",
+    "canonical_name": "Statistics",
+    "aliases": ["statistics", "statistical analysis"],
+    "definition": "Application of statistical methods for data analysis and inference.",
+    "evidence_rules": "Evidence shows use of descriptive/inferential statistics, tests, or models.",
+    "level_rubric": {"0": "No statistical evidence.", "1": "Basic descriptive stats.", "2": "Inference, regression, interpretation.", "3": "Advanced modeling, validation."},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_VIS.v1",
+    "canonical_name": "Data Visualization",
+    "aliases": ["data visualization", "visualization"],
+    "definition": "Creating clear visual representations of data for analysis and communication.",
+    "evidence_rules": "Evidence includes charts, dashboards, or visualization code.",
+    "level_rubric": {"0": "No visualization evidence.", "1": "Basic charts with guidance.", "2": "Appropriate chart choice, clarity.", "3": "Interactive or publication-ready visuals."},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.ML.v1",
+    "canonical_name": "Machine Learning",
+    "aliases": ["machine learning", "ML"],
+    "definition": "Building and evaluating machine learning models for prediction or classification.",
+    "evidence_rules": "Evidence includes model training, evaluation, or ML pipelines.",
+    "level_rubric": {"0": "No ML evidence.", "1": "Simple models with guidance.", "2": "Train/evaluate, basic tuning.", "3": "Pipeline design, validation."},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.PROJECT_MGMT.v1",
+    "canonical_name": "Project Management",
+    "aliases": ["project management"],
+    "definition": "Planning, executing, and closing projects with scope, time, and stakeholder management.",
+    "evidence_rules": "Evidence shows planning, tracking, or delivery of projects.",
+    "level_rubric": {"0": "No PM evidence.", "1": "Contributed to planned tasks.", "2": "Led or coordinated deliverables.", "3": "Full lifecycle, risk handling."},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+    "canonical_name": "Data Analysis",
+    "aliases": ["data analysis", "data analytics"],
+    "definition": "End-to-end data analysis: cleaning, exploration, and insight generation.",
+    "evidence_rules": "Evidence shows data handling, analysis, and conclusions.",
+    "level_rubric": {"0": "No analysis evidence.", "1": "Basic cleaning and summary.", "2": "Structured analysis, clear findings.", "3": "Rigorous methodology, reproducibility."},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.NLP.v1",
+    "canonical_name": "Natural Language Processing",
+    "aliases": ["NLP", "natural language processing"],
+    "definition": "Processing and analyzing text data using NLP techniques.",
+    "evidence_rules": "Evidence includes text processing, models, or NLP pipelines.",
+    "level_rubric": {"0": "No NLP evidence.", "1": "Basic text handling.", "2": "Models or pipelines applied.", "3": "Custom models or evaluation."},
+    "version": "v1",
+    "source": "HKU"
+  },
+  {
+    "skill_id": "HKU.SKILL.IR.v1",
+    "canonical_name": "Information Retrieval",
+    "aliases": ["information retrieval", "search"],
+    "definition": "Design and evaluation of systems for storing and retrieving information.",
+    "evidence_rules": "Evidence shows search systems, indexing, or retrieval evaluation.",
+    "level_rubric": {"0": "No IR evidence.", "1": "Basic search or indexing.", "2": "Evaluation or ranking.", "3": "System design, optimization."},
+    "version": "v1",
+    "source": "HKU"
+  }
+]

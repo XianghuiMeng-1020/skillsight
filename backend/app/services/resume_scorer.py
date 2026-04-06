@@ -63,6 +63,7 @@ def get_resume_text_from_doc(db: Session, doc_id: str) -> str:
     """
     # Support both UUID and string doc_id
     doc_id_str = str(doc_id)
+    total_rows = 0
     try:
         rows = db.execute(
             text("""
@@ -74,6 +75,10 @@ def get_resume_text_from_doc(db: Session, doc_id: str) -> str:
             """),
             {"doc_id": doc_id_str},
         ).fetchall()
+        total_rows = db.execute(
+            text("SELECT COUNT(*) FROM chunks WHERE doc_id::text = :doc_id"),
+            {"doc_id": doc_id_str},
+        ).scalar() or 0
     except Exception as e:
         _log.warning("get_resume_text_from_doc query failed (idx may be missing): %s", e)
         rows = db.execute(
@@ -86,9 +91,18 @@ def get_resume_text_from_doc(db: Session, doc_id: str) -> str:
             """),
             {"doc_id": doc_id_str},
         ).fetchall()
+        total_rows = len(rows)
     if not rows:
         return ""
-    return "\n\n".join((r[0] or "").strip() for r in rows).strip()
+    # Single newlines between chunks avoid artificial double gaps that fragment sections in parse_resume.
+    parts = [(r[0] or "").strip() for r in rows if (r[0] or "").strip()]
+    if total_rows > 500:
+        _log.warning(
+            "get_resume_text_from_doc truncated chunks doc_id=%s total=%s used=500",
+            doc_id_str,
+            total_rows,
+        )
+    return "\n".join(parts).strip()
 
 
 def get_verified_skills_summary(db: Session, user_id: str) -> str:
@@ -229,12 +243,19 @@ def score_resume(
     verified_skills = get_verified_skills_summary(db, user_id)
     target_role_desc = get_target_role_description(db, target_role_id)
 
+    clipped_resume = resume_text[:30000]
+    if len(resume_text) > 30000:
+        _log.warning(
+            "score_resume truncated prompt resume_text doc_id=%s original_len=%s used_len=30000",
+            doc_id,
+            len(resume_text),
+        )
     user_message = (
         prompt_tpl
         .replace("{rubric_json}", json.dumps(rubric, ensure_ascii=False, indent=2))
         .replace("{verified_skills}", verified_skills)
         .replace("{target_role_description}", target_role_desc or "(Not specified)")
-        .replace("{resume_text}", resume_text[:30000])
+        .replace("{resume_text}", clipped_resume)
     )
 
     generate = _get_llm_generate()

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520">
+  <rect width="800" height="520" fill="#0f172a"/>
+  <rect x="170" y="30" width="460" height="460" rx="8" fill="#ffffff10"/>
+  <rect x="170" y="30" width="140" height="460" rx="8" fill="#00000066"/>
+  <rect x="190" y="60" width="90" height="8" rx="4" fill="#ffffffcc"/>
+  <rect x="190" y="80" width="70" height="4" rx="2" fill="#ffffff66"/>
+  <rect x="335" y="62" width="150" height="10" rx="5" fill="#38bdf8"/>
+  <rect x="335" y="90" width="250" height="4" rx="2" fill="#ffffff66"/>
+  <rect x="335" y="102" width="220" height="4" rx="2" fill="#ffffff66"/>
+  <text x="24" y="496" fill="#ffffffaa" font-size="20" font-family="Arial, sans-serif">Modern Tech</text>
+</svg>

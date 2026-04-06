@@ -10,15 +10,10 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
+from backend.app.services.resume_common import contains_cjk, split_contact_parts
 from backend.app.services.resume_template_service import ParsedResume, ResumeSection, parse_resume
 
 SectionKind = Literal["summary", "experience", "education", "skills", "projects", "other"]
-
-
-def _contains_cjk(text: str) -> bool:
-    if not text:
-        return False
-    return bool(re.search(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]", text))
 
 
 def classify_section_kind(title: str) -> SectionKind:
@@ -70,15 +65,23 @@ class ResumeJsonDocument:
     locale_hint: str = "auto"  # en | zh | mixed | auto
 
     def to_public_dict(self) -> Dict[str, Any]:
+        contacts = split_contact_parts(self.contact_lines)
+        email = next((p for p in contacts if "@" in p), None)
+        phone = next((p for p in contacts if re.search(r"\d{6,}", p)), None)
+        url = next((p for p in contacts if "http" in p or "www." in p or ".com" in p), None)
         return {
             "basics": {
                 "name": self.name or None,
+                "email": email,
+                "phone": phone,
+                "url": url,
                 "summary": None,
             },
             "sections": [
                 {"title": s.title, "kind": s.kind, "lines": s.lines}
                 for s in self.sections
             ],
+            "contact_lines": self.contact_lines,
             "locale_hint": self.locale_hint,
         }
 
@@ -90,9 +93,9 @@ def parsed_to_resume_json(parsed: ParsedResume) -> ResumeJsonDocument:
         + parsed.contact_lines
         + [" ".join(sec.lines) for sec in parsed.sections]
     )
-    if _contains_cjk(blob) and re.search(r"[a-zA-Z]{3,}", blob):
+    if contains_cjk(blob) and re.search(r"[a-zA-Z]{3,}", blob):
         locale = "mixed"
-    elif _contains_cjk(blob):
+    elif contains_cjk(blob):
         locale = "zh"
     else:
         locale = "en"
@@ -132,7 +135,9 @@ def _normalize_skill_lines(lines: List[str]) -> List[str]:
 
 
 def resume_text_to_resume_json(text: str) -> ResumeJsonDocument:
-    return parsed_to_resume_json(parse_resume(text or ""))
+    parsed = parse_resume(text or "")
+    parsed = enhance_parsed_for_export(parsed)
+    return parsed_to_resume_json(parsed)
 
 
 def structured_to_parsed(doc: ResumeJsonDocument) -> ParsedResume:
@@ -170,7 +175,7 @@ def layout_health_check(resume_text: str) -> Dict[str, Any]:
     if not re.search(r"(?i)(experience|education|skills|work|项目|教育|技能)", text):
         issues.append({"level": "info", "code": "weak_sections", "message": "No clear section headers detected; export grouping may be generic."})
     score = max(0, 100 - len(issues) * 12)
-    return {"score": score, "issues": issues, "locale_hint": "zh" if _contains_cjk(text) else "en"}
+    return {"score": score, "issues": issues, "locale_hint": "zh" if contains_cjk(text) else "en"}
 
 
 # ── HTML preview (approximate WYSIWYG for web; not Word-perfect) ──────────────
@@ -187,12 +192,25 @@ _TEMPLATE_PREVIEW_STYLES: Dict[str, Dict[str, str]] = {
 }
 
 
-def html_preview_for_resume(resume_text: str, template_key: str) -> str:
+def html_preview_for_resume(resume_text: str, template_key: str, template_options: Optional[Dict[str, Any]] = None) -> str:
     """Generate a single-page HTML preview mirroring template palette."""
     doc = resume_text_to_resume_json(resume_text)
+    if template_key == "fresh_graduate":
+        doc.sections = _reorder_fresh_graduate_sections(doc.sections)
     st = _TEMPLATE_PREVIEW_STYLES.get(template_key, _TEMPLATE_PREVIEW_STYLES["professional_classic"])
+    opts = template_options or {}
+    font_scale = max(90, min(120, int(opts.get("font_scale_pct", 100) or 100)))
+    line_scale = max(95, min(130, int(opts.get("line_spacing_pct", 100) or 100)))
+    accent = str(opts.get("accent_color", "default") or "default").lower()
+    accent_map = {
+        "default": st["accent"],
+        "teal": "#14b8a6",
+        "blue": "#3b82f6",
+        "gold": "#bf943e",
+    }
+    preview_accent = accent_map.get(accent, st["accent"])
     name = html.escape(doc.name or "Your Name")
-    contact = html.escape("  |  ".join(_flatten_contact(doc.contact_lines)))
+    contact = html.escape("  |  ".join(split_contact_parts(doc.contact_lines)))
 
     parts: List[str] = []
     for sec in doc.sections:
@@ -211,14 +229,14 @@ def html_preview_for_resume(resume_text: str, template_key: str) -> str:
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Resume preview</title>
 <style>
-body {{ margin:0; background:{st["bg"]}; font-family:{st["font"]}; color:#e5e7eb; }}
+body {{ margin:0; background:{st["bg"]}; font-family:{st["font"]}; color:#e5e7eb; font-size:{font_scale}%; }}
 .wrap {{ max-width:720px; margin:0 auto; padding:24px; background:rgba(0,0,0,0.25); min-height:100vh; }}
-header {{ text-align:center; padding:16px 0; border-bottom:2px solid {st["accent"]}; margin-bottom:16px; }}
+header {{ text-align:center; padding:16px 0; border-bottom:2px solid {preview_accent}; margin-bottom:16px; }}
 h1 {{ margin:0; font-size:1.75rem; letter-spacing:0.05em; color:#fff; }}
 .contact {{ font-size:0.85rem; color:#cbd5e1; margin-top:8px; }}
-.sec h2 {{ font-size:0.95rem; color:{st["accent"]}; text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:4px; margin:20px 0 8px; }}
-.body p {{ margin:6px 0; font-size:0.9rem; line-height:1.45; color:#d1d5db; }}
-.bullet {{ padding-left:12px; border-left:2px solid {st["accent"]}; }}
+.sec h2 {{ font-size:0.95rem; color:{preview_accent}; text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:4px; margin:20px 0 8px; }}
+.body p {{ margin:6px 0; font-size:0.9rem; line-height:{line_scale / 100:.2f}; color:#d1d5db; }}
+.bullet {{ padding-left:12px; border-left:2px solid {preview_accent}; }}
 </style></head><body><div class="wrap">
 <header><h1>{name}</h1><div class="contact">{contact}</div></header>
 {body_html}
@@ -226,14 +244,19 @@ h1 {{ margin:0; font-size:1.75rem; letter-spacing:0.05em; color:#fff; }}
 </div></body></html>"""
 
 
-def _flatten_contact(contact_lines: List[str]) -> List[str]:
-    parts: List[str] = []
-    for cl in contact_lines:
-        for p in re.split(r"[|·•]", cl):
-            p = p.strip()
-            if p:
-                parts.append(p)
-    return parts
+def _reorder_fresh_graduate_sections(sections: List[StructuredSection]) -> List[StructuredSection]:
+    skills_first: List[StructuredSection] = []
+    experience_later: List[StructuredSection] = []
+    for s in sections:
+        title_lower = s.title.lower()
+        zh = s.title.strip()
+        if any(k in title_lower for k in ("skill", "education", "certif", "language", "award")) or any(
+            x in zh for x in ("技能", "教育", "证书", "语言", "获奖", "荣誉")
+        ):
+            skills_first.append(s)
+        else:
+            experience_later.append(s)
+    return skills_first + experience_later
 
 
 def score_templates_for_role(

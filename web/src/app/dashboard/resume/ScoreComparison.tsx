@@ -48,36 +48,46 @@ export function ScoreComparison({
   const [finalScores, setFinalScores] = useState<Record<string, { score: number; comment: string }> | null>(null);
   const [totalFinal, setTotalFinal] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [retryTrigger, setRetryTrigger] = useState(0);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
   useEffect(() => {
+    let cancelled = false;
     const run = async () => {
       setLoading(true);
       setError(null);
       try {
         const res = await studentBff.resumeReviewRescore(reviewId);
+        if (cancelled) return;
         setFinalScores(res.final_scores ?? null);
         setTotalFinal(res.total_final ?? null);
         if (res.final_scores && res.total_final != null) {
           onDoneRef.current(res.final_scores, res.total_final);
         }
       } catch (e: unknown) {
+        if (cancelled) return;
         const err = e instanceof Error ? e.message : (e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : 'Rescore failed');
         setError(err);
         addToast('error', err);
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
     run();
-  }, [reviewId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewId, retryTrigger, addToast]);
 
   if (loading) {
     return (
       <>
         <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step4Title')}</h2>
-        <p style={{ color: 'var(--gray-600)' }}>{t('resume.rescoring')}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span className="spinner" aria-hidden />
+          <p style={{ color: 'var(--gray-600)', margin: 0 }}>{t('resume.rescoring')}</p>
+        </div>
       </>
     );
   }
@@ -86,7 +96,10 @@ export function ScoreComparison({
     return (
       <>
         <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step4Title')}</h2>
-        <p style={{ color: 'var(--error)' }}>{error || t('common.error')}</p>
+        <p style={{ color: 'var(--error)', marginBottom: '0.75rem' }}>{error || t('common.error')}</p>
+        <button type="button" className="btn btn-primary" onClick={() => setRetryTrigger((n) => n + 1)}>
+          {t('resume.retryRescore')}
+        </button>
       </>
     );
   }
@@ -108,7 +121,7 @@ export function ScoreComparison({
       <p style={{ color: 'var(--gray-600)', marginBottom: '0.5rem' }}>{t('resume.step4Desc')}</p>
       <p style={{ fontSize: '0.8125rem', color: 'var(--gray-500)', marginBottom: '1rem', lineHeight: 1.45 }}>{t('resume.step4RadarLineLegend')}</p>
 
-      <div className={styles.scoreRing} style={{ marginBottom: '1rem', height: 320 }}>
+      <div className={styles.scoreRing} style={{ marginBottom: '1rem', height: 320 }} role="img" aria-label={t('resume.step4Title')}>
         <ResponsiveContainer width="100%" height={320}>
           <RechartsRadarChart data={radarData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
             <PolarGrid gridType="polygon" stroke="var(--gray-200)" />
@@ -121,21 +134,21 @@ export function ScoreComparison({
             <Radar
               name={t('resume.beforeScore')}
               dataKey="initial"
-              stroke="#9ca3af"
-              fill="#9ca3af"
+              stroke="var(--gray-400)"
+              fill="var(--gray-400)"
               fillOpacity={0.15}
               strokeWidth={2}
               strokeDasharray="6 4"
-              dot={{ r: 3, fill: '#9ca3af' }}
+              dot={{ r: 3, fill: 'var(--gray-400)' }}
             />
             <Radar
               name={t('resume.afterScore')}
               dataKey="final"
-              stroke="#6366f1"
-              fill="#6366f1"
+              stroke="var(--primary)"
+              fill="var(--primary)"
               fillOpacity={0.25}
               strokeWidth={2.5}
-              dot={{ r: 4, fill: '#6366f1' }}
+              dot={{ r: 4, fill: 'var(--primary)' }}
             />
             <Tooltip
               content={({ payload }) =>
@@ -150,8 +163,8 @@ export function ScoreComparison({
                   }}>
                     <strong>{t(DIMENSION_LABEL_KEYS[payload[0].payload.dimension] || payload[0].payload.dimension)}</strong>
                     <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem' }}>
-                      <span style={{ color: '#9ca3af' }}>{t('resume.beforeScore')}: {fmt2(Number(payload[0].payload.initial))}</span>
-                      <span style={{ color: '#6366f1', fontWeight: 600 }}>{t('resume.afterScore')}: {fmt2(Number(payload[0].payload.final))}</span>
+                      <span style={{ color: 'var(--gray-400)' }}>{t('resume.beforeScore')}: {fmt2(Number(payload[0].payload.initial))}</span>
+                      <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{t('resume.afterScore')}: {fmt2(Number(payload[0].payload.final))}</span>
                       {payload[0].payload.final - payload[0].payload.initial !== 0 && (
                         <span style={{ color: payload[0].payload.final > payload[0].payload.initial ? 'var(--success)' : 'var(--error)', fontWeight: 600 }}>
                           {payload[0].payload.final > payload[0].payload.initial ? '+' : ''}{fmt2(Math.round((payload[0].payload.final - payload[0].payload.initial) * 100) / 100)}
@@ -169,8 +182,22 @@ export function ScoreComparison({
           </RechartsRadarChart>
         </ResponsiveContainer>
       </div>
+      <div style={{ fontSize: '0.78rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <tbody>
+            {DIMENSION_KEYS.map((key) => (
+              <tr key={`cmp-${key}`}>
+                <td style={{ padding: '2px 0' }}>{t(DIMENSION_LABEL_KEYS[key] || key)}</td>
+                <td style={{ textAlign: 'right', padding: '2px 0' }}>
+                  {fmt2(initialScores[key]?.score ?? 0)} → <strong>{fmt2(finalScores[key]?.score ?? 0)}</strong>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
-      <div className={styles.comparisonGrid} style={{ gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className={styles.comparisonGrid}>
         <div style={{ textAlign: 'center', padding: '1rem', border: '1px solid var(--gray-200)', borderRadius: 'var(--radius)' }}>
           <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--gray-600)' }}>{t('resume.beforeScore')}</p>
           <p style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700 }}>{fmt2(totalInitial)}</p>

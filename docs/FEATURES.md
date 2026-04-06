@@ -58,14 +58,29 @@ async def upload_document(
 
 **实现方式**:
 - **端点**:
+  - `POST /bff/student/resume-review/start` — 新建 review 会话
+  - `POST /bff/student/resume-review/{review_id}/score` — 触发初次评分
+  - `GET /bff/student/resume-review/{review_id}/score` — 查询初次/复评分
+  - `POST /bff/student/resume-review/{review_id}/suggest` — 生成建议
+  - `GET /bff/student/resume-review/{review_id}/suggestions` — 拉取建议列表
+  - `PATCH /bff/student/resume-review/{review_id}/suggestion/{suggestion_id}` — 接受/拒绝/编辑建议
+  - `POST /bff/student/resume-review/{review_id}/rescore` — 基于已采纳建议复评分
   - `POST /bff/student/resume-review/{review_id}/apply-template` — body 可含 `export_format`: `docx` | `pdf`
   - `GET /bff/student/resume-review/{review_id}/preview-html?template_id=` — 返回与模板配色一致的 HTML 预览
   - `GET /bff/student/resume-review/{review_id}/layout-check` — 启发式版面/可读性提示
+  - `GET /bff/student/resume-review/{review_id}/state` — 返回当前状态与可达最大步骤（前端步骤恢复校正）
+  - `GET /bff/student/resume-review/{review_id}/editable-resume` — 获取可编辑合并文本（实时编辑器）
+  - `GET /bff/student/resume-review/{review_id}/compression-hints` — 内容压缩助手（估算页数 + 精简建议）
+  - `POST /bff/student/resume-review/{review_id}/diff-insights` — 语义变更洞察（语义对齐、风险校验、维度影响）
+  - `GET /bff/student/resume-review/{review_id}/attribution` — 统一可解释归因读取（供页面/报告复用）
+  - `POST /bff/student/resume-review/{review_id}/export-attribution-report` — 可解释报告导出（DOCX/PDF）
+  - `POST /bff/student/resume-review/{review_id}/clone-version` — 克隆为新版本（A/B 版本基础能力）
+  - `POST /bff/student/resume-review/{review_id}/preview-html` — 支持 `resume_override_text` 的实时预览
   - `GET /bff/student/resume-templates?review_id=` — 按目标岗位标签排序并标记 `recommended`
 - **代码**: `backend/app/services/resume_template_service.py`, `backend/app/services/resume_text_merge.py`, `backend/app/services/resume_structured.py`, `backend/app/services/docx_pdf.py`, `backend/app/routers/resume_review.py`
 - **可观测性**: 见 [OBSERVABILITY_RESUME.md](OBSERVABILITY_RESUME.md)
 
-**限制与提示**: 扫描版或图片型 PDF 若无可用文本则无法生成高质量导出；复杂版式在 Microsoft Word 中最稳定，WPS / LibreOffice 可能对表格底纹或边距略有差异（学生端「模板与导出」步骤有说明）。PDF 依赖本机/容器内 LibreOffice；不可用时接口仍返回 DOCX 并带 `pdf_unavailable`。
+**限制与提示**: 扫描版或图片型 PDF 若无可用文本则无法生成高质量导出；复杂版式在 Microsoft Word 中最稳定，WPS / LibreOffice 可能对表格底纹或边距略有差异（学生端「模板与导出」步骤有说明）。PDF 依赖本机/容器内 LibreOffice；不可用时接口仍返回 DOCX 并带 `pdf_unavailable`。可解释报告与简历模板导出使用同一下载契约（`base64 + format_used`）。
 
 ---
 

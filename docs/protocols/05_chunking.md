@@ -57,6 +57,10 @@ Defines how documents are split into chunks for evidence retrieval and assessmen
 4. **Empty Chunks:** Chunks with only whitespace are skipped.
 5. **Structure Preservation:** Headers/section paths are inherited by child paragraphs.
 
+## Implementation note (SkillSight codebase)
+
+Segments shorter than `min_chunk_length` are **coalesced** with neighbors (up to `max_chunk_length` 2000 characters) instead of being discarded, so bullet lines and short resume lines are retained for retrieval and `get_resume_text_from_doc`. Implemented in `backend/app/parsers.py` as `_coalesce_short_paragraphs`. DOCX body paragraphs merge the same way while heading styles still emit separate chunks.
+
 ## Implementation
 
 ```python

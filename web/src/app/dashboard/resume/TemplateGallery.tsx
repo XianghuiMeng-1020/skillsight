@@ -9,6 +9,8 @@ import styles from './resume.module.css';
 
 interface TemplateGalleryProps {
   reviewId: string;
+  resumeOverrideText?: string;
+  templateOptions?: Record<string, unknown>;
 }
 
 interface TemplateItem {
@@ -454,7 +456,7 @@ function TemplatePreviewModal({
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
             {visual?.fontLabel && (
               <span style={{ color: 'var(--gray-400)', fontSize: '0.8rem' }}>
-                Font: {visual.fontLabel}
+                {t('resume.fontLabel') || 'Font'}: {visual.fontLabel}
               </span>
             )}
             {visual?.atsLevel && (
@@ -536,66 +538,76 @@ function TemplatePreviewModal({
  * Main gallery component
  * ────────────────────────────────────────────────────────────── */
 
-const FALLBACK_TEMPLATES: TemplateItem[] = [
-  {
-    template_id: '__professional_classic',
-    name: 'Professional Classic',
-    description: 'Clean single-column layout with centered header and horizontal rules. ATS-friendly.',
-    industry_tags: ['finance', 'consulting', 'corporate'],
-    template_file: 'professional_classic.docx',
-  },
-  {
-    template_id: '__modern_tech',
-    name: 'Modern Tech',
-    description: 'Two-column layout with dark sidebar. Popular LinkedIn-style design for tech roles.',
-    industry_tags: ['technology', 'engineering', 'software'],
-    template_file: 'modern_tech.docx',
-  },
-  {
-    template_id: '__creative_portfolio',
-    name: 'Creative Portfolio',
-    description: 'Bold purple accents with decorative markers. Expressive layout for creative pros.',
-    industry_tags: ['marketing', 'design', 'creative'],
-    template_file: 'creative_portfolio.docx',
-  },
-  {
-    template_id: '__academic_research',
-    name: 'Academic CV',
-    description: 'Formal Curriculum Vitae format. Standard for academic and research positions.',
-    industry_tags: ['research', 'academia', 'education'],
-    template_file: 'academic_research.docx',
-  },
-  {
-    template_id: '__executive',
-    name: 'Executive',
-    description: 'Premium navy and gold design with Cambria font. Refined elegance for leadership.',
-    industry_tags: ['leadership', 'executive', 'management'],
-    template_file: 'executive.docx',
-  },
-  {
-    template_id: '__minimalist_clean',
-    name: 'Minimalist Clean',
-    description: 'Ultra-clean monochrome layout with maximum whitespace. Content speaks for itself.',
-    industry_tags: ['any industry', 'startup', 'modern'],
-    template_file: 'minimalist_clean.docx',
-  },
-  {
-    template_id: '__corporate_elegance',
-    name: 'Corporate Elegance',
-    description: 'Teal header block with single-column body. ATS-friendly corporate style.',
-    industry_tags: ['business', 'operations', 'corporate'],
-    template_file: 'corporate_elegance.docx',
-  },
-  {
-    template_id: '__fresh_graduate',
-    name: 'Fresh Graduate',
-    description: 'Compact layout with blue header bar and skills-first ordering for students.',
-    industry_tags: ['entry-level', 'student', 'internship'],
-    template_file: 'fresh_graduate.docx',
-  },
-];
+function buildFallbackTemplates(t: (k: string) => string): TemplateItem[] {
+  return [
+    {
+      template_id: '__professional_classic',
+      name: t('resume.template.professionalClassicName') || 'Professional Classic',
+      description: t('resume.template.professionalClassicDesc') || 'Clean single-column layout with centered header and horizontal rules.',
+      industry_tags: ['finance', 'consulting', 'corporate'],
+      template_file: 'professional_classic.docx',
+      preview_url: '/resume-templates/professional_classic.png',
+    },
+    {
+      template_id: '__modern_tech',
+      name: t('resume.template.modernTechName') || 'Modern Tech',
+      description: t('resume.template.modernTechDesc') || 'Two-column layout with dark sidebar for tech roles.',
+      industry_tags: ['technology', 'engineering', 'software'],
+      template_file: 'modern_tech.docx',
+      preview_url: '/resume-templates/modern_tech.png',
+    },
+    {
+      template_id: '__creative_portfolio',
+      name: t('resume.template.creativePortfolioName') || 'Creative Portfolio',
+      description: t('resume.template.creativePortfolioDesc') || 'Expressive layout with visual accents.',
+      industry_tags: ['marketing', 'design', 'creative'],
+      template_file: 'creative_portfolio.docx',
+      preview_url: '/resume-templates/creative_portfolio.png',
+    },
+    {
+      template_id: '__academic_research',
+      name: t('resume.template.academicResearchName') || 'Academic CV',
+      description: t('resume.template.academicResearchDesc') || 'Formal CV format for research and academia.',
+      industry_tags: ['research', 'academia', 'education'],
+      template_file: 'academic_research.docx',
+      preview_url: '/resume-templates/academic_research.png',
+    },
+    {
+      template_id: '__executive',
+      name: t('resume.template.executiveName') || 'Executive',
+      description: t('resume.template.executiveDesc') || 'Premium style for leadership profiles.',
+      industry_tags: ['leadership', 'executive', 'management'],
+      template_file: 'executive.docx',
+      preview_url: '/resume-templates/executive.png',
+    },
+    {
+      template_id: '__minimalist_clean',
+      name: t('resume.template.minimalistCleanName') || 'Minimalist Clean',
+      description: t('resume.template.minimalistCleanDesc') || 'Monochrome clean layout with whitespace.',
+      industry_tags: ['any industry', 'startup', 'modern'],
+      template_file: 'minimalist_clean.docx',
+      preview_url: '/resume-templates/minimalist_clean.png',
+    },
+    {
+      template_id: '__corporate_elegance',
+      name: t('resume.template.corporateEleganceName') || 'Corporate Elegance',
+      description: t('resume.template.corporateEleganceDesc') || 'Single-column corporate style with color header.',
+      industry_tags: ['business', 'operations', 'corporate'],
+      template_file: 'corporate_elegance.docx',
+      preview_url: '/resume-templates/corporate_elegance.png',
+    },
+    {
+      template_id: '__fresh_graduate',
+      name: t('resume.template.freshGraduateName') || 'Fresh Graduate',
+      description: t('resume.template.freshGraduateDesc') || 'Skills-first compact layout for graduates.',
+      industry_tags: ['entry-level', 'student', 'internship'],
+      template_file: 'fresh_graduate.docx',
+      preview_url: '/resume-templates/fresh_graduate.png',
+    },
+  ];
+}
 
-export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
+export function TemplateGallery({ reviewId, resumeOverrideText, templateOptions }: TemplateGalleryProps) {
   const { t } = useLanguage();
   const { addToast } = useToast();
   const [templates, setTemplates] = useState<TemplateItem[]>([]);
@@ -628,7 +640,10 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
     setPreviewHtmlLoading(true);
     setPreviewHtml(null);
     studentBff
-      .resumeReviewPreviewHtml(reviewId, previewTemplate.template_id)
+      .resumeReviewPreviewHtml(reviewId, previewTemplate.template_id, {
+        resumeOverrideText: resumeOverrideText?.trim() || undefined,
+        templateOptions,
+      })
       .then((html) => {
         if (!cancelled) setPreviewHtml(html);
       })
@@ -641,7 +656,7 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
     return () => {
       cancelled = true;
     };
-  }, [previewTemplate, reviewId]);
+  }, [previewTemplate, reviewId, resumeOverrideText, templateOptions]);
 
   const handleApply = useCallback(async (templateId: string, format: 'docx' | 'pdf' = 'docx') => {
     const key = `${templateId}:${format}`;
@@ -649,6 +664,8 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
     try {
       const res = await studentBff.resumeReviewApplyTemplate(reviewId, templateId, {
         exportFormat: format,
+        resumeOverrideText: resumeOverrideText?.trim() || undefined,
+        templateOptions,
       });
       const blob = base64ToBlob(
         res.content_base64,
@@ -681,7 +698,7 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
     } finally {
       setApplying(null);
     }
-  }, [reviewId, addToast, t]);
+  }, [reviewId, addToast, t, resumeOverrideText, templateOptions]);
 
   if (loading) {
     return (
@@ -696,7 +713,7 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
     );
   }
 
-  const displayTemplates = templates.length > 0 ? templates : FALLBACK_TEMPLATES;
+  const displayTemplates = templates.length > 0 ? templates : buildFallbackTemplates(t);
 
   const getVisualKey = (tmpl: TemplateItem): string => {
     const file = tmpl.template_file || '';

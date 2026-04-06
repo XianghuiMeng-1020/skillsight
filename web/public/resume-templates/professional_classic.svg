@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0f3460"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="520" fill="url(#bg)"/>
+  <rect x="180" y="35" width="440" height="450" rx="8" fill="#ffffff14"/>
+  <rect x="290" y="70" width="220" height="12" rx="6" fill="#e2b04a"/>
+  <rect x="310" y="95" width="180" height="5" rx="2.5" fill="#ffffff66"/>
+  <line x1="220" y1="130" x2="580" y2="130" stroke="#e2b04a" stroke-opacity="0.7"/>
+  <g fill="#ffffff66">
+    <rect x="220" y="150" width="140" height="8" rx="4"/>
+    <rect x="220" y="168" width="340" height="4" rx="2"/>
+    <rect x="220" y="178" width="310" height="4" rx="2"/>
+    <rect x="220" y="188" width="300" height="4" rx="2"/>
+    <rect x="220" y="218" width="160" height="8" rx="4"/>
+    <rect x="220" y="236" width="330" height="4" rx="2"/>
+    <rect x="220" y="246" width="285" height="4" rx="2"/>
+  </g>
+  <text x="24" y="496" fill="#ffffffaa" font-size="20" font-family="Arial, sans-serif">Professional Classic</text>
+</svg>

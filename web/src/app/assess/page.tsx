@@ -102,7 +102,7 @@ export default function AssessPage() {
   }, []);
 
   const tabs = [
-    { id: 'communication' as const, labelKey: 'assess.communication', icon: '🎙️', descKey: 'assess.videoStyle', color: '#E18182' },
+    { id: 'communication' as const, labelKey: 'assess.communication', icon: '🎙️', descKey: 'assess.videoStyle', color: 'var(--coral)' },
     { id: 'programming' as const, labelKey: 'assess.programming', icon: '💻', descKey: 'assess.leetcodeStyle', color: '#98B8A8' },
     { id: 'writing' as const, labelKey: 'assess.writing', icon: '✍️', descKey: 'assess.timedWriting', color: '#F9CE9C' },
     { id: 'data_analysis' as const, labelKey: 'assess.dataAnalysis', icon: '📊', descKey: 'assessmentsList.dataAnalysisDesc', color: '#9FC5CF', comingSoon: true },
@@ -331,7 +331,7 @@ export default function AssessPage() {
         <div className="header-inner">
           <Link href="/" className="logo" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <div style={{
-              background: 'linear-gradient(135deg, #F9CE9C, #E18182)',
+              background: 'linear-gradient(135deg, var(--accent), var(--coral))',
               borderRadius: '10px',
               padding: '6px',
               display: 'flex',
@@ -424,7 +424,7 @@ export default function AssessPage() {
                   }}>✓</span>
                   {t('assess.result')}
                 </h3>
-                <button className="btn btn-ghost btn-sm" onClick={resetAssessment} style={{ color: '#E18182' }}>
+                <button className="btn btn-ghost btn-sm" onClick={resetAssessment} style={{ color: 'var(--coral)' }}>
                   🔄 {t('assess.retry')}
                 </button>
               </div>
@@ -443,7 +443,7 @@ export default function AssessPage() {
                 }}>
                   {/* Overall Score Circle */}
                   <div style={{ textAlign: 'center' }}>
-                    <ScoreCircle score={overallScore} label={t('assess.totalScore')} color="#E18182" />
+                    <ScoreCircle score={overallScore} label={t('assess.totalScore')} color="var(--coral)" />
                     <div style={{ marginTop: '1rem' }}>
                       <LevelBadge level={level} label={levelLabel} />
                     </div>
@@ -453,7 +453,7 @@ export default function AssessPage() {
                   <div>
                     {activeTab === 'communication' && (
                       <>
-                        <ScoreBar label={t('assess.clarity')} score={evaluation?.clarity || 75} icon="🗣️" color="#E18182" />
+                        <ScoreBar label={t('assess.clarity')} score={evaluation?.clarity || 75} icon="🗣️" color="var(--coral)" />
                         <ScoreBar label={t('assess.content')} score={evaluation?.content || 80} icon="📝" color="#F9CE9C" />
                         <ScoreBar label={t('assess.confidence')} score={evaluation?.confidence || 70} icon="💪" color="#98B8A8" />
                       </>
@@ -462,14 +462,14 @@ export default function AssessPage() {
                       <>
                         <ScoreBar label={t('assess.correctness')} score={evaluation?.correctness || 85} icon="✅" color="#98B8A8" />
                         <ScoreBar label={t('assess.efficiency')} score={evaluation?.efficiency || 75} icon="⚡" color="#F9CE9C" />
-                        <ScoreBar label={t('assess.codeStyle')} score={evaluation?.style || 80} icon="✨" color="#E18182" />
+                        <ScoreBar label={t('assess.codeStyle')} score={evaluation?.style || 80} icon="✨" color="var(--coral)" />
                       </>
                     )}
                     {activeTab === 'writing' && (
                       <>
                         <ScoreBar label={t('assess.grammar')} score={evaluation?.grammar || 85} icon="📖" color="#98B8A8" />
                         <ScoreBar label={t('assess.structure')} score={evaluation?.structure || 78} icon="🏗️" color="#F9CE9C" />
-                        <ScoreBar label={t('assess.creativity')} score={evaluation?.creativity || 82} icon="💡" color="#E18182" />
+                        <ScoreBar label={t('assess.creativity')} score={evaluation?.creativity || 82} icon="💡" color="var(--coral)" />
                       </>
                     )}
                   </div>
@@ -526,15 +526,24 @@ export default function AssessPage() {
           )}
 
           {/* Tab Navigation - Enhanced */}
-          <div style={{ 
-            display: 'flex', 
-            gap: '1rem', 
-            marginBottom: '2rem',
-            flexWrap: 'wrap',
-          }}>
+          <div
+            role="tablist"
+            aria-label={t('assess.assessmentTypeTabs')}
+            style={{
+              display: 'flex',
+              gap: '1rem',
+              marginBottom: '2rem',
+              flexWrap: 'wrap',
+            }}
+          >
             {tabs.map((tab) => (
               <button
                 key={tab.id}
+                type="button"
+                role="tab"
+                id={`assess-tab-${tab.id}`}
+                aria-selected={activeTab === tab.id}
+                aria-controls="assess-panel"
                 onClick={() => { setActiveTab(tab.id); resetAssessment(); }}
                 style={{
                   flex: 1,
@@ -593,11 +602,17 @@ export default function AssessPage() {
           </div>
 
           {/* Assessment Content */}
-          <div className="card" style={{ 
-            border: '1px solid #E7E5E4',
-            boxShadow: '0 4px 20px -8px rgba(0,0,0,0.08)',
-            overflow: 'hidden'
-          }}>
+          <div
+            className="card"
+            role="tabpanel"
+            id="assess-panel"
+            aria-labelledby={`assess-tab-${activeTab}`}
+            style={{
+              border: '1px solid #E7E5E4',
+              boxShadow: '0 4px 20px -8px rgba(0,0,0,0.08)',
+              overflow: 'hidden',
+            }}
+          >
             <div className="card-content" style={{ padding: '2rem' }}>
               {!session && !result && (
                 <div style={{ textAlign: 'center', padding: '2rem' }}>
@@ -662,7 +677,7 @@ export default function AssessPage() {
                           const config = {
                             easy: { label: `🌱 ${t('assess.easy')}`, color: '#98B8A8' },
                             medium: { label: `🌿 ${t('assess.medium')}`, color: '#F9CE9C' },
-                            hard: { label: `🔥 ${t('assess.hard')}`, color: '#E18182' }
+                            hard: { label: `🔥 ${t('assess.hard')}`, color: 'var(--coral)' }
                           };
                           return (
                             <button
@@ -733,7 +748,7 @@ export default function AssessPage() {
                       fontWeight: 600,
                       border: 'none',
                       borderRadius: '12px',
-                      background: 'linear-gradient(135deg, #E18182, #C96A6B)',
+                      background: 'linear-gradient(135deg, var(--coral), var(--coral-dark))',
                       color: 'white',
                       cursor: loading ? 'wait' : 'pointer',
                       boxShadow: '0 8px 24px -8px rgba(225,129,130,0.5)',
@@ -782,7 +797,7 @@ export default function AssessPage() {
                       }}>
                         <div style={{ 
                           fontSize: '0.75rem', 
-                          color: '#E18182', 
+                          color: 'var(--coral)', 
                           marginBottom: '0.5rem',
                           textTransform: 'uppercase',
                           letterSpacing: '0.05em',
@@ -819,7 +834,7 @@ export default function AssessPage() {
                               {[1,2,3,4,5].map((i) => (
                                 <div key={i} style={{
                                   width: '6px',
-                                  background: '#E18182',
+                                  background: 'var(--coral)',
                                   borderRadius: '3px',
                                   animation: `waveAnim 0.6s ease-in-out infinite`,
                                   animationDelay: `${i * 0.1}s`,
@@ -845,7 +860,7 @@ export default function AssessPage() {
                             <div style={{
                               width: `${audioRecorder.audioLevel * 100}%`,
                               height: '100%',
-                              background: 'linear-gradient(90deg, #98B8A8, #E18182)',
+                              background: 'linear-gradient(90deg, var(--hku-green), var(--coral))',
                               borderRadius: '9999px',
                               transition: 'width 0.1s ease',
                             }} />
@@ -857,7 +872,7 @@ export default function AssessPage() {
                           fontSize: '2.5rem',
                           fontWeight: 700,
                           color: audioRecorder.isRecording 
-                            ? (audioRecorder.duration > 50 ? '#E18182' : '#1C1917') 
+                            ? (audioRecorder.duration > 50 ? 'var(--coral)' : 'var(--gray-900)') 
                             : '#78716C',
                           marginBottom: '0.5rem',
                           fontFamily: 'Inter, monospace'
@@ -906,7 +921,7 @@ export default function AssessPage() {
                             borderRadius: '8px',
                             padding: '0.75rem',
                             marginBottom: '1rem',
-                            color: '#E18182',
+                            color: 'var(--coral)',
                             fontSize: '0.875rem',
                           }}>
                             ⚠️ {audioRecorder.error || whisperTranscriber.error}
@@ -928,7 +943,7 @@ export default function AssessPage() {
                               border: 'none',
                               borderRadius: '12px',
                               background: audioRecorder.isRecording 
-                                ? 'linear-gradient(135deg, #E18182, #C96A6B)' 
+                                ? 'linear-gradient(135deg, var(--coral), var(--coral-dark))' 
                                 : 'linear-gradient(135deg, #98B8A8, #7FA393)',
                               color: 'white',
                               fontWeight: 600,
@@ -1016,7 +1031,7 @@ export default function AssessPage() {
                               ? 'linear-gradient(135deg, #D6E5DD, #BBCFC3)' 
                               : difficulty === 'medium'
                               ? 'linear-gradient(135deg, #FBE0BC, #F9CE9C)'
-                              : 'linear-gradient(135deg, #F0A5A6, #E18182)',
+                              : 'linear-gradient(135deg, var(--coral-light), var(--coral))',
                             color: difficulty === 'hard' ? 'white' : '#44403C',
                             fontSize: '0.75rem',
                             fontWeight: 600
@@ -1121,7 +1136,7 @@ export default function AssessPage() {
                             )}
                           </div>
                           <pre style={{ 
-                            color: codeExecutor.result?.error ? '#E18182' : '#e2e8f0',
+                            color: codeExecutor.result?.error ? 'var(--coral)' : '#e2e8f0',
                             fontSize: '0.8125rem',
                             whiteSpace: 'pre-wrap',
                             margin: 0,
@@ -1143,7 +1158,7 @@ export default function AssessPage() {
                                   padding: '0.375rem 0',
                                   fontSize: '0.8125rem',
                                 }}>
-                                  <span style={{ color: test.passed ? '#98B8A8' : '#E18182' }}>
+                                  <span style={{ color: test.passed ? 'var(--hku-green)' : 'var(--coral)' }}>
                                     {test.passed ? '✓' : '✗'}
                                   </span>
                                   <span style={{ color: '#e2e8f0' }}>{test.name}</span>
@@ -1427,7 +1442,7 @@ export default function AssessPage() {
                                 { label: t('assess.grammar'), score: aiFeedback.grammar.score, icon: '📖', color: '#98B8A8' },
                                 { label: t('assess.content'), score: aiFeedback.content.score, icon: '📝', color: '#F9CE9C' },
                                 { label: t('assess.structure'), score: aiFeedback.structure.score, icon: '🏗️', color: '#C9DDE3' },
-                                { label: t('assess.style'), score: aiFeedback.style.score, icon: '✨', color: '#E18182' },
+                                { label: t('assess.style'), score: aiFeedback.style.score, icon: '✨', color: 'var(--coral)' },
                               ].map(item => (
                                 <div key={item.label} style={{ marginBottom: '0.75rem' }}>
                                   <div style={{ 
@@ -1487,7 +1502,7 @@ export default function AssessPage() {
                                   borderRadius: '8px',
                                   border: '1px solid rgba(225,129,130,0.2)',
                                 }}>
-                                  <div style={{ fontSize: '0.6875rem', color: '#E18182', fontWeight: 600, marginBottom: '0.375rem' }}>
+                                  <div style={{ fontSize: '0.6875rem', color: 'var(--coral)', fontWeight: 600, marginBottom: '0.375rem' }}>
                                     ⚠️ {t('assess.grammarIssues')}
                                   </div>
                                   {aiFeedback.grammar.issues.slice(0, 3).map((issue, i) => (
@@ -1592,7 +1607,7 @@ export default function AssessPage() {
                       icon: '🎙️', 
                       title: t('assess.communication'),
                       desc: t('assess.communicationDesc'),
-                      color: '#E18182'
+                      color: 'var(--coral)'
                     },
                     { 
                       icon: '💻', 

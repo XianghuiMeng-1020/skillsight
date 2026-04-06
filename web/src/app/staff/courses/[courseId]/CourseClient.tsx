@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { staffBff } from '@/lib/bffClient';
 import { fmt2 } from '@/lib/formatNumber';
+import { useLanguage } from '@/lib/contexts';
+import styles from './CourseClient.module.css';
 
 interface SkillSummary {
   skill_id: string;
@@ -28,6 +30,7 @@ interface ReviewTicket {
 
 export default function CourseDetailPage() {
   const { courseId } = useParams<{ courseId: string }>();
+  const { t } = useLanguage();
   const [skillsSummary, setSkillsSummary] = useState<SkillSummary[]>([]);
   const [tickets, setTickets] = useState<ReviewTicket[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,121 +47,139 @@ export default function CourseDetailPage() {
         setSkillsSummary((summary as { skills: SkillSummary[] }).skills || []);
         setTickets((queue as { tickets: ReviewTicket[] }).tickets || []);
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : 'Failed to load course data');
+        setError(e instanceof Error ? e.message : t('staff.courseLoadError'));
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, [courseId]);
+  }, [courseId, t]);
 
   const statusColor = (status: string) => {
-    if (status === 'approved') return '#34d399';
-    if (status === 'rejected') return '#f87171';
-    if (status === 'open') return '#fbbf24';
-    return '#64748b';
+    if (status === 'approved') return 'var(--success)';
+    if (status === 'rejected') return 'var(--error)';
+    if (status === 'open') return 'var(--warning)';
+    return 'var(--gray-500)';
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0' }}>
-      <nav style={{ background: '#1e293b', borderBottom: '1px solid #334155', padding: '16px 32px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <Link href="/staff" style={{ color: '#60a5fa', textDecoration: 'none', fontSize: 14 }}>← My Courses</Link>
-        <span style={{ color: '#475569' }}>|</span>
-        <span style={{ color: '#94a3b8' }}>{courseId}</span>
+    <div className={styles.root}>
+      <nav className={styles.nav}>
+        <Link href="/staff" style={{ color: 'var(--primary)', textDecoration: 'none', fontSize: 14 }}>
+          {t('staff.backCourses')}
+        </Link>
+        <span style={{ color: 'var(--gray-300)' }}>|</span>
+        <span style={{ color: 'var(--gray-600)' }}>{courseId}</span>
       </nav>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px' }}>
+      <div className={styles.main}>
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 4 }}>{courseId}</h1>
-        <p style={{ color: '#64748b', marginBottom: 32, fontSize: 14 }}>
-          Aggregate view only – no individual student data displayed.
+        <p style={{ color: 'var(--gray-500)', marginBottom: 32, fontSize: 14 }}>
+          {t('staff.aggregateView')}
         </p>
 
-        {/* Tab selector */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 28, background: '#1e293b', borderRadius: 10, padding: 4, width: 'fit-content', border: '1px solid #334155' }}>
-          {(['skills', 'reviews'] as const).map(tab => (
+        <div className={styles.tabBar}>
+          {(['skills', 'reviews'] as const).map((tab) => (
             <button
               key={tab}
+              type="button"
+              className={`${styles.tabBtn} ${activeTab === tab ? styles.tabBtnActive : ''}`}
               onClick={() => setActiveTab(tab)}
-              style={{
-                padding: '8px 24px', borderRadius: 8, border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 14,
-                background: activeTab === tab ? '#2563eb' : 'transparent',
-                color: activeTab === tab ? '#fff' : '#64748b',
-              }}
             >
-              {tab === 'skills' ? `Skills Summary (${skillsSummary.length})` : `Review Queue (${tickets.filter(t => t.status === 'open').length})`}
+              {tab === 'skills'
+                ? t('staff.tabSkills').replace('{n}', String(skillsSummary.length))
+                : t('staff.tabReviews').replace('{n}', String(tickets.filter((x) => x.status === 'open').length))}
             </button>
           ))}
         </div>
 
-        {loading && <p style={{ color: '#64748b' }}>Loading…</p>}
-        {error && <p style={{ color: '#f87171' }}>{error}</p>}
+        {loading && <p style={{ color: 'var(--gray-500)' }}>{t('common.loading')}</p>}
+        {error && <p style={{ color: 'var(--error)' }}>{error}</p>}
 
         {activeTab === 'skills' && !loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {skillsSummary.map(skill => (
-              <div key={skill.skill_id} style={{ background: '#1e293b', borderRadius: 10, padding: 20, border: '1px solid #334155' }}>
+            {skillsSummary.map((skill) => (
+              <div key={skill.skill_id} className={styles.card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div>
-                    <div style={{ fontSize: 12, color: '#60a5fa', fontWeight: 600, marginBottom: 4 }}>{skill.skill_id}</div>
-                    <h3 style={{ margin: 0, fontSize: 16, color: '#e2e8f0' }}>{skill.canonical_name}</h3>
+                    <div style={{ fontSize: 12, color: 'var(--primary)', fontWeight: 600, marginBottom: 4 }}>{skill.skill_id}</div>
+                    <h3 style={{ margin: 0, fontSize: 16, color: 'var(--gray-900)' }}>{skill.canonical_name}</h3>
                     {skill.required_level && (
-                      <span style={{ fontSize: 12, color: '#64748b', marginTop: 4, display: 'block' }}>Required: {skill.required_level}</span>
+                      <span style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4, display: 'block' }}>
+                        {t('staff.required')}: {skill.required_level}
+                      </span>
                     )}
                   </div>
-                  <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: `${statusColor(skill.review_status)}20`, color: statusColor(skill.review_status) }}>
+                  <span
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: 20,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      background: `${statusColor(skill.review_status)}22`,
+                      color: statusColor(skill.review_status),
+                    }}
+                  >
                     {skill.review_status}
                   </span>
                 </div>
                 <div style={{ display: 'flex', gap: 24, marginTop: 16 }}>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#60a5fa' }}>{fmt2(skill.evidence_count)}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>Evidence Items</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--primary)' }}>{fmt2(skill.evidence_count)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{t('staff.evidenceItems')}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#34d399' }}>{fmt2(skill.demonstrated_count)}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>Demonstrated</div>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--success)' }}>{fmt2(skill.demonstrated_count)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{t('staff.demonstrated')}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: '#e2e8f0' }}>
+                    <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--gray-800)' }}>
                       {skill.evidence_count > 0 ? fmt2((skill.demonstrated_count / skill.evidence_count) * 100) : fmt2(0)}%
                     </div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>Coverage</div>
+                    <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{t('staff.coverage')}</div>
                   </div>
                 </div>
               </div>
             ))}
             {skillsSummary.length === 0 && (
-              <p style={{ color: '#64748b', textAlign: 'center', padding: 48 }}>No skills mapped to this course yet.</p>
+              <p style={{ color: 'var(--gray-500)', textAlign: 'center', padding: 48 }}>{t('staff.noSkills')}</p>
             )}
           </div>
         )}
 
         {activeTab === 'reviews' && !loading && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {tickets.map(ticket => (
-              <Link key={ticket.ticket_id} href={`/staff/review/${ticket.ticket_id}`} style={{ textDecoration: 'none' }}>
-                <div style={{ background: '#1e293b', borderRadius: 10, padding: 20, border: '1px solid #334155', cursor: 'pointer' }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = '#60a5fa')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = '#334155')}
-                >
+            {tickets.map((ticket) => (
+              <Link key={ticket.ticket_id} href={`/staff/review/${ticket.ticket_id}`} className={styles.ticketLink}>
+                <div className={styles.ticketCard}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 4 }}>
-                        {new Date(ticket.created_at).toLocaleDateString()} · Skill: {ticket.skill_id || 'N/A'}
+                      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginBottom: 4 }}>
+                        {new Date(ticket.created_at).toLocaleDateString()} · {t('staff.skillLabel')}{' '}
+                        {ticket.skill_id || 'N/A'}
                       </div>
-                      <p style={{ margin: 0, color: '#fbbf24', fontSize: 14 }}>
-                        {ticket.uncertainty_reason || 'Review required'}
+                      <p style={{ margin: 0, color: 'var(--warning)', fontSize: 14 }}>
+                        {ticket.uncertainty_reason || t('staff.reviewRequired')}
                       </p>
                       {ticket.draft_label && (
-                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                          Draft: <span style={{ color: '#94a3b8' }}>{ticket.draft_label}</span>
+                        <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
+                          {t('staff.draft')}: <span style={{ color: 'var(--gray-600)' }}>{ticket.draft_label}</span>
                         </div>
                       )}
-                      <div style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
-                        Evidence pointers: {(ticket.evidence_pointers || []).length}
+                      <div style={{ fontSize: 12, color: 'var(--gray-500)', marginTop: 4 }}>
+                        {t('staff.evidencePointers')}: {(ticket.evidence_pointers || []).length}
                       </div>
                     </div>
-                    <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, background: `${statusColor(ticket.status)}20`, color: statusColor(ticket.status) }}>
+                    <span
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        background: `${statusColor(ticket.status)}22`,
+                        color: statusColor(ticket.status),
+                      }}
+                    >
                       {ticket.status}
                     </span>
                   </div>
@@ -166,7 +187,7 @@ export default function CourseDetailPage() {
               </Link>
             ))}
             {tickets.length === 0 && (
-              <p style={{ color: '#64748b', textAlign: 'center', padding: 48 }}>No review tickets for this course.</p>
+              <p style={{ color: 'var(--gray-500)', textAlign: 'center', padding: 48 }}>{t('staff.noTickets')}</p>
             )}
           </div>
         )}

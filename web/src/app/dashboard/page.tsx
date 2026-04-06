@@ -233,28 +233,28 @@ export default function StudentDashboard() {
                 </>
               ) : (
                 <>
-                  <div className="stat-card" title={t('dashboard.statDocsTip')}>
+                  <div className="stat-card fade-in" style={{ animationDelay: '0s' }} title={t('dashboard.statDocsTip')}>
                     <div className="stat-icon green">📄</div>
                     <div className="stat-content">
                       <div className="stat-value">{fmt2(documents.length)}</div>
                       <div className="stat-label">{t('dashboard.docsUploaded')}</div>
                     </div>
                   </div>
-                  <div className="stat-card" title={t('dashboard.statVerifiedTip')}>
+                  <div className="stat-card fade-in" style={{ animationDelay: '0.07s' }} title={t('dashboard.statVerifiedTip')}>
                     <div className="stat-icon green">✓</div>
                     <div className="stat-content">
                       <div className="stat-value">{fmt2(skills.filter(s => s.status === 'verified').length)}</div>
                       <div className="stat-label">{t('dashboard.skillsVerified')}</div>
                     </div>
                   </div>
-                  <div className="stat-card" title={t('dashboard.statProgressTip')}>
+                  <div className="stat-card fade-in" style={{ animationDelay: '0.14s' }} title={t('dashboard.statProgressTip')}>
                     <div className="stat-icon yellow">○</div>
                     <div className="stat-content">
                       <div className="stat-value">{fmt2(skills.filter(s => s.status === 'pending').length)}</div>
                       <div className="stat-label">{t('dashboard.inProgress')}</div>
                     </div>
                   </div>
-                  <div className="stat-card" title={t('dashboard.statJobsTip')}>
+                  <div className="stat-card fade-in" style={{ animationDelay: '0.21s' }} title={t('dashboard.statJobsTip')}>
                     <div className="stat-icon purple">🎯</div>
                     <div className="stat-content">
                       <div className="stat-value">{fmt2(jobsMatchedCount)}</div>
@@ -363,6 +363,7 @@ export default function StudentDashboard() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                   <div
+                    className="cedarsIcon"
                     style={{
                       width: 40,
                       height: 40,

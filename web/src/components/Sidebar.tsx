@@ -23,7 +23,7 @@ const SkillSightLogo = () => (
     {/* 技能成长曲线 */}
     <path 
       d="M12 19L14.5 16L16.5 17.5L20 13" 
-      stroke="#E18182" 
+      stroke="var(--coral)" 
       strokeWidth="2" 
       strokeLinecap="round" 
       strokeLinejoin="round"
@@ -31,7 +31,7 @@ const SkillSightLogo = () => (
     {/* 洞察闪光点 */}
     <circle cx="13" cy="13" r="1.5" fill="white" opacity="0.8"/>
     {/* 技能节点装饰 */}
-    <circle cx="20" cy="13" r="1.5" fill="#E18182"/>
+    <circle cx="20" cy="13" r="1.5" fill="var(--coral)"/>
     <defs>
       <linearGradient id="eyeGradient" x1="2" y1="16" x2="30" y2="16" gradientUnits="userSpaceOnUse">
         <stop stopColor="#F9CE9C"/>

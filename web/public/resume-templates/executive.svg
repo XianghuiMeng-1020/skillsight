@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520">
+  <rect width="800" height="520" fill="#1b2a4a"/>
+  <rect x="170" y="30" width="460" height="460" rx="8" fill="#ffffff10"/>
+  <line x1="210" y1="64" x2="590" y2="64" stroke="#bf943e" stroke-width="3"/>
+  <rect x="285" y="86" width="230" height="12" rx="6" fill="#ffffff70"/>
+  <line x1="210" y1="116" x2="590" y2="116" stroke="#bf943e" stroke-width="2"/>
+  <rect x="220" y="148" width="145" height="8" rx="4" fill="#bf943e"/>
+  <rect x="220" y="168" width="330" height="4" rx="2" fill="#ffffff66"/>
+  <text x="24" y="496" fill="#ffffffaa" font-size="20" font-family="Arial, sans-serif">Executive</text>
+</svg>

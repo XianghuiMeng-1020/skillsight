@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="520" viewBox="0 0 800 520">
+  <rect width="800" height="520" fill="#0a2a4a"/>
+  <rect x="170" y="30" width="460" height="460" rx="8" fill="#ffffff12"/>
+  <rect x="280" y="66" width="240" height="10" rx="5" fill="#99d5c9"/>
+  <rect x="300" y="84" width="200" height="6" rx="3" fill="#ffffff66"/>
+  <line x1="220" y1="118" x2="580" y2="118" stroke="#99d5c9"/>
+  <rect x="220" y="145" width="130" height="8" rx="4" fill="#99d5c9"/>
+  <rect x="236" y="164" width="320" height="4" rx="2" fill="#ffffff66"/>
+  <text x="24" y="496" fill="#ffffffaa" font-size="20" font-family="Arial, sans-serif">Academic CV</text>
+</svg>

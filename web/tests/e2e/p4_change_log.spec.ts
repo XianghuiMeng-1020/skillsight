@@ -7,7 +7,7 @@
  * Prerequisites: Backend 8001, Frontend 3000, P3 seed (skills, roles)
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
@@ -19,7 +19,7 @@ const P4_USER = `p4_e2e_${Date.now()}`;
 let docId = '';
 let token = '';
 
-async function studentBffLogin(page: { goto: (url: string) => Promise<unknown>; waitForLoadState: (s: string) => Promise<void>; request: { post: (u: string, o: unknown) => Promise<{ ok: () => boolean; json: () => Promise<{ token: string }> }> }; evaluate: (fn: (arg: { token: string; userId: string }) => void, arg: { token: string; userId: string }) => Promise<void> }) {
+async function studentBffLogin(page: Page) {
   await page.goto(`${FRONTEND}/dashboard`);
   await page.waitForLoadState('domcontentloaded');
   const resp = await page.request.post(`${API}/bff/student/auth/dev_login`, {

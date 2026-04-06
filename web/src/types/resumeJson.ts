@@ -28,6 +28,7 @@ export interface ResumeJsonSection {
 
 export interface ResumeJsonDocument {
   basics?: ResumeJsonBasics;
+  contact_lines?: string[];
   sections?: ResumeJsonSection[];
   locale_hint?: 'en' | 'zh' | 'mixed' | 'auto';
 }

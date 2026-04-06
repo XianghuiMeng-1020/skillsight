@@ -1,11 +1,11 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { useLanguage } from '@/lib/contexts';
-import { getToken } from '@/lib/bffClient';
+import { getToken, studentBff } from '@/lib/bffClient';
 import { ResumeUploader } from './ResumeUploader';
 import { RubricScoreCard } from './RubricScoreCard';
 import { SuggestionPanel } from './SuggestionPanel';
@@ -14,6 +14,7 @@ import { TemplateGallery } from './TemplateGallery';
 import { ResumeStepErrorBoundary } from './ResumeStepErrorBoundary';
 import { LayoutHealthPanel } from './LayoutHealthPanel';
 import { ResumeReviewsFooter } from './ResumeReviewsFooter';
+import { ResumeWorkbench } from './ResumeWorkbench';
 import styles from './resume.module.css';
 
 const STEPS = [
@@ -26,16 +27,18 @@ const STEPS = [
 
 function ResumePageContent() {
   const { t } = useLanguage();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [step, setStep] = useState(1);
-  const [reviewId, setReviewId] = useState<string | null>(null);
-  const [docId, setDocId] = useState<string | null>(null);
-  const [targetRoleId, setTargetRoleId] = useState<string | undefined>(undefined);
+  const initialReviewId = searchParams.get('review_id');
+  const initialStepRaw = Number(searchParams.get('step') || (initialReviewId ? '2' : '1'));
+  const initialStep = Number.isFinite(initialStepRaw) ? Math.min(5, Math.max(initialReviewId ? 2 : 1, initialStepRaw)) : 1;
+  const [step, setStep] = useState(initialStep);
+  const [reviewId, setReviewId] = useState<string | null>(initialReviewId);
   const [initialScores, setInitialScores] = useState<Record<string, { score: number; comment: string }> | null>(null);
-  const [finalScores, setFinalScores] = useState<Record<string, { score: number; comment: string }> | null>(null);
   const [totalInitial, setTotalInitial] = useState<number | null>(null);
-  const [totalFinal, setTotalFinal] = useState<number | null>(null);
-  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
+  const [resumeOverrideText, setResumeOverrideText] = useState('');
+  const [templateOptions, setTemplateOptions] = useState<Record<string, unknown>>({});
 
   useEffect(() => {
     if (typeof window !== 'undefined' && !getToken()) {
@@ -43,18 +46,44 @@ function ResumePageContent() {
     }
   }, []);
 
-  const reviewIdFromUrl = searchParams.get('review_id');
   useEffect(() => {
-    if (reviewIdFromUrl && !reviewId) {
-      setReviewId(reviewIdFromUrl);
-      setStep(2);
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (reviewId) {
+      params.set('review_id', reviewId);
+      params.set('step', String(step));
+    } else {
+      params.delete('review_id');
+      params.delete('step');
     }
-  }, [reviewIdFromUrl, reviewId]);
+    const q = params.toString();
+    router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
+  }, [reviewId, step, pathname, router]);
 
-  const handleStartReview = (id: string, doc: string, roleId?: string) => {
+  useEffect(() => {
+    if (!reviewId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const st = await studentBff.resumeReviewState(reviewId);
+        if (cancelled) return;
+        const safeMax = Math.min(5, Math.max(1, Number(st.max_step || 1)));
+        if (step > safeMax) {
+          setStep(safeMax);
+        } else if (step < 2) {
+          setStep(2);
+        }
+      } catch {
+        // Keep current UI state; backend still enforces invalid_state.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reviewId, step]);
+
+  const handleStartReview = (id: string) => {
     setReviewId(id);
-    setDocId(doc);
-    setTargetRoleId(roleId);
     setStep(2);
   };
 
@@ -62,19 +91,11 @@ function ResumePageContent() {
     setInitialScores(scores);
     setTotalInitial(total);
     setStep(3);
-    setSuggestionsLoaded(false);
-  };
-
-  const handleSuggestionsDone = () => {
-    setSuggestionsLoaded(true);
   };
 
   const handleContinueToComparison = () => setStep(4);
 
-  const handleRescoreDone = (scores: Record<string, { score: number; comment: string }>, total: number) => {
-    setFinalScores(scores);
-    setTotalFinal(total);
-  };
+  const handleRescoreDone = () => {};
 
   const handleContinueToTemplates = () => setStep(5);
 
@@ -83,15 +104,20 @@ function ResumePageContent() {
     setStep(next);
     if (next === 1) {
       setReviewId(null);
-      setDocId(null);
-      setTargetRoleId(undefined);
       setInitialScores(null);
-      setFinalScores(null);
       setTotalInitial(null);
-      setTotalFinal(null);
-      setSuggestionsLoaded(false);
+      setResumeOverrideText('');
+      setTemplateOptions({});
     }
   };
+
+  const handleOverrideChange = useCallback((text: string) => {
+    setResumeOverrideText(text);
+  }, []);
+
+  const handleTemplateOptionsChange = useCallback((opts: Record<string, unknown>) => {
+    setTemplateOptions(opts);
+  }, []);
 
   return (
     <div className={styles.layout}>
@@ -114,6 +140,8 @@ function ResumePageContent() {
                       type="button"
                       className={`${styles.stepDot} ${isCurrent ? styles.stepDotCurrent : ''} ${isDone ? styles.stepDotDone : ''}`}
                       onClick={() => isDone && setStep(stepNum)}
+                      disabled={!isDone && !isCurrent}
+                      aria-disabled={!isDone && !isCurrent}
                       aria-current={isCurrent ? 'step' : undefined}
                       aria-label={`${stepNum}. ${t(STEPS[i].key)}`}
                     >
@@ -136,7 +164,6 @@ function ResumePageContent() {
             {step === 1 && (
               <ResumeUploader
                 onStart={handleStartReview}
-                existingReviewId={reviewId}
               />
             )}
             {step === 2 && reviewId && (
@@ -149,7 +176,6 @@ function ResumePageContent() {
               <SuggestionPanel
                 reviewId={reviewId}
                 onContinue={handleContinueToComparison}
-                onSuggestionsLoaded={handleSuggestionsDone}
               />
             )}
             {step === 4 && reviewId && initialScores && (
@@ -165,7 +191,16 @@ function ResumePageContent() {
               <>
                 <LayoutHealthPanel reviewId={reviewId} />
                 <p className={styles.exportWpsNote}>{t('resume.exportWpsNote')}</p>
-                <TemplateGallery reviewId={reviewId} />
+                <ResumeWorkbench
+                  reviewId={reviewId}
+                  onResumeOverrideChange={handleOverrideChange}
+                  onTemplateOptionsChange={handleTemplateOptionsChange}
+                />
+                <TemplateGallery
+                  reviewId={reviewId}
+                  resumeOverrideText={resumeOverrideText}
+                  templateOptions={templateOptions}
+                />
               </>
             )}
           </ResumeStepErrorBoundary>

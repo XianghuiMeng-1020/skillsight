@@ -3,6 +3,7 @@
 import { useAchievements, Achievement } from '@/lib/hooks';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
+import { ModalShell } from '@/components/ModalShell';
 
 const rarityStyleMap: Record<Achievement['rarity'], { bg: string; border: string; text: string; glow: string }> = {
   common: {
@@ -438,40 +439,21 @@ export function AchievementsModal({ onClose }: AchievementsModalProps) {
   const unlockedCount = achievements.filter((a) => a.unlocked).length;
   const categories = ['assessment', 'learning', 'milestone', 'special'] as const;
 
-  // 点击背景关闭弹窗
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onClose();
-    }
-  };
-
   return (
-    <div
-      onClick={handleBackdropClick}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
+    <ModalShell
+      open
+      onClose={onClose}
+      titleId="achievements-modal-title"
+      modalStyle={{
+        maxWidth: '600px',
+        width: '100%',
+        maxHeight: '85vh',
+        overflow: 'hidden',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '1rem',
+        flexDirection: 'column',
+        padding: 0,
       }}
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          background: 'white',
-          borderRadius: '20px',
-          maxWidth: '600px',
-          width: '100%',
-          maxHeight: '85vh',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
         {/* 头部 */}
         <div
           style={{
@@ -500,7 +482,7 @@ export function AchievementsModal({ onClose }: AchievementsModalProps) {
               🏆
             </span>
             <div>
-              <h3 style={{ fontWeight: 700, fontSize: '1.125rem', color: '#92400e', margin: 0 }}>
+              <h3 id="achievements-modal-title" style={{ fontWeight: 700, fontSize: '1.125rem', color: '#92400e', margin: 0 }}>
                 {t('achievements.system')}
               </h3>
               <p style={{ fontSize: '0.75rem', color: '#a8a29e', margin: '0.125rem 0 0 0' }}>
@@ -523,7 +505,9 @@ export function AchievementsModal({ onClose }: AchievementsModalProps) {
               {fmt2(totalPoints)} {t('achievements.points')}
             </span>
             <button
+              type="button"
               onClick={onClose}
+              aria-label={t('common.close')}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -608,6 +592,7 @@ export function AchievementsModal({ onClose }: AchievementsModalProps) {
           }}
         >
           <button
+            type="button"
             onClick={onClose}
             style={{
               padding: '0.625rem 1.5rem',
@@ -632,8 +617,7 @@ export function AchievementsModal({ onClose }: AchievementsModalProps) {
             {t('common.close')}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

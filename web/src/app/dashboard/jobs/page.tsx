@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { ModalShell } from '@/components/ModalShell';
 import { studentBff, getToken } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
@@ -368,12 +369,22 @@ export default function JobsPage() {
           </div>
 
           {/* Role Detail Modal */}
-          {selectedRole && (
-            <div className="modal-overlay open" onClick={() => setSelectedRole(null)}>
-              <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
+          <ModalShell
+            open={!!selectedRole}
+            onClose={() => setSelectedRole(null)}
+            titleId="job-role-modal-title"
+            modalStyle={{ maxWidth: '600px' }}
+          >
+            {selectedRole && (
+              <>
                 <div className="modal-header">
-                  <h3>{selectedRole.role_title}</h3>
-                  <button className="btn btn-icon btn-ghost" onClick={() => setSelectedRole(null)}>
+                  <h3 id="job-role-modal-title">{selectedRole.role_title}</h3>
+                  <button
+                    type="button"
+                    className="btn btn-icon btn-ghost"
+                    aria-label={t('jobs.close')}
+                    onClick={() => setSelectedRole(null)}
+                  >
                     ✕
                   </button>
                 </div>
@@ -494,7 +505,7 @@ export default function JobsPage() {
                             key={i}
                             style={{ 
                               padding: '1rem', 
-                              background: gap.status === 'needs_strengthening' ? '#fefce8' : '#fef2f2', 
+                              background: gap.status === 'needs_strengthening' ? 'var(--warning-light)' : 'var(--error-light)', 
                               borderRadius: 'var(--radius)',
                               display: 'flex',
                               justifyContent: 'space-between',
@@ -505,7 +516,7 @@ export default function JobsPage() {
                               <div style={{ fontWeight: 500 }}>{gap.skill_name}</div>
                               <div style={{ fontSize: '0.813rem', color: 'var(--gray-600)' }}>
                                 Lv.{gap.achieved_level} → Lv.{gap.target_level}
-                                {gap.status === 'needs_strengthening' ? ' · needs strengthening' : ' · missing proof'}
+                                {gap.status === 'needs_strengthening' ? t('jobs.gapNeedsStrengthening') : t('jobs.gapMissingProof')}
                               </div>
                             </div>
                             <a href="/dashboard/upload" className="btn btn-sm btn-secondary">
@@ -566,16 +577,16 @@ export default function JobsPage() {
                   )}
                 </div>
                 <div className="modal-footer">
-                  <button className="btn btn-secondary" onClick={() => setSelectedRole(null)}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setSelectedRole(null)}>
                     {t('jobs.close')}
                   </button>
                   <a href="/dashboard/skills" className="btn btn-primary">
                     {t('jobs.viewMySkills')}
                   </a>
                 </div>
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </ModalShell>
         </div>
       </main>
     </div>

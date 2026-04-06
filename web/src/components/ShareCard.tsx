@@ -5,6 +5,7 @@ import { useLanguage, getDateLocale } from '@/lib/contexts';
 import { logger } from '@/lib/logger';
 import { studentBff } from '@/lib/bffClient';
 import { fmt2 } from '@/lib/formatNumber';
+import { ModalShell } from '@/components/ModalShell';
 
 interface ShareButtonProps {
   userName: string;
@@ -159,58 +160,22 @@ function ShareModal({
   const topSkills = skills.slice(0, 4);
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '1rem',
-      }}
-      onClick={onClose}
+    <ModalShell
+      open
+      onClose={onClose}
+      titleId="share-modal-title"
+      modalStyle={{ maxWidth: '480px', width: '100%', maxHeight: '90vh', overflow: 'auto' }}
     >
-      <div
-        style={{
-          background: 'white',
-          borderRadius: '20px',
-          maxWidth: '480px',
-          width: '100%',
-          maxHeight: '90vh',
-          overflow: 'auto',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* 头部 */}
-        <div
-          style={{
-            padding: '1.25rem 1.5rem',
-            borderBottom: '1px solid var(--gray-100)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
-          <h3 style={{ fontWeight: 600, fontSize: '1.125rem' }}>{t('share.shareProfile')}</h3>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              fontSize: '1.5rem',
-              cursor: 'pointer',
-              color: 'var(--gray-400)',
-              lineHeight: 1,
-            }}
-          >
-            ×
-          </button>
-        </div>
+      <div className="modal-header">
+        <h3 id="share-modal-title" style={{ fontWeight: 600, fontSize: '1.125rem', margin: 0 }}>
+          {t('share.shareProfile')}
+        </h3>
+        <button type="button" className="btn btn-icon btn-ghost" onClick={onClose} aria-label={t('common.close')}>
+          ×
+        </button>
+      </div>
 
-        {/* 预览卡片 */}
-        <div style={{ padding: '1.5rem' }}>
+      <div className="modal-body">
           <div
             ref={cardRef}
             style={{
@@ -312,15 +277,15 @@ function ShareModal({
           </div>
         </div>
 
-        {/* 分享选项 */}
-        <div
-          style={{
-            padding: '0 1.5rem 1.5rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem',
-          }}
-        >
+      <div
+        className="modal-footer"
+        style={{
+          flexDirection: 'column',
+          alignItems: 'stretch',
+          gap: '0.75rem',
+          borderTop: '1px solid var(--gray-100)',
+        }}
+      >
           <button
             onClick={onCopyLink}
             style={{
@@ -390,9 +355,8 @@ function ShareModal({
               📤 {t('share.moreOptions')}
             </button>
           )}
-        </div>
       </div>
-    </div>
+    </ModalShell>
   );
 }
 

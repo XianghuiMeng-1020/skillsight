@@ -330,10 +330,10 @@ a:hover {
   width: 200%;
   height: 200%;
   background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.3) 50%, transparent 60%);
-  animation: shimmer 3s infinite;
+  animation: shimmer-logo 3s infinite;
 }
 
-@keyframes shimmer {
+@keyframes shimmer-logo {
   0% { transform: translateX(-100%) rotate(45deg); }
   100% { transform: translateX(100%) rotate(45deg); }
 }
@@ -342,6 +342,8 @@ a:hover {
   flex: 1;
   padding: 1rem 0;
   overflow-y: auto;
+  position: relative;
+  z-index: 2;
 }
 
 .nav-section {
@@ -362,6 +364,10 @@ a:hover {
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 1.5rem;
+  min-height: 44px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1;
   color: var(--gray-600);
   font-size: 0.875rem;
   font-weight: 500;
@@ -973,7 +979,7 @@ a:hover {
   to { transform: rotate(360deg); }
 }
 
-@keyframes shimmer {
+@keyframes shimmer-progress {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
@@ -1207,6 +1213,15 @@ a:hover {
   animation: fadeIn 0.3s ease forwards;
 }
 
+/* Dashboard CEDARS contact strip icon */
+.cedarsIcon {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.cedarsIcon:hover {
+  transform: scale(1.06);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.12);
+}
+
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(20px); }
   to { opacity: 1; transform: translateX(0); }
@@ -1300,7 +1315,7 @@ a:hover {
   width: 200%;
   height: 200%;
   background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.4) 50%, transparent 60%);
-  animation: shimmer 2s infinite;
+  animation: shimmer-logo 2s infinite;
 }
 
 .login-title {

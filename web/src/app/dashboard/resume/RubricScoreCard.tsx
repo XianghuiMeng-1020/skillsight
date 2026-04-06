@@ -70,14 +70,17 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
       }
     };
     run();
-  }, [reviewId, retryTrigger]);
+  }, [reviewId, retryTrigger, addToast]);
 
   if (loading || scoring) {
     return (
       <>
         <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step2Title')}</h2>
         <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>{t('resume.step2Desc')}</p>
-        <p style={{ color: 'var(--gray-500)' }}>{t('resume.scoring')}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <span className="spinner" aria-hidden />
+          <p style={{ color: 'var(--gray-500)', margin: 0 }}>{t('resume.scoring')}</p>
+        </div>
       </>
     );
   }
@@ -121,7 +124,7 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
         </ul>
       </div>
 
-      <div className={styles.scoreRing}>
+      <div className={styles.scoreRing} role="img" aria-label={t('resume.step2Title')}>
         <ResponsiveContainer width="100%" height={250}>
           <RechartsRadarChart data={radarData} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
             <PolarGrid />
@@ -148,6 +151,18 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
             />
           </RechartsRadarChart>
         </ResponsiveContainer>
+      </div>
+      <div style={{ fontSize: '0.78rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <tbody>
+            {DIMENSION_KEYS.map((key) => (
+              <tr key={`radar-${key}`}>
+                <td style={{ padding: '2px 0' }}>{t(DIMENSION_LABEL_KEYS[key] || key)}</td>
+                <td style={{ textAlign: 'right', padding: '2px 0', fontWeight: 600 }}>{fmt2(scores[key]?.score ?? 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
       <p className={styles.scoreRingValue} style={{ color: ringColor, marginBottom: '1.5rem' }}>
         {t('resume.totalScore')}: {fmt2(totalNum)}/100

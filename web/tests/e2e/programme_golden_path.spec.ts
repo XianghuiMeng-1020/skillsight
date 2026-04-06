@@ -8,12 +8,12 @@
  *   - P3 seed (prog_leader_demo, programme CSCI_MSC)
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const API = process.env.API_BASE_URL || 'http://localhost:8001';
 const FRONTEND = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
 
-async function programmeDevLogin(page: { request: { post: (url: string, opts: unknown) => Promise<{ ok: () => boolean; json: () => Promise<{ token: string }> }> }; evaluate: (fn: (t: string) => void, arg: string) => Promise<void> }) {
+async function programmeDevLogin(page: Page) {
   const resp = await page.request.post(`${API}/bff/programme/auth/dev_login`, {
     data: { subject_id: 'prog_leader_demo', role: 'programme_leader', programme_id: 'CSCI_MSC' },
     headers: { 'Content-Type': 'application/json' },

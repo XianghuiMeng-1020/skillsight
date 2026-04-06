@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "typecheck:e2e": "tsc --project tsconfig.e2e.json --noEmit",
     "test:e2e": "playwright test tests/e2e/student_golden_path.spec.ts --reporter=list",
     "test:e2e:headed": "playwright test tests/e2e/student_golden_path.spec.ts --headed",
     "test:e2e:workflows": "playwright test tests/e2e/student_workflows_full.spec.ts --reporter=list",

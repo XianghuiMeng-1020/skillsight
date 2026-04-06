@@ -23,10 +23,9 @@ interface RoleItem {
 
 interface ResumeUploaderProps {
   onStart: (reviewId: string, docId: string, targetRoleId?: string) => void;
-  existingReviewId?: string | null;
 }
 
-export function ResumeUploader({ onStart, existingReviewId }: ResumeUploaderProps) {
+export function ResumeUploader({ onStart }: ResumeUploaderProps) {
   const { t } = useLanguage();
   const { addToast } = useToast();
   const [docs, setDocs] = useState<DocItem[]>([]);
@@ -86,12 +85,13 @@ export function ResumeUploader({ onStart, existingReviewId }: ResumeUploaderProp
       } catch {
         setDocs([]);
         setRoles([]);
+        addToast('error', (t('resume.resumeDataLoadFailed') as string) || (t('common.error') as string) || 'Failed to load resume data');
       } finally {
         setLoading(false);
       }
     };
     load();
-  }, []);
+  }, [addToast, t]);
 
   const handleStartReview = async () => {
     if (!selectedDocId) {
@@ -143,9 +143,7 @@ export function ResumeUploader({ onStart, existingReviewId }: ResumeUploaderProp
 
   if (loading) {
     return (
-      <div className={styles.stepContent}>
-        <p>{t('common.loading') || 'Loading...'}</p>
-      </div>
+      <p>{t('common.loading') || 'Loading...'}</p>
     );
   }
 

@@ -8,12 +8,12 @@
  *   - P3 seed data (staff_demo, teaching relations, review tickets)
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const API = process.env.API_BASE_URL || 'http://localhost:8001';
 const FRONTEND = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
 
-async function staffDevLogin(page: { request: { post: (url: string, opts: unknown) => Promise<{ ok: () => boolean; json: () => Promise<{ token: string }> }> } }) {
+async function staffDevLogin(page: Page) {
   const resp = await page.request.post(`${API}/bff/staff/auth/dev_login`, {
     data: { subject_id: 'staff_demo', role: 'staff', course_ids: ['COMP3000', 'COMP3100'], term_id: '2025-26-T1' },
     headers: { 'Content-Type': 'application/json' },

@@ -24,6 +24,44 @@ def _compute_hash(text: str) -> str:
     return hashlib.sha256((text or "").encode("utf-8")).hexdigest()
 
 
+def _coalesce_short_paragraphs(
+    parts: List[str],
+    min_chunk_len: int = 50,
+    max_chunk_len: int = 2000,
+) -> List[str]:
+    """
+    Merge consecutive short segments so fewer sentences are dropped before indexing.
+    Aligns with protocol min_chunk_length while preserving content (resume-friendly).
+    """
+    items = [p.strip() for p in parts if p and p.strip()]
+    if not items:
+        return []
+    out: List[str] = []
+    buf = items[0]
+    for x in items[1:]:
+        if len(buf) >= min_chunk_len:
+            if len(buf) + 1 + len(x) <= max_chunk_len:
+                buf = f"{buf} {x}"
+            else:
+                out.append(buf)
+                buf = x
+        else:
+            if len(buf) + 1 + len(x) <= max_chunk_len:
+                buf = f"{buf} {x}"
+            else:
+                out.append(buf)
+                buf = x
+    out.append(buf)
+    # Merge trailing fragment into previous if still below min (single small tail)
+    while len(out) >= 2 and len(out[-1]) < min_chunk_len:
+        if len(out[-2]) + 1 + len(out[-1]) <= max_chunk_len:
+            out[-2] = f"{out[-2]} {out[-1]}"
+            out.pop()
+        else:
+            break
+    return out
+
+
 # ====================
 # TXT Parser
 # ====================
@@ -39,24 +77,18 @@ def parse_txt_to_chunks(
         return []
     
     text = content.replace("\r\n", "\n").replace("\r", "\n")
+    raw_parts = text.split("\n\n")
+    stripped_parts = [p.strip() for p in raw_parts if p.strip()]
+    merged_texts = _coalesce_short_paragraphs(stripped_parts, min_chunk_len)
     chunks = []
     cursor = 0
     idx = 0
-    
-    for part in text.split("\n\n"):
-        part_strip = part.strip()
-        if len(part_strip) < min_chunk_len:
-            cursor += len(part) + 2
-            continue
-        
-        # Find position in original text
-        pos = text.find(part, cursor)
+    for part_strip in merged_texts:
+        pos = text.find(part_strip, cursor)
         if pos == -1:
             pos = cursor
-        
         char_start = pos
-        char_end = pos + len(part)
-        
+        char_end = pos + len(part_strip)
         chunks.append({
             "idx": idx,
             "char_start": char_start,
@@ -68,16 +100,92 @@ def parse_txt_to_chunks(
             "page_start": None,
             "page_end": None,
         })
-        
-        cursor = char_end + 2
+        cursor = char_end
         idx += 1
-    
     return chunks
 
 
 # ====================
 # DOCX Parser
 # ====================
+def _parse_docx_document_to_chunks(doc: Any, min_chunk_len: int = 50) -> List[Dict[str, Any]]:
+    """Shared DOCX chunking: merge consecutive short body paragraphs (non-heading)."""
+    chunks: List[Dict[str, Any]] = []
+    idx = 0
+    char_cursor = 0
+    current_section: List[str] = []
+    pending: List[str] = []
+
+    def flush_pending() -> None:
+        nonlocal pending, idx, char_cursor, chunks, current_section
+        if not pending:
+            return
+        merged = " ".join(pending)
+        pending = []
+        section_path = " > ".join(current_section) if current_section else None
+        chunks.append({
+            "idx": idx,
+            "char_start": char_cursor,
+            "char_end": char_cursor + len(merged),
+            "chunk_text": merged,
+            "snippet": _make_snippet(merged),
+            "quote_hash": _compute_hash(merged),
+            "section_path": section_path,
+            "page_start": None,
+            "page_end": None,
+        })
+        char_cursor += len(merged) + 1
+        idx += 1
+
+    def append_chunk(chunk_text: str) -> None:
+        nonlocal idx, char_cursor, chunks, current_section
+        section_path = " > ".join(current_section) if current_section else None
+        chunks.append({
+            "idx": idx,
+            "char_start": char_cursor,
+            "char_end": char_cursor + len(chunk_text),
+            "chunk_text": chunk_text,
+            "snippet": _make_snippet(chunk_text),
+            "quote_hash": _compute_hash(chunk_text),
+            "section_path": section_path,
+            "page_start": None,
+            "page_end": None,
+        })
+        char_cursor += len(chunk_text) + 1
+        idx += 1
+
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if not text:
+            continue
+
+        style_name = para.style.name if para.style else ""
+        is_heading = style_name.lower().startswith("heading")
+
+        if is_heading:
+            flush_pending()
+            level_match = re.search(r"(\d+)", style_name)
+            level = int(level_match.group(1)) if level_match else 1
+            while len(current_section) >= level:
+                current_section.pop()
+            current_section.append(text)
+            append_chunk(text)
+            continue
+
+        if len(text) >= min_chunk_len:
+            flush_pending()
+            append_chunk(text)
+            continue
+
+        pending.append(text)
+        joined = " ".join(pending)
+        if len(joined) >= min_chunk_len:
+            flush_pending()
+
+    flush_pending()
+    return chunks
+
+
 def parse_docx_to_chunks(
     file_path: str,
     min_chunk_len: int = 50,
@@ -88,58 +196,11 @@ def parse_docx_to_chunks(
     """
     try:
         from docx import Document
-        from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
     except ImportError:
         raise ImportError("python-docx is required for DOCX parsing. Install with: pip install python-docx")
-    
+
     doc = Document(file_path)
-    chunks = []
-    idx = 0
-    char_cursor = 0
-    current_section = []
-    
-    for para in doc.paragraphs:
-        text = para.text.strip()
-        if not text:
-            continue
-        
-        # Detect headings
-        style_name = para.style.name if para.style else ""
-        is_heading = style_name.lower().startswith("heading")
-        
-        if is_heading:
-            # Extract heading level (Heading 1, Heading 2, etc.)
-            level_match = re.search(r"(\d+)", style_name)
-            level = int(level_match.group(1)) if level_match else 1
-            
-            # Update section path
-            while len(current_section) >= level:
-                current_section.pop()
-            current_section.append(text)
-        
-        # Skip very short paragraphs
-        if len(text) < min_chunk_len and not is_heading:
-            char_cursor += len(text) + 1
-            continue
-        
-        section_path = " > ".join(current_section) if current_section else None
-        
-        chunks.append({
-            "idx": idx,
-            "char_start": char_cursor,
-            "char_end": char_cursor + len(text),
-            "chunk_text": text,
-            "snippet": _make_snippet(text),
-            "quote_hash": _compute_hash(text),
-            "section_path": section_path,
-            "page_start": None,  # DOCX doesn't have page info
-            "page_end": None,
-        })
-        
-        char_cursor += len(text) + 1
-        idx += 1
-    
-    return chunks
+    return _parse_docx_document_to_chunks(doc, min_chunk_len)
 
 
 def parse_docx_bytes_to_chunks(
@@ -153,50 +214,9 @@ def parse_docx_bytes_to_chunks(
         from docx import Document
     except ImportError:
         raise ImportError("python-docx is required for DOCX parsing. Install with: pip install python-docx")
-    
+
     doc = Document(io.BytesIO(file_bytes))
-    chunks = []
-    idx = 0
-    char_cursor = 0
-    current_section = []
-    
-    for para in doc.paragraphs:
-        text = para.text.strip()
-        if not text:
-            continue
-        
-        style_name = para.style.name if para.style else ""
-        is_heading = style_name.lower().startswith("heading")
-        
-        if is_heading:
-            level_match = re.search(r"(\d+)", style_name)
-            level = int(level_match.group(1)) if level_match else 1
-            while len(current_section) >= level:
-                current_section.pop()
-            current_section.append(text)
-        
-        if len(text) < min_chunk_len and not is_heading:
-            char_cursor += len(text) + 1
-            continue
-        
-        section_path = " > ".join(current_section) if current_section else None
-        
-        chunks.append({
-            "idx": idx,
-            "char_start": char_cursor,
-            "char_end": char_cursor + len(text),
-            "chunk_text": text,
-            "snippet": _make_snippet(text),
-            "quote_hash": _compute_hash(text),
-            "section_path": section_path,
-            "page_start": None,
-            "page_end": None,
-        })
-        
-        char_cursor += len(text) + 1
-        idx += 1
-    
-    return chunks
+    return _parse_docx_document_to_chunks(doc, min_chunk_len)
 
 
 # ====================
@@ -225,17 +245,11 @@ def parse_pdf_to_chunks(
         if not text.strip():
             continue
         
-        # Split by double newlines within page
         paragraphs = text.split("\n\n")
-        
-        for para in paragraphs:
-            para_text = para.strip()
-            para_text = re.sub(r"\s+", " ", para_text)  # Normalize whitespace
-            
-            if len(para_text) < min_chunk_len:
-                char_cursor += len(para_text) + 2
-                continue
-            
+        normalized = [re.sub(r"\s+", " ", p.strip()) for p in paragraphs if p.strip()]
+        merged_paras = _coalesce_short_paragraphs(normalized, min_chunk_len)
+
+        for para_text in merged_paras:
             chunks.append({
                 "idx": idx,
                 "char_start": char_cursor,
@@ -247,7 +261,6 @@ def parse_pdf_to_chunks(
                 "page_start": page_num,
                 "page_end": page_num,
             })
-            
             char_cursor += len(para_text) + 2
             idx += 1
     
@@ -278,15 +291,10 @@ def parse_pdf_bytes_to_chunks(
             continue
         
         paragraphs = text.split("\n\n")
-        
-        for para in paragraphs:
-            para_text = para.strip()
-            para_text = re.sub(r"\s+", " ", para_text)
-            
-            if len(para_text) < min_chunk_len:
-                char_cursor += len(para_text) + 2
-                continue
-            
+        normalized = [re.sub(r"\s+", " ", p.strip()) for p in paragraphs if p.strip()]
+        merged_paras = _coalesce_short_paragraphs(normalized, min_chunk_len)
+
+        for para_text in merged_paras:
             chunks.append({
                 "idx": idx,
                 "char_start": char_cursor,
@@ -298,7 +306,6 @@ def parse_pdf_bytes_to_chunks(
                 "page_start": page_num,
                 "page_end": page_num,
             })
-            
             char_cursor += len(para_text) + 2
             idx += 1
     

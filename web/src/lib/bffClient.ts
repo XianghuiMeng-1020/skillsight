@@ -647,6 +647,16 @@ export const studentBff = {
       total_final: number | null;
     }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/score`),
 
+  resumeReviewState: (reviewId: string) =>
+    bffRequest<{
+      review_id: string;
+      status: string;
+      max_step: number;
+      target_role_id?: string;
+      has_initial_scores?: boolean;
+      has_final_scores?: boolean;
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/state`),
+
   resumeReviewSuggest: (reviewId: string) =>
     bffRequest<{
       suggestions: Array<{
@@ -717,7 +727,139 @@ export const studentBff = {
       locale_hint?: string;
     }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/layout-check`),
 
-  resumeReviewPreviewHtml: async (reviewId: string, templateId: string): Promise<string> => {
+  resumeReviewCompressionHints: (reviewId: string) =>
+    bffRequest<{ review_id: string; estimated_pages: number; hints: string[] }>(
+      `/bff/student/resume-review/${encodeURIComponent(reviewId)}/compression-hints`
+    ),
+
+  resumeReviewEditableResume: (reviewId: string) =>
+    bffRequest<{ review_id: string; resume_text: string }>(
+      `/bff/student/resume-review/${encodeURIComponent(reviewId)}/editable-resume`
+    ),
+
+  resumeReviewCloneVersion: (reviewId: string, opts?: { targetRoleId?: string; label?: string }) =>
+    bffRequest<{ review_id: string; status: string; label?: string }>(
+      `/bff/student/resume-review/${encodeURIComponent(reviewId)}/clone-version`,
+      { method: 'POST', body: { target_role_id: opts?.targetRoleId, label: opts?.label } }
+    ),
+
+  resumeReviewDiffInsights: (
+    reviewId: string,
+    opts?: { compareReviewId?: string; resumeOverrideText?: string }
+  ) =>
+    bffRequest<{
+      review_id: string;
+      compare_review_id?: string;
+      role_keywords: string[];
+      summary: { added_lines: number; removed_lines: number; overlap_lines: number };
+      metrics: {
+        before: Record<string, number>;
+        after: Record<string, number>;
+      };
+      dimension_impact: Record<string, { delta: number; signal: 'positive' | 'neutral' | 'negative' }>;
+      highlights: string[];
+      risks: Array<{ level: string; code: string; message: string }>;
+      semantic_alignment: {
+        avg_similarity: number;
+        matched_sentences: number;
+        added_sentences: number;
+        removed_sentences: number;
+        pairs: Array<{ before: string; after: string; similarity: number }>;
+      };
+      risk_validator: {
+        risk_level: 'low' | 'medium' | 'high';
+        issues: Array<{ level: string; code: string; message: string }>;
+      };
+      attribution: {
+        total_delta?: number | null;
+        by_dimension: Array<{
+          dimension: string;
+          score_before: number;
+          score_after: number;
+          score_delta: number;
+          change_signal: 'positive' | 'neutral' | 'negative' | string;
+          alignment: 'aligned' | 'mixed' | 'neutral' | string;
+        }>;
+      };
+      next_actions: string[];
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/diff-insights`, {
+      method: 'POST',
+      body: {
+        compare_review_id: opts?.compareReviewId ?? undefined,
+        resume_override_text: opts?.resumeOverrideText ?? undefined,
+      },
+    }),
+
+  resumeReviewAttribution: (reviewId: string) =>
+    bffRequest<{
+      review_id: string;
+      attribution: {
+        total_delta?: number | null;
+        by_dimension: Array<{
+          dimension: string;
+          score_before: number;
+          score_after: number;
+          score_delta: number;
+          change_signal: 'positive' | 'neutral' | 'negative' | string;
+          alignment: 'aligned' | 'mixed' | 'neutral' | string;
+        }>;
+      };
+      verification_snapshot?: Record<string, unknown>;
+      verification_version?: string;
+      semantic_alignment?: {
+        avg_similarity: number;
+        matched_sentences: number;
+        added_sentences: number;
+        removed_sentences: number;
+      };
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/attribution`),
+
+  resumeReviewExportAttributionReport: (
+    reviewId: string,
+    opts?: { exportFormat?: 'docx' | 'pdf'; compareReviewId?: string; resumeOverrideText?: string }
+  ) =>
+    bffRequest<{
+      filename: string;
+      content_base64: string;
+      mime_type: string;
+      format_used?: string;
+      pdf_unavailable?: boolean;
+      message?: string;
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/export-attribution-report`, {
+      method: 'POST',
+      body: {
+        export_format: opts?.exportFormat ?? 'docx',
+        compare_review_id: opts?.compareReviewId ?? undefined,
+        resume_override_text: opts?.resumeOverrideText ?? undefined,
+      },
+    }),
+
+  resumeReviewPreviewHtml: async (
+    reviewId: string,
+    templateId: string,
+    opts?: { resumeOverrideText?: string; templateOptions?: Record<string, unknown> }
+  ): Promise<string> => {
+    if (opts?.resumeOverrideText) {
+      const token = getToken();
+      const base = BFF_BASE.replace(/\/$/, '');
+      const url = `${base}/bff/student/resume-review/${encodeURIComponent(reviewId)}/preview-html`;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const r = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          template_id: templateId,
+          resume_override_text: opts.resumeOverrideText,
+          template_options: opts?.templateOptions ?? undefined,
+        }),
+      });
+      if (!r.ok) {
+        const err = await r.text();
+        throw new Error(err || `preview-html ${r.status}`);
+      }
+      return r.text();
+    }
     const token = getToken();
     const base = BFF_BASE.replace(/\/$/, '');
     const url = `${base}/bff/student/resume-review/${encodeURIComponent(reviewId)}/preview-html?template_id=${encodeURIComponent(templateId)}`;
@@ -734,7 +876,7 @@ export const studentBff = {
   resumeReviewApplyTemplate: (
     reviewId: string,
     templateId: string,
-    opts?: { exportFormat?: 'docx' | 'pdf' }
+    opts?: { exportFormat?: 'docx' | 'pdf'; resumeOverrideText?: string; templateOptions?: Record<string, unknown> }
   ) =>
     bffRequest<{
       filename: string;
@@ -748,6 +890,8 @@ export const studentBff = {
       body: {
         template_id: templateId,
         export_format: opts?.exportFormat ?? 'docx',
+        resume_override_text: opts?.resumeOverrideText ?? undefined,
+        template_options: opts?.templateOptions ?? undefined,
       },
     }),
 

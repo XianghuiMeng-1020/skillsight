@@ -11,6 +11,7 @@ export function LayoutHealthPanel({ reviewId }: { reviewId: string }) {
   const [issues, setIssues] = useState<Array<{ level: string; code: string; message: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +33,7 @@ export function LayoutHealthPanel({ reviewId }: { reviewId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [reviewId]);
+  }, [reviewId, reloadTick]);
 
   if (loading) {
     return (
@@ -42,7 +43,19 @@ export function LayoutHealthPanel({ reviewId }: { reviewId: string }) {
     );
   }
   if (err) {
-    return null;
+    return (
+      <div className={styles.layoutHealth}>
+        <div className={styles.layoutHealthHeader}>
+          <span className={styles.layoutHealthTitle}>{t('resume.layoutHealthTitle')}</span>
+        </div>
+        <p className={styles.layoutHealthOk}>
+          {t('resume.layoutHealthLoadFailed') || err}
+        </p>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => setReloadTick((v) => v + 1)}>
+          {t('common.retry')}
+        </button>
+      </div>
+    );
   }
 
   return (

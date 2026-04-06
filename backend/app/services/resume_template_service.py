@@ -23,6 +23,8 @@ from typing import List, Optional
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 
+from backend.app.services.resume_common import contains_cjk, split_contact_parts, split_skills_lines
+
 _log = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -31,10 +33,10 @@ _log = logging.getLogger(__name__)
 
 _SECTION_KEYWORDS = [
     "summary", "profile", "objective", "about", "professional summary",
-    "experience", "work experience", "professional experience", "employment",
-    "education", "academic background",
+    "experience", "work experience", "professional experience", "employment", "work history", "professional history",
+    "education", "academic background", "education history",
     "skills", "technical skills", "core competencies", "competencies",
-    "projects", "project experience",
+    "projects", "project experience", "project history",
     "certifications", "certificates", "licenses",
     "publications", "research",
     "awards", "honors", "achievements",
@@ -48,7 +50,7 @@ _SECTION_KEYWORDS = [
 # Chinese section titles (common resume headings)
 _SECTION_KEYWORDS_ZH = [
     "个人简介", "简介", "摘要", "职业目标", "求职意向",
-    "工作经历", "工作经验", "实习经历", "职业经历",
+    "工作经历", "工作经验", "实习经历", "职业经历", "履历", "职业履历",
     "教育背景", "教育经历", "学历",
     "项目经历", "项目经验", "项目",
     "技能", "专业技能", "技术技能", "核心技能",
@@ -109,6 +111,9 @@ def _is_section_header(line: str, known_name: Optional[str] = None) -> bool:
         return True
     if _SECTION_RE_ZH.match(stripped):
         return True
+    inline_head, _ = _split_section_header_line(stripped)
+    if inline_head != stripped and (_SECTION_RE.match(inline_head) or _SECTION_RE_ZH.match(inline_head)):
+        return True
     words = stripped.split()
     if 1 <= len(words) <= 6 and stripped == stripped.upper() and len(stripped) > 2:
         alpha_words = {w.lower() for w in words if w.isalpha()}
@@ -120,6 +125,15 @@ def _is_section_header(line: str, known_name: Optional[str] = None) -> bool:
             if lower == kw or lower.startswith(kw + " "):
                 return True
     return False
+
+
+def _split_section_header_line(line: str) -> tuple[str, str]:
+    """Split section header from inline content like `Experience | ...`."""
+    stripped = line.strip().rstrip(":")
+    m = re.match(r"^(.{2,60}?)(?:\s*[:|｜\-–—]\s+)(.+)$", stripped)
+    if not m:
+        return stripped, ""
+    return m.group(1).strip(), m.group(2).strip()
 
 
 def _looks_like_contact(line: str) -> bool:
@@ -196,7 +210,12 @@ def _normalize_resume_text(text: str) -> str:
         if s.endswith("-") and len(s) >= 2 and i + 1 < len(raw_lines):
             nxt = raw_lines[i + 1].strip()
             nxt = re.sub(r"[ \t\xa0]+", " ", nxt) if nxt else nxt
-            if nxt and not nxt.startswith(("•", "-", "–", "▪", "►", "✦", "*", "▸")):
+            if (
+                nxt
+                and re.search(r"[A-Za-z]-$", s)
+                and re.match(r"^[a-z]", nxt)
+                and not nxt.startswith(("•", "-", "–", "▪", "►", "✦", "*", "▸"))
+            ):
                 merged.append(s[:-1].rstrip() + nxt)
                 i += 2
                 continue
@@ -271,7 +290,10 @@ def parse_resume(text: str) -> ParsedResume:
         if _is_section_header(stripped, known_name=result.name or None):
             if current_section is not None:
                 result.sections.append(current_section)
-            current_section = ResumeSection(title=stripped.rstrip(":").strip())
+            title, inline_rest = _split_section_header_line(stripped)
+            current_section = ResumeSection(title=title.rstrip(":").strip())
+            if inline_rest:
+                current_section.lines.append(inline_rest)
             idx += 1
             continue
         if current_section is None:
@@ -468,7 +490,7 @@ def _emit_body_lines(
     eff_fallback = font_fallback
     if eff_fallback is None:
         joined = "\n".join(lines)
-        if _text_has_cjk(joined):
+        if contains_cjk(joined):
             eff_fallback = "Microsoft YaHei"
 
     for line in lines:
@@ -559,11 +581,6 @@ def _add_horizontal_line(doc_or_cell, color_hex="444444", width_pt=0.5):
     return p
 
 
-def _text_has_cjk(s: str) -> bool:
-    """East Asian / CJK codepoints (incl. Japanese/Korean) for font fallback."""
-    return bool(re.search(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]", s or ""))
-
-
 def _set_run_font(run, font_name, fallback_name=None):
     """Set font name on a run with optional rFonts fallback for cross-platform + CJK."""
     run.font.name = font_name
@@ -598,14 +615,8 @@ def _is_sub_header(line: str) -> bool:
 
 
 def _split_contact_parts(contact_lines: List[str]) -> List[str]:
-    """Flatten contact lines separated by | . into individual items."""
-    parts = []
-    for cl in contact_lines:
-        for p in re.split(r"[|·•]", cl):
-            p = p.strip()
-            if p:
-                parts.append(p)
-    return parts
+    """Backward-compatible wrapper around shared splitter."""
+    return split_contact_parts(contact_lines)
 
 
 _SIDEBAR_SECTION_NAMES = {
@@ -674,22 +685,7 @@ def _is_skills_section(title: str) -> bool:
 
 def _format_skills_inline(lines: List[str]) -> str:
     """Convert skills lines into readable text; preserve 'Label: a, b' as structured segments."""
-    structured: List[str] = []
-    flat: List[str] = []
-    for line in lines:
-        stripped = line.strip()
-        if not stripped:
-            continue
-        stripped = stripped.lstrip("•-–▪►✦*▸ ").strip()
-        if not stripped:
-            continue
-        if re.match(r"^[^:]{1,48}:\s*.{2,}", stripped) and "http" not in stripped.lower():
-            structured.append(stripped)
-            continue
-        for part in re.split(r"[,;]", stripped):
-            part = part.strip()
-            if part:
-                flat.append(part)
+    structured, flat = split_skills_lines(lines)
     parts_out: List[str] = []
     if structured:
         parts_out.append(" ".join(structured))
@@ -710,19 +706,7 @@ def _emit_fresh_graduate_skills_section(
     """Skills block with bold category labels (Programming: …) plus flat comma-separated items."""
     from docx.shared import Pt
 
-    structured: List[str] = []
-    flat: List[str] = []
-    for line in lines:
-        stripped = line.strip().lstrip("•-–▪►✦*▸ ").strip()
-        if not stripped:
-            continue
-        if re.match(r"^[^:]{1,48}:\s*.{2,}", stripped) and "http" not in stripped.lower():
-            structured.append(stripped)
-            continue
-        for part in re.split(r"[,;]", stripped):
-            part = part.strip()
-            if part:
-                flat.append(part)
+    structured, flat = split_skills_lines(lines)
 
     for sl in structured:
         if ":" not in sl:
@@ -1613,6 +1597,7 @@ def apply_template(
     template_id: str,
     resume_content: str,
     template_file: Optional[str] = None,
+    template_options: Optional[dict] = None,
 ) -> bytes:
     """
     Parse resume_content into structured sections, then build a fully-formatted
@@ -1648,4 +1633,100 @@ def apply_template(
     )
 
     builder = _TEMPLATE_BUILDERS.get(key, _build_professional_classic)
-    return builder(parsed)
+    raw = builder(parsed)
+    return _postprocess_docx_with_template_options(raw, template_options or {}, key)
+
+
+def _postprocess_docx_with_template_options(raw_docx: bytes, opts: dict, template_key: str) -> bytes:
+    """Apply lightweight runtime template options to final DOCX bytes."""
+    if not opts:
+        return raw_docx
+    try:
+        from io import BytesIO
+        from docx import Document
+        from docx.shared import Pt, RGBColor
+
+        font_scale = float(opts.get("font_scale_pct", 100) or 100) / 100.0
+        line_scale = float(opts.get("line_spacing_pct", 100) or 100) / 100.0
+        accent = str(opts.get("accent_color", "default") or "default").lower()
+
+        accent_map = {
+            "default": None,
+            "teal": RGBColor(0x13, 0x4E, 0x4A),
+            "blue": RGBColor(0x1E, 0x40, 0xAF),
+            "gold": RGBColor(0xBF, 0x94, 0x3E),
+        }
+        accent_rgb = accent_map.get(accent, None)
+        accent_hex_map = {
+            "default": None,
+            "teal": "134E4A",
+            "blue": "1E40AF",
+            "gold": "BF943E",
+        }
+        accent_hex = accent_hex_map.get(accent, None)
+
+        doc = Document(BytesIO(raw_docx))
+
+        def _is_heading_like(paragraph) -> bool:
+            txt = (paragraph.text or "").strip()
+            if not txt:
+                return False
+            style_name = (getattr(paragraph.style, "name", "") or "").lower()
+            if "heading" in style_name:
+                return True
+            if len(txt) <= 54 and txt.endswith(":"):
+                return True
+            # Typical resume section headers (upper/title short lines)
+            if len(txt) <= 44 and not txt.startswith(("•", "-", "–", "*")):
+                if txt.upper() == txt and re.search(r"[A-Z]", txt):
+                    return True
+                if re.match(r"^[A-Za-z][A-Za-z\s/&-]{2,40}$", txt):
+                    words = [w for w in txt.split() if w]
+                    if 1 <= len(words) <= 6 and all(w[:1].isupper() for w in words if w[0].isalpha()):
+                        return True
+            return False
+
+        def _retint_paragraph_borders(paragraph) -> None:
+            if accent_rgb is None:
+                return
+            from docx.oxml.ns import qn
+
+            p_pr = paragraph._p.get_or_add_pPr()
+            p_bdr = p_pr.find(qn("w:pBdr"))
+            if p_bdr is None:
+                return
+            for edge in ("left", "right", "top", "bottom"):
+                node = p_bdr.find(qn(f"w:{edge}"))
+                if node is not None:
+                    node.set(qn("w:color"), accent_hex or "000000")
+
+        def _process_paragraph(paragraph) -> None:
+            heading_like = _is_heading_like(paragraph)
+            spacing = paragraph.paragraph_format.line_spacing
+            if spacing is not None and isinstance(spacing, (float, int)):
+                paragraph.paragraph_format.line_spacing = max(0.9, min(2.0, float(spacing) * line_scale))
+            for run in paragraph.runs:
+                if run.font.size is not None:
+                    run.font.size = Pt(max(7.0, min(28.0, run.font.size.pt * font_scale)))
+                if accent_rgb is not None and (run.font.bold or heading_like):
+                    run.font.color.rgb = accent_rgb
+            if heading_like:
+                _retint_paragraph_borders(paragraph)
+
+        # Global font/line/accent scaling to make options effective across all builders.
+        for p in doc.paragraphs:
+            _process_paragraph(p)
+
+        for tbl in doc.tables:
+            for row in tbl.rows:
+                for cell in row.cells:
+                    for p in cell.paragraphs:
+                        _process_paragraph(p)
+
+        out = BytesIO()
+        doc.save(out)
+        out.seek(0)
+        return out.read()
+    except Exception as ex:
+        _log.warning("template options postprocess skipped key=%s: %s", template_key, ex)
+        return raw_docx

@@ -7,12 +7,12 @@
  *   - Frontend on http://localhost:3000
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const API = process.env.API_BASE_URL || 'http://localhost:8001';
 const FRONTEND = process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3000';
 
-async function adminDevLogin(page: { request: { post: (url: string, opts: unknown) => Promise<{ ok: () => boolean; json: () => Promise<{ token: string }> }> }; evaluate: (fn: (t: string) => void, arg: string) => Promise<void> }) {
+async function adminDevLogin(page: Page) {
   const resp = await page.request.post(`${API}/bff/admin/auth/dev_login`, {
     data: { subject_id: 'admin_demo', role: 'admin' },
     headers: { 'Content-Type': 'application/json' },

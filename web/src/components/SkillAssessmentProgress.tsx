@@ -274,10 +274,10 @@ export function SkillAssessmentProgress({ tasks, onComplete, onClose }: SkillAss
   // 获取状态颜色
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return '#22c55e';
-      case 'processing': return '#fbbf24';
-      case 'failed': return '#ef4444';
-      default: return '#9ca3af';
+      case 'completed': return 'var(--success)';
+      case 'processing': return 'var(--warning)';
+      case 'failed': return 'var(--error)';
+      default: return 'var(--gray-400)';
     }
   };
 
@@ -333,7 +333,9 @@ export function SkillAssessmentProgress({ tasks, onComplete, onClose }: SkillAss
             </p>
           </div>
           <button
+            type="button"
             onClick={onClose}
+            aria-label={t('common.close')}
             style={{
               background: 'transparent',
               border: 'none',
