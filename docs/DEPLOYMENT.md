@@ -334,6 +334,14 @@ redis-cli -p 56379 LLEN skillsight
 
 ---
 
+## Observability（建议）
+
+- 监控 BFF 路由 `resume-review` 相关接口（尤其 `apply-template`）的错误率与延迟，便于发现导出失败。
+- 对「上传成功但 chunk 为空或过短」类日志建立告警，便于区分解析问题与模板问题。
+- 结构化日志字段与 PDF 回退说明见 [OBSERVABILITY_RESUME.md](OBSERVABILITY_RESUME.md)。
+
+---
+
 ## ✅ Go-Live Checklist
 
 ### Pre-Launch (1 week before)

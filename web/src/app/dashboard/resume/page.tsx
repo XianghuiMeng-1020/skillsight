@@ -12,6 +12,8 @@ import { SuggestionPanel } from './SuggestionPanel';
 import { ScoreComparison } from './ScoreComparison';
 import { TemplateGallery } from './TemplateGallery';
 import { ResumeStepErrorBoundary } from './ResumeStepErrorBoundary';
+import { LayoutHealthPanel } from './LayoutHealthPanel';
+import { ResumeReviewsFooter } from './ResumeReviewsFooter';
 import styles from './resume.module.css';
 
 const STEPS = [
@@ -91,36 +93,42 @@ function ResumePageContent() {
     }
   };
 
-  const sidebarOffset = { marginLeft: 'var(--sidebar-width, 260px)', position: 'relative' as const, zIndex: 1 };
-
   return (
     <div className={styles.layout}>
       <Sidebar />
-      <main className={styles.main} style={sidebarOffset}>
+      <main className={styles.main}>
         <header className={styles.header}>
           <h1 className={styles.pageTitle}>{t('resume.pageTitle')}</h1>
           <p className={styles.disclaimer} role="note">
             {t('resume.disclaimer')}
           </p>
-          <nav className={styles.stepNav} role="list" aria-label="Steps">
-            {STEPS.map((s, i) => {
-              const stepNum = i + 1;
-              const isCurrent = step === stepNum;
-              const isDone = step > stepNum;
-              return (
-                <button
-                  key={stepNum}
-                  type="button"
-                  className={`${styles.stepDot} ${isCurrent ? styles.stepDotCurrent : ''} ${isDone ? styles.stepDotDone : ''}`}
-                  onClick={() => isDone && setStep(stepNum)}
-                  aria-current={isCurrent ? 'step' : undefined}
-                  aria-label={`${t(STEPS[i].key)}`}
-                >
-                  {isDone ? '✓' : stepNum}
-                </button>
-              );
-            })}
+          <nav className={styles.stepNav} aria-label={t('resume.pageTitle')}>
+            <ol className={styles.stepNavList}>
+              {STEPS.map((s, i) => {
+                const stepNum = i + 1;
+                const isCurrent = step === stepNum;
+                const isDone = step > stepNum;
+                return (
+                  <li key={stepNum}>
+                    <button
+                      type="button"
+                      className={`${styles.stepDot} ${isCurrent ? styles.stepDotCurrent : ''} ${isDone ? styles.stepDotDone : ''}`}
+                      onClick={() => isDone && setStep(stepNum)}
+                      aria-current={isCurrent ? 'step' : undefined}
+                      aria-label={`${stepNum}. ${t(STEPS[i].key)}`}
+                    >
+                      {isDone ? '✓' : stepNum}
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
           </nav>
+          <p className={styles.stepNavCaption}>
+            <strong>{t(STEPS[step - 1].key)}</strong>
+            {' — '}
+            {t(STEPS[step - 1].keyDesc)}
+          </p>
         </header>
 
         <div className={styles.stepContent}>
@@ -154,7 +162,11 @@ function ResumePageContent() {
               />
             )}
             {step === 5 && reviewId && (
-              <TemplateGallery reviewId={reviewId} />
+              <>
+                <LayoutHealthPanel reviewId={reviewId} />
+                <p className={styles.exportWpsNote}>{t('resume.exportWpsNote')}</p>
+                <TemplateGallery reviewId={reviewId} />
+              </>
             )}
           </ResumeStepErrorBoundary>
         </div>
@@ -177,6 +189,7 @@ function ResumePageContent() {
           <Link href="/dashboard/change-log" className="btn btn-ghost btn-sm">
             {t('resume.viewHistory')}
           </Link>
+          <ResumeReviewsFooter />
         </div>
       </main>
     </div>
@@ -189,7 +202,7 @@ export default function ResumePage() {
     <Suspense fallback={
       <div className={styles.layout}>
         <Sidebar />
-        <main className={styles.main} style={{ marginLeft: 'var(--sidebar-width, 260px)', position: 'relative', zIndex: 1 }}>
+        <main className={styles.main}>
           <p>{t('common.loading')}</p>
         </main>
       </div>

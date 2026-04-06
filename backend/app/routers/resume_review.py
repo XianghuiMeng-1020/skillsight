@@ -9,11 +9,14 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import re
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -28,7 +31,11 @@ from backend.app.services.resume_scorer import (
     get_resume_text_from_doc,
     score_resume,
 )
+from backend.app.services.docx_pdf import docx_bytes_to_pdf_bytes
+from backend.app.services.resume_structured import html_preview_for_resume, layout_health_check
 from backend.app.services.resume_template_service import apply_template as template_apply
+from backend.app.services.resume_template_service import resolve_template_builder_key
+from backend.app.services.resume_text_merge import apply_suggestion_replace_once
 
 router = APIRouter(prefix="/resume-review", tags=["resume-review"])
 _log = logging.getLogger(__name__)
@@ -98,6 +105,35 @@ class PatchSuggestionRequest(BaseModel):
 
 class ApplyTemplateRequest(BaseModel):
     template_id: str = Field(..., max_length=256)
+    export_format: Literal["docx", "pdf"] = "docx"
+
+
+def _merge_resume_with_suggestions(db: Session, review_id: str, doc_id: str, subject_id: str) -> str:
+    """Base resume text with accepted/edited suggestions applied (same order as export)."""
+    _check_consent(db, doc_id, subject_id)
+    base_text = get_resume_text_from_doc(db, doc_id)
+    if not base_text or len(base_text.strip()) < 50:
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "no_chunks", "message": "Document content not available."},
+        )
+    rows = db.execute(
+        text("""
+            SELECT original_text, COALESCE(student_edit, suggested_text) AS replacement
+            FROM resume_suggestions
+            WHERE review_id = :rid AND status IN ('accepted', 'edited')
+            ORDER BY created_at ASC
+        """),
+        {"rid": review_id},
+    ).fetchall()
+    rows_sorted = sorted(rows, key=lambda r: len((r[0] or "")), reverse=True)
+    resume_content = base_text
+    for r in rows_sorted:
+        orig, repl = r[0], r[1]
+        if not orig or repl is None:
+            continue
+        resume_content = apply_suggestion_replace_once(resume_content, orig, repl)
+    return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", resume_content)
 
 
 # ─── POST /resume-review/start ───────────────────────────────────────────────────
@@ -168,12 +204,19 @@ def resume_review_score(
             status_code=400,
             detail={"error": "no_chunks", "message": "Document not yet parsed or content too short. Please try again later."},
         )
+    _t0 = time.perf_counter()
     try:
         result = score_resume(
             db,
             doc_id=doc_id,
             user_id=subject_id,
             target_role_id=review.get("target_role_id"),
+        )
+        _log.info(
+            "bff.resume.score.timing_ms=%.1f review_id=%s doc_id=%s",
+            (time.perf_counter() - _t0) * 1000,
+            review_id,
+            doc_id,
         )
     except ValueError as e:
         err = str(e)
@@ -306,6 +349,7 @@ def resume_review_suggest(
             status_code=400,
             detail={"error": "no_chunks", "message": "Document content not available."},
         )
+    _t0 = time.perf_counter()
     try:
         suggestions = enhancer_generate_suggestions(
             db,
@@ -313,6 +357,11 @@ def resume_review_suggest(
             resume_text=resume_text,
             scoring_json=initial_scores,
             target_role_id=review.get("target_role_id"),
+        )
+        _log.info(
+            "bff.resume.suggest.timing_ms=%.1f review_id=%s",
+            (time.perf_counter() - _t0) * 1000,
+            review_id,
         )
     except ValueError as e:
         if str(e) == "llm_parse_error":
@@ -532,11 +581,13 @@ def resume_review_rescore(
         """),
         {"rid": review_id},
     ).fetchall()
+    rows_sorted = sorted(rows, key=lambda r: len((r[0] or "")), reverse=True)
     new_text = base_text
-    for r in rows:
+    for r in rows_sorted:
         orig, repl, _ = r[0], r[1], r[2]
-        if orig and repl is not None and orig in new_text:
-            new_text = new_text.replace(orig, repl, 1)
+        if not orig or repl is None:
+            continue
+        new_text = apply_suggestion_replace_once(new_text, orig, repl)
     if not new_text or len(new_text.strip()) < 100:
         raise HTTPException(
             status_code=400,
@@ -599,6 +650,58 @@ def resume_review_rescore(
     }
 
 
+# ─── GET /resume-review/{review_id}/layout-check ───────────────────────────────
+
+@router.get("/{review_id}/layout-check")
+def resume_review_layout_check(
+    review_id: str,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Heuristic layout/readability hints before export (版面体检)."""
+    subject_id = ident.subject_id
+    review = _get_review_for_user(db, review_id, subject_id)
+    if not review:
+        raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+    if review.get("status") not in ("reviewed", "enhanced", "completed"):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_state", "message": "Complete scoring first."},
+        )
+    doc_id = review["doc_id"]
+    try:
+        resume_content = _merge_resume_with_suggestions(db, review_id, doc_id, subject_id)
+    except HTTPException:
+        raise
+    return layout_health_check(resume_content)
+
+
+# ─── GET /resume-review/{review_id}/preview-html ────────────────────────────────
+
+@router.get("/{review_id}/preview-html", response_class=HTMLResponse)
+def resume_review_preview_html(
+    review_id: str,
+    template_id: str,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Approximate HTML preview for the selected template (high-fidelity preview UX)."""
+    subject_id = ident.subject_id
+    review = _get_review_for_user(db, review_id, subject_id)
+    if not review:
+        raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+    if review.get("status") not in ("reviewed", "enhanced", "completed"):
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "invalid_state", "message": "Complete scoring and suggestions before preview."},
+        )
+    doc_id = review["doc_id"]
+    resume_content = _merge_resume_with_suggestions(db, review_id, doc_id, subject_id)
+    key = resolve_template_builder_key(template_id, db)
+    html = html_preview_for_resume(resume_content, key)
+    return HTMLResponse(content=html)
+
+
 # ─── POST /resume-review/{review_id}/apply-template ──────────────────────────────
 
 @router.post("/{review_id}/apply-template")
@@ -608,12 +711,18 @@ def resume_review_apply_template(
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    """Fill template with review's final resume content and return DOCX as base64 for download."""
+    """Fill template with review's final resume content and return DOCX (or PDF) as base64 for download."""
     import traceback as _tb
-    import re as _re
 
     subject_id = ident.subject_id
-    _log.info("apply-template: review_id=%s template_id=%s user=%s", review_id, payload.template_id, subject_id)
+    want_pdf = payload.export_format == "pdf"
+    _log.info(
+        "apply-template: review_id=%s template_id=%s user=%s format=%s",
+        review_id,
+        payload.template_id,
+        subject_id,
+        payload.export_format,
+    )
 
     try:
         review = _get_review_for_user(db, review_id, subject_id)
@@ -628,45 +737,38 @@ def resume_review_apply_template(
             )
 
         doc_id = review["doc_id"]
-        base_text = get_resume_text_from_doc(db, doc_id)
-        _log.info("apply-template: base_text length=%d", len(base_text or ""))
+        resume_content = _merge_resume_with_suggestions(db, review_id, doc_id, subject_id)
+        _log.info("apply-template: resume_content length=%d, calling template_apply", len(resume_content))
 
-        if not base_text or len(base_text.strip()) < 50:
-            raise HTTPException(
-                status_code=400,
-                detail={"error": "no_chunks", "message": "Document content not available."},
-            )
-
-        rows = db.execute(
-            text("""
-                SELECT original_text, COALESCE(student_edit, suggested_text) AS replacement
-                FROM resume_suggestions
-                WHERE review_id = :rid AND status IN ('accepted', 'edited')
-                ORDER BY created_at ASC
-            """),
-            {"rid": review_id},
-        ).fetchall()
-        _log.info("apply-template: %d accepted suggestions to apply", len(rows))
-
-        resume_content = base_text
-        for r in rows:
-            orig, repl = r[0], r[1]
-            if orig and repl is not None and orig in resume_content:
-                resume_content = resume_content.replace(orig, repl, 1)
-
-        resume_content = _re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', resume_content)
-        _log.info("apply-template: sanitized resume_content length=%d, calling template_apply", len(resume_content))
-
+        _t0 = time.perf_counter()
         doc_bytes = template_apply(
             db,
             review_id=review_id,
             template_id=payload.template_id,
             resume_content=resume_content,
         )
-        _log.info("apply-template: doc_bytes length=%d", len(doc_bytes))
+        _log.info(
+            "apply-template: doc_bytes length=%d timing_ms=%.1f",
+            len(doc_bytes),
+            (time.perf_counter() - _t0) * 1000,
+        )
 
-        b64 = base64.b64encode(doc_bytes).decode("ascii")
+        pdf_fallback = False
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         filename = f"resume_enhanced_{review_id[:8]}.docx"
+        out_bytes = doc_bytes
+
+        if want_pdf:
+            pdf_bytes = docx_bytes_to_pdf_bytes(doc_bytes)
+            if pdf_bytes:
+                out_bytes = pdf_bytes
+                mime = "application/pdf"
+                filename = f"resume_enhanced_{review_id[:8]}.pdf"
+            else:
+                pdf_fallback = True
+                _log.warning("apply-template: PDF requested but LibreOffice not available; returning DOCX")
+
+        b64 = base64.b64encode(out_bytes).decode("ascii")
         db.execute(
             text("UPDATE resume_reviews SET template_id = :tid, status = 'completed', updated_at = :now WHERE review_id = :rid AND user_id = :uid"),
             {"tid": payload.template_id, "now": _now_utc(), "rid": review_id, "uid": subject_id},
@@ -679,10 +781,19 @@ def resume_review_apply_template(
             object_type="resume_review",
             object_id=review_id,
             status="ok",
-            detail={"template_id": payload.template_id},
+            detail={"template_id": payload.template_id, "format": payload.export_format, "pdf_fallback": pdf_fallback},
         )
         _log.info("apply-template: success, filename=%s", filename)
-        return {"filename": filename, "content_base64": b64, "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+        body: Dict[str, Any] = {
+            "filename": filename,
+            "content_base64": b64,
+            "mime_type": mime,
+            "format_used": "pdf" if mime.endswith("/pdf") else "docx",
+        }
+        if pdf_fallback:
+            body["pdf_unavailable"] = True
+            body["message"] = "PDF conversion requires LibreOffice (soffice) on the server; DOCX was returned instead."
+        return body
 
     except HTTPException:
         raise

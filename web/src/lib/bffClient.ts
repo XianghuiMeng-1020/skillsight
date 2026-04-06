@@ -690,10 +690,11 @@ export const studentBff = {
       improvements: Record<string, number>;
     }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/rescore`, { method: 'POST' }),
 
-  getResumeTemplates: (roleId?: string, industry?: string) => {
+  getResumeTemplates: (roleId?: string, industry?: string, reviewId?: string) => {
     const params = new URLSearchParams();
     if (roleId) params.set('role_id', roleId);
     if (industry) params.set('industry', industry);
+    if (reviewId) params.set('review_id', reviewId);
     const q = params.toString();
     return bffRequest<{
       templates: Array<{
@@ -703,15 +704,52 @@ export const studentBff = {
         industry_tags?: string[];
         preview_url?: string;
         template_file?: string;
+        recommend_score?: number;
+        recommended?: boolean;
       }>;
     }>(`/bff/student/resume-templates${q ? `?${q}` : ''}`);
   },
 
-  resumeReviewApplyTemplate: (reviewId: string, templateId: string) =>
-    bffRequest<{ filename: string; content_base64: string; mime_type: string }>(
-      `/bff/student/resume-review/${encodeURIComponent(reviewId)}/apply-template`,
-      { method: 'POST', body: { template_id: templateId } }
-    ),
+  resumeReviewLayoutCheck: (reviewId: string) =>
+    bffRequest<{
+      score: number;
+      issues: Array<{ level: string; code: string; message: string }>;
+      locale_hint?: string;
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/layout-check`),
+
+  resumeReviewPreviewHtml: async (reviewId: string, templateId: string): Promise<string> => {
+    const token = getToken();
+    const base = BFF_BASE.replace(/\/$/, '');
+    const url = `${base}/bff/student/resume-review/${encodeURIComponent(reviewId)}/preview-html?template_id=${encodeURIComponent(templateId)}`;
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+    const r = await fetch(url, { headers });
+    if (!r.ok) {
+      const err = await r.text();
+      throw new Error(err || `preview-html ${r.status}`);
+    }
+    return r.text();
+  },
+
+  resumeReviewApplyTemplate: (
+    reviewId: string,
+    templateId: string,
+    opts?: { exportFormat?: 'docx' | 'pdf' }
+  ) =>
+    bffRequest<{
+      filename: string;
+      content_base64: string;
+      mime_type: string;
+      format_used?: string;
+      pdf_unavailable?: boolean;
+      message?: string;
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/apply-template`, {
+      method: 'POST',
+      body: {
+        template_id: templateId,
+        export_format: opts?.exportFormat ?? 'docx',
+      },
+    }),
 
   getResumeReviews: (limit = 10, offset = 0) =>
     bffRequest<{

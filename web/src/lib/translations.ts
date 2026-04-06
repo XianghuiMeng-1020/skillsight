@@ -55,6 +55,7 @@ export const translations: Translations = {
   'dashboard.firstTimeHint': { zh: '新手路线：先上传证据，再做评估，最后查看技能档案与职位匹配。', 'zh-TW': '新手路線：先上傳證據，再做評估，最後查看技能檔案與職位匹配。', en: 'Starter route: upload evidence, complete an assessment, then check skills and job matches.' },
 
   // 评估页面
+  'assess.assessmentTypeTabs': { zh: '选择评估类型', 'zh-TW': '選擇評估類型', en: 'Choose assessment type' },
   'assess.title': { zh: '交互式能力评估', 'zh-TW': '互動式能力評估', en: 'Interactive Assessment' },
   'assess.subtitle': { zh: '通过实时评估验证你的沟通、编程和写作能力', 'zh-TW': '透過即時評估驗證你的溝通、程式設計和寫作能力', en: 'Verify your communication, programming, and writing skills through real-time assessment' },
   'assess.communication': { zh: '沟通能力', 'zh-TW': '溝通能力', en: 'Communication' },
@@ -255,6 +256,11 @@ export const translations: Translations = {
   'resume.step4RadarLineLegend': { zh: '雷达图中：灰色虚线为优化前，紫色实线为优化后（与仪表盘「技能↔职位」连线的黄虚线/绿实线含义不同）。', 'zh-TW': '雷達圖中：灰色虛線為優化前，紫色實線為優化後（與儀表板「技能↔職位」連線的黃虛線/綠實線含義不同）。', en: 'In the radar chart: grey dashed = before, purple solid = after (not the same meaning as the yellow/green skill–role lines on the dashboard).' },
   'resume.step5Title': { zh: '模板与导出', 'zh-TW': '模板與匯出', en: 'Templates & Export' },
   'resume.step5Desc': { zh: '选择模板一键套用并导出', 'zh-TW': '選擇模板一鍵套用並匯出', en: 'Choose a template and export' },
+  'resume.exportWpsNote': {
+    zh: '提示：复杂版式在 Microsoft Word 中显示最稳定；WPS / LibreOffice 中表格底色或边距可能略有差异。',
+    'zh-TW': '提示：複雜版式在 Microsoft Word 中顯示最穩定；WPS / LibreOffice 中表格底色或邊距可能略有差異。',
+    en: 'Tip: layouts render most reliably in Microsoft Word; WPS / LibreOffice may show small differences in table shading or margins.',
+  },
   'resume.uploadZone': { zh: '拖拽简历到此处或点击上传', 'zh-TW': '拖曳履歷到此處或點擊上傳', en: 'Drag resume here or click to upload' },
   'resume.dragHint': { zh: '将文件拖到此处，或点击选择文件', 'zh-TW': '將檔案拖曳到此處，或點擊選擇檔案', en: 'Drag files here or click to select' },
   'resume.selectDocHint': { zh: '请选择一份文档', 'zh-TW': '請選擇一份文件', en: 'Please select a document' },
@@ -303,6 +309,8 @@ export const translations: Translations = {
   'resume.editSuggestion': { zh: '编辑建议', 'zh-TW': '編輯建議', en: 'Edit suggestion' },
   'resume.nextStep': { zh: '下一步', 'zh-TW': '下一步', en: 'Next' },
   'resume.continueToComparison': { zh: '继续到评分对比', 'zh-TW': '繼續到評分對比', en: 'Continue to comparison' },
+  'resume.skipToComparison': { zh: '跳过建议，前往对比', 'zh-TW': '跳過建議，前往對比', en: 'Skip suggestions and continue' },
+  'resume.retryRescore': { zh: '重试重新打分', 'zh-TW': '重試重新打分', en: 'Retry rescore' },
   'resume.statsAccepted': { zh: '已接受 {n}/{m} 条', 'zh-TW': '已接受 {n}/{m} 條', en: 'Accepted {n}/{m}' },
   'resume.pending': { zh: '待处理', 'zh-TW': '待處理', en: 'Pending' },
   'resume.noSuggestions': { zh: '暂无建议', 'zh-TW': '暫無建議', en: 'No suggestions' },
@@ -322,6 +330,14 @@ export const translations: Translations = {
   'resume.atsMedium': { zh: 'ATS 一般', 'zh-TW': 'ATS 一般', en: 'ATS Moderate' },
   'resume.atsLow': { zh: 'ATS 受限', 'zh-TW': 'ATS 受限', en: 'ATS Limited' },
   'resume.viewHistory': { zh: '查看历史', 'zh-TW': '查看歷史', en: 'View history' },
+  'resume.layoutHealthTitle': { zh: '版面体检', 'zh-TW': '版面體檢', en: 'Layout check' },
+  'resume.layoutHealthScoreHint': { zh: '导出可读性启发式得分', 'zh-TW': '匯出可讀性啟發式得分', en: 'Heuristic readability score before export' },
+  'resume.layoutHealthOk': { zh: '未发现明显版面风险。', 'zh-TW': '未發現明顯版面風險。', en: 'No major layout issues detected.' },
+  'resume.recommended': { zh: '推荐', 'zh-TW': '推薦', en: 'Recommended' },
+  'resume.exportPdf': { zh: 'PDF', 'zh-TW': 'PDF', en: 'PDF' },
+  'resume.exportPdfHint': { zh: '需要服务器安装 LibreOffice；不可用则下载 DOCX', 'zh-TW': '需伺服器安裝 LibreOffice；不可用則下載 DOCX', en: 'Requires LibreOffice on server; falls back to DOCX if unavailable' },
+  'resume.pdfFallbackNote': { zh: '已改为 DOCX（服务器未配置 PDF 转换）', 'zh-TW': '已改為 DOCX（伺服器未設定 PDF 轉換）', en: 'DOCX returned (PDF conversion not available on server)' },
+  'resume.recentReviews': { zh: '最近评审', 'zh-TW': '最近評審', en: 'Recent reviews' },
 
   // 技能雷达图
   'skills.radar': { zh: '技能雷达图', 'zh-TW': '技能雷達圖', en: 'Skills Radar' },
@@ -684,6 +700,8 @@ export const translations: Translations = {
   'jobs.recommendedActions': { zh: '🎯 推荐行动', 'zh-TW': '🎯 推薦行動', en: '🎯 Recommended Actions' },
   'jobs.uploadOrAssess': { zh: '上传证据或参加评估', 'zh-TW': '上傳證據或參加評估', en: 'Upload evidence or take an assessment' },
   'jobs.addEvidence': { zh: '添加证据', 'zh-TW': '添加證據', en: 'Add Evidence' },
+  'jobs.gapNeedsStrengthening': { zh: ' · 仍需加强', 'zh-TW': ' · 仍需加強', en: ' · needs strengthening' },
+  'jobs.gapMissingProof': { zh: ' · 缺少证明', 'zh-TW': ' · 缺少證明', en: ' · missing proof' },
   'jobs.close': { zh: '关闭', 'zh-TW': '關閉', en: 'Close' },
   'jobs.viewMySkills': { zh: '查看我的技能', 'zh-TW': '查看我的技能', en: 'View My Skills' },
   'jobs.noRolesYet': { zh: '暂无匹配数据', 'zh-TW': '暫無匹配資料', en: 'No matching data yet' },
@@ -691,6 +709,23 @@ export const translations: Translations = {
   'jobs.loadingCourses': { zh: '加载课程中...', 'zh-TW': '載入課程中...', en: 'Loading courses...' },
   'jobs.noMatchingCourses': { zh: '暂无与这些技能差距匹配的港大课程。', 'zh-TW': '暫無與這些技能差距匹配的港大課程。', en: 'No matching HKU courses found for these skill gaps.' },
   'jobs.uploadFirst': { zh: '请先上传文档并运行 AI 评估，然后系统会自动计算你与各职位的匹配度。', 'zh-TW': '請先上傳文件並執行 AI 評估，系統會自動計算你與各職位的匹配度。', en: 'Upload a document and run an AI assessment first. The system will then calculate your readiness for each role.' },
+
+  // Staff course aggregate
+  'staff.backCourses': { zh: '← 我的课程', 'zh-TW': '← 我的課程', en: '← My Courses' },
+  'staff.aggregateView': { zh: '仅聚合视图，不显示单个学生数据。', 'zh-TW': '僅聚合檢視，不顯示單一學生資料。', en: 'Aggregate view only – no individual student data displayed.' },
+  'staff.tabSkills': { zh: '技能汇总 ({n})', 'zh-TW': '技能彙總 ({n})', en: 'Skills Summary ({n})' },
+  'staff.tabReviews': { zh: '审核队列 (待办 {n})', 'zh-TW': '審核佇列 (待辦 {n})', en: 'Review Queue (open {n})' },
+  'staff.required': { zh: '要求', 'zh-TW': '要求', en: 'Required' },
+  'staff.evidenceItems': { zh: '证据项', 'zh-TW': '證據項', en: 'Evidence Items' },
+  'staff.demonstrated': { zh: '已展示', 'zh-TW': '已展示', en: 'Demonstrated' },
+  'staff.coverage': { zh: '覆盖率', 'zh-TW': '覆蓋率', en: 'Coverage' },
+  'staff.noSkills': { zh: '本课程尚未映射技能。', 'zh-TW': '本課程尚未對應技能。', en: 'No skills mapped to this course yet.' },
+  'staff.skillLabel': { zh: '技能：', 'zh-TW': '技能：', en: 'Skill:' },
+  'staff.reviewRequired': { zh: '需要审核', 'zh-TW': '需要審核', en: 'Review required' },
+  'staff.draft': { zh: '草稿', 'zh-TW': '草稿', en: 'Draft' },
+  'staff.evidencePointers': { zh: '证据指针数', 'zh-TW': '證據指標數', en: 'Evidence pointers' },
+  'staff.noTickets': { zh: '本课程暂无审核工单。', 'zh-TW': '本課程暫無審核工單。', en: 'No review tickets for this course.' },
+  'staff.courseLoadError': { zh: '加载课程数据失败', 'zh-TW': '載入課程資料失敗', en: 'Failed to load course data' },
 
   // 通用
   'common.loading': { zh: '加载中...', 'zh-TW': '載入中...', en: 'Loading...' },

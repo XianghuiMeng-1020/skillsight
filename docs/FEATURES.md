@@ -52,6 +52,21 @@ async def upload_document(
     # 5. 创建 embedding job
 ```
 
+### 1.5 简历增强与 DOCX 导出
+
+**功能描述**: 学生完成 Rubric 评分与 AI 建议后，可将合并后的正文套用内置模板导出 `.docx`；可选 PDF（需服务端安装 LibreOffice / `soffice`）；支持 HTML 近似预览与导出前版面体检。
+
+**实现方式**:
+- **端点**:
+  - `POST /bff/student/resume-review/{review_id}/apply-template` — body 可含 `export_format`: `docx` | `pdf`
+  - `GET /bff/student/resume-review/{review_id}/preview-html?template_id=` — 返回与模板配色一致的 HTML 预览
+  - `GET /bff/student/resume-review/{review_id}/layout-check` — 启发式版面/可读性提示
+  - `GET /bff/student/resume-templates?review_id=` — 按目标岗位标签排序并标记 `recommended`
+- **代码**: `backend/app/services/resume_template_service.py`, `backend/app/services/resume_text_merge.py`, `backend/app/services/resume_structured.py`, `backend/app/services/docx_pdf.py`, `backend/app/routers/resume_review.py`
+- **可观测性**: 见 [OBSERVABILITY_RESUME.md](OBSERVABILITY_RESUME.md)
+
+**限制与提示**: 扫描版或图片型 PDF 若无可用文本则无法生成高质量导出；复杂版式在 Microsoft Word 中最稳定，WPS / LibreOffice 可能对表格底纹或边距略有差异（学生端「模板与导出」步骤有说明）。PDF 依赖本机/容器内 LibreOffice；不可用时接口仍返回 DOCX 并带 `pdf_unavailable`。
+
 ---
 
 ### 2. 文件解析与分块

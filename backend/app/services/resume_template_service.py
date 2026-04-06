@@ -18,15 +18,12 @@ import io
 import logging
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional
 
 from sqlalchemy import text as sa_text
 from sqlalchemy.orm import Session
 
 _log = logging.getLogger(__name__)
-
-TEMPLATES_BASE = Path(__file__).resolve().parents[2] / "data" / "templates"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Resume text parser
@@ -48,14 +45,45 @@ _SECTION_KEYWORDS = [
     "contact", "personal information",
 ]
 
+# Chinese section titles (common resume headings)
+_SECTION_KEYWORDS_ZH = [
+    "个人简介", "简介", "摘要", "职业目标", "求职意向",
+    "工作经历", "工作经验", "实习经历", "职业经历",
+    "教育背景", "教育经历", "学历",
+    "项目经历", "项目经验", "项目",
+    "技能", "专业技能", "技术技能", "核心技能",
+    "证书", "资格证书", "获奖", "荣誉", "奖项",
+    "语言能力", "语言",
+    "兴趣爱好", "兴趣",
+    "自我评价", "联系方式", "个人信息",
+    "发表论文", "研究成果", "学术成果",
+]
+
 _SECTION_RE = re.compile(
     r"^(?:" + "|".join(re.escape(k) for k in _SECTION_KEYWORDS) + r")\s*:?\s*$",
     re.IGNORECASE,
 )
 
+_SECTION_RE_ZH = re.compile(
+    r"^(?:" + "|".join(re.escape(k) for k in _SECTION_KEYWORDS_ZH) + r")\s*:?\s*$",
+)
+
+# Words that indicate an ALL-CAPS line is a section heading (not a job title like "DATA SCIENTIST").
+_SECTION_WORDS_HINT = frozenset(
+    w.lower()
+    for k in _SECTION_KEYWORDS
+    for w in re.split(r"[\s/]+", k)
+    if len(w) > 2
+)
+
 _EMAIL_RE = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+")
 _PHONE_RE = re.compile(r"[\+]?[\d\s\-().]{7,15}")
 _URL_RE = re.compile(r"(?:https?://|www\.)[\w./?=&%-]+", re.IGNORECASE)
+# LinkedIn / GitHub etc. often appear without scheme
+_SOCIAL_DOMAIN_RE = re.compile(
+    r"(?:linkedin\.com|github\.com|gitlab\.com|behance\.net|notion\.so|medium\.com)(?:/[^\s]*)?",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -71,19 +99,25 @@ class ParsedResume:
     sections: List[ResumeSection] = field(default_factory=list)
 
 
-def _is_section_header(line: str) -> bool:
+def _is_section_header(line: str, known_name: Optional[str] = None) -> bool:
     stripped = line.strip().rstrip(":")
     if not stripped:
         return False
+    if known_name and stripped.casefold() == known_name.strip().casefold():
+        return False
     if _SECTION_RE.match(stripped):
         return True
-    words = stripped.split()
-    if 1 <= len(words) <= 5 and stripped == stripped.upper() and len(stripped) > 2:
+    if _SECTION_RE_ZH.match(stripped):
         return True
+    words = stripped.split()
+    if 1 <= len(words) <= 6 and stripped == stripped.upper() and len(stripped) > 2:
+        alpha_words = {w.lower() for w in words if w.isalpha()}
+        if alpha_words & _SECTION_WORDS_HINT:
+            return True
     if 1 <= len(words) <= 5 and all(w[0].isupper() for w in words if w.isalpha()):
         lower = stripped.lower().rstrip(":")
         for kw in _SECTION_KEYWORDS:
-            if lower == kw or lower.startswith(kw):
+            if lower == kw or lower.startswith(kw + " "):
                 return True
     return False
 
@@ -94,10 +128,15 @@ def _looks_like_contact(line: str) -> bool:
         return True
     if _URL_RE.search(s):
         return True
+    if _SOCIAL_DOMAIN_RE.search(s):
+        return True
     parts = [p.strip() for p in re.split(r"[|·•,]", s) if p.strip()]
     if len(parts) >= 2:
         has_contact = any(
-            _EMAIL_RE.search(p) or _PHONE_RE.fullmatch(p.strip()) or _URL_RE.search(p)
+            _EMAIL_RE.search(p)
+            or _PHONE_RE.fullmatch(p.strip())
+            or _URL_RE.search(p)
+            or _SOCIAL_DOMAIN_RE.search(p)
             for p in parts
         )
         if has_contact:
@@ -107,23 +146,69 @@ def _looks_like_contact(line: str) -> bool:
     return False
 
 
-def _normalize_resume_text(text: str) -> str:
-    """Improve structure from mixed PDF/DOCX extraction: split very long lines, cap blank runs.
+def _is_plausible_resume_name(candidate: str) -> bool:
+    """Heuristic: first line is a person name, not a headline or section."""
+    c = candidate.strip()
+    if not c:
+        return False
+    if len(c) > 60:
+        return False
+    if ":" in c:
+        return False
+    if "@" in c:
+        return False
+    if _EMAIL_RE.search(c) or _URL_RE.search(c) or _SOCIAL_DOMAIN_RE.search(c):
+        return False
+    # Looks like a sentence / objective, not a name
+    if c.count(",") >= 2 or c.count("；") >= 1 or c.count(";") >= 2:
+        return False
+    lower = c.lower()
+    if any(lower.startswith(kw + " ") for kw in _SECTION_KEYWORDS):
+        return False
+    if any(lower == kw for kw in _SECTION_KEYWORDS):
+        return False
+    # English regex header match (without circular title-case on name)
+    if _SECTION_RE.match(c):
+        return False
+    if _SECTION_RE_ZH.match(c):
+        return False
+    # All-caps very long line: likely a headline, not a name
+    if c == c.upper() and len(c) > 42:
+        return False
+    return True
 
-    Limitations (future work if export quality must match original layout):
-    - Chunk order follows DB ``idx``/``created_at``; complex PDFs (multi-column, scanned) may extract out of reading order.
-    - Image-only PDFs need OCR; not handled here.
-    - Suggestion application uses substring replace; multiple similar spans can reduce match reliability across mixed uploads.
-    Consider: MIME-specific parsers, reading-order heuristics, OCR pipeline, or structured DOCX round-trips before ``parse_resume``.
-    """
+
+def _normalize_resume_text(text: str) -> str:
+    """Improve structure from mixed PDF/DOCX extraction: ZW chars, hyphen merges, spaces, long lines, blank runs."""
     if not text or not text.strip():
         return text
-    out_lines: List[str] = []
-    for line in text.splitlines():
-        s = line.strip()
+    text = re.sub(r"[\u200b-\u200d\ufeff]", "", text)
+    raw_lines = text.splitlines()
+    merged: List[str] = []
+    i = 0
+    while i < len(raw_lines):
+        s = raw_lines[i].strip()
+        s = re.sub(r"[ \t\xa0]+", " ", s) if s else s
         if not s:
+            merged.append("")
+            i += 1
+            continue
+        if s.endswith("-") and len(s) >= 2 and i + 1 < len(raw_lines):
+            nxt = raw_lines[i + 1].strip()
+            nxt = re.sub(r"[ \t\xa0]+", " ", nxt) if nxt else nxt
+            if nxt and not nxt.startswith(("•", "-", "–", "▪", "►", "✦", "*", "▸")):
+                merged.append(s[:-1].rstrip() + nxt)
+                i += 2
+                continue
+        merged.append(s)
+        i += 1
+
+    out_lines: List[str] = []
+    for line in merged:
+        if not line.strip():
             out_lines.append("")
             continue
+        s = line.strip()
         if len(s) > 400:
             parts = re.split(r"(?<=[.!?])\s+", s)
             for p in parts:
@@ -156,7 +241,7 @@ def parse_resume(text: str) -> ParsedResume:
 
     if idx < len(lines):
         candidate = lines[idx].strip()
-        if candidate and not _is_section_header(candidate) and len(candidate) < 80:
+        if candidate and not _is_section_header(candidate) and _is_plausible_resume_name(candidate):
             result.name = candidate
             idx += 1
 
@@ -168,7 +253,7 @@ def parse_resume(text: str) -> ParsedResume:
         if _looks_like_contact(line):
             result.contact_lines.append(line)
             idx += 1
-        elif _is_section_header(line):
+        elif _is_section_header(line, known_name=result.name or None):
             break
         elif len(result.contact_lines) == 0 and len(line) < 120:
             if "|" in line or "·" in line or "•" in line:
@@ -183,7 +268,7 @@ def parse_resume(text: str) -> ParsedResume:
     while idx < len(lines):
         line = lines[idx]
         stripped = line.strip()
-        if _is_section_header(stripped):
+        if _is_section_header(stripped, known_name=result.name or None):
             if current_section is not None:
                 result.sections.append(current_section)
             current_section = ResumeSection(title=stripped.rstrip(":").strip())
@@ -261,13 +346,194 @@ def _set_cell_vertical_alignment(cell, align="top"):
     v_align.set(qn("w:val"), align)
 
 
-def _set_paragraph_spacing(paragraph, before=0, after=0, line=None):
+def _ensure_cell_word_wrap(cell) -> None:
+    """Allow text to wrap inside table cells (some generators set w:noWrap)."""
+    from docx.oxml.ns import qn
+
+    tc = cell._tc
+    tc_pr = tc.get_or_add_tcPr()
+    for nw in list(tc_pr.findall(qn("w:noWrap"))):
+        tc_pr.remove(nw)
+
+
+def _set_paragraph_spacing(paragraph, before=0, after=0, line=None, line_multiple=None):
+    """Body text: prefer ``line_multiple`` (e.g. 1.15) over fixed ``line`` (pt) for readability."""
     from docx.shared import Pt
+    from docx.enum.text import WD_LINE_SPACING
+
     pf = paragraph.paragraph_format
     pf.space_before = Pt(before)
     pf.space_after = Pt(after)
-    if line:
+    if line_multiple is not None:
+        pf.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+        pf.line_spacing = line_multiple
+    elif line is not None:
         pf.line_spacing = Pt(line)
+
+
+def _set_line_spacing_multiple(paragraph, multiple: float = 1.15) -> None:
+    from docx.enum.text import WD_LINE_SPACING
+
+    pf = paragraph.paragraph_format
+    pf.line_spacing_rule = WD_LINE_SPACING.MULTIPLE
+    pf.line_spacing = multiple
+
+
+def _add_page_number_footer(doc) -> None:
+    """Centered PAGE field in footer (all templates)."""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    section = doc.sections[0]
+    footer = section.footer
+    p = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
+    if p.text:
+        p.text = ""
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run()
+    fld_char_b = OxmlElement("w:fldChar")
+    fld_char_b.set(qn("w:fldCharType"), "begin")
+    instr = OxmlElement("w:instrText")
+    instr.set(qn("xml:space"), "preserve")
+    instr.text = "PAGE"
+    fld_char_e = OxmlElement("w:fldChar")
+    fld_char_e.set(qn("w:fldCharType"), "end")
+    run._r.append(fld_char_b)
+    run._r.append(instr)
+    run._r.append(fld_char_e)
+
+
+def _add_header_name_centered(doc, name: str) -> None:
+    """Optional header: applicant name (helps multi-page resumes in print preview)."""
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt, RGBColor
+
+    n = (name or "").strip()
+    if not n:
+        return
+    section = doc.sections[0]
+    hdr = section.header
+    p = hdr.paragraphs[0] if hdr.paragraphs else hdr.add_paragraph()
+    if p.text:
+        p.text = ""
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run = p.add_run(n)
+    run.font.size = Pt(9)
+    run.font.color.rgb = RGBColor(0x66, 0x66, 0x66)
+    run.font.name = "Calibri"
+
+
+def _finalize_doc_header_footer(doc, parsed: ParsedResume) -> None:
+    if parsed.name:
+        _add_header_name_centered(doc, parsed.name)
+    _add_page_number_footer(doc)
+
+
+def _set_run_letter_spacing_twips(run, twips: int) -> None:
+    """OOXML letter spacing (some python-docx versions ignore run.font.letter_spacing)."""
+    from docx.oxml.ns import qn
+    from lxml import etree
+
+    r_pr = run._r.get_or_add_rPr()
+    existing = r_pr.find(qn("w:spacing"))
+    if existing is not None:
+        r_pr.remove(existing)
+    spacing = etree.SubElement(r_pr, qn("w:spacing"))
+    spacing.set(qn("w:val"), str(twips))
+
+
+def _emit_body_lines(
+    add_paragraph,
+    lines: List[str],
+    *,
+    font_name: str,
+    normal_pt: float,
+    sub_pt: float,
+    normal_rgb,
+    sub_rgb,
+    bullet_left,
+    bullet_hang,
+    bullet_char: str = "•",
+    sub_italic: bool = False,
+    line_multiple: float = 1.15,
+    body_left_indent=None,
+    left_border_on_bullets: bool = False,
+    left_border_hex: str = "0a2a4a",
+    font_fallback: Optional[str] = None,
+) -> None:
+    """Shared body rendering: skip blank lines, unified bullets (•), 1.15 line spacing."""
+    from docx.shared import Pt
+
+    eff_fallback = font_fallback
+    if eff_fallback is None:
+        joined = "\n".join(lines)
+        if _text_has_cjk(joined):
+            eff_fallback = "Microsoft YaHei"
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*")) or bool(
+            re.match(r"^\d{1,2}[\.\)]\s+\S", stripped)
+        )
+        is_sub = _is_sub_header(stripped) and not is_bullet
+        p = add_paragraph()
+        if is_bullet:
+            text = re.sub(r"^\d{1,2}[\.\)]\s*", "", stripped)
+            text = text.lstrip("•-–▪►✦* ").strip()
+            p.paragraph_format.left_indent = bullet_left
+            p.paragraph_format.first_line_indent = bullet_hang
+            if left_border_on_bullets:
+                _set_paragraph_left_border(p, left_border_hex, sz="8")
+            run = p.add_run(f"{bullet_char}  {text}")
+            run.font.size = Pt(normal_pt)
+            run.font.color.rgb = normal_rgb
+        elif is_sub:
+            if body_left_indent is not None:
+                p.paragraph_format.left_indent = body_left_indent
+            run = p.add_run(stripped)
+            run.font.size = Pt(sub_pt)
+            run.font.bold = True
+            run.font.italic = sub_italic
+            run.font.color.rgb = sub_rgb
+        else:
+            if body_left_indent is not None:
+                p.paragraph_format.left_indent = body_left_indent
+            run = p.add_run(stripped)
+            run.font.size = Pt(normal_pt)
+            run.font.color.rgb = normal_rgb
+        if eff_fallback:
+            _set_run_font(run, font_name, eff_fallback)
+        else:
+            run.font.name = font_name
+        _set_line_spacing_multiple(p, line_multiple)
+        if is_bullet:
+            _set_paragraph_spacing(p, before=1, after=2)
+        elif is_sub:
+            _set_paragraph_spacing(p, before=8, after=2)
+        else:
+            _set_paragraph_spacing(p, before=1, after=2)
+
+
+def _set_paragraph_left_border(paragraph, color_hex: str = "0a2a4a", sz: str = "6") -> None:
+    """Left vertical bar (academic-style emphasis); merges with existing pBdr if any."""
+    from docx.oxml.ns import qn
+    from lxml import etree
+
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_bdr = p_pr.find(qn("w:pBdr"))
+    if p_bdr is None:
+        p_bdr = etree.SubElement(p_pr, qn("w:pBdr"))
+    old_left = p_bdr.find(qn("w:left"))
+    if old_left is not None:
+        p_bdr.remove(old_left)
+    left = etree.SubElement(p_bdr, qn("w:left"))
+    left.set(qn("w:val"), "single")
+    left.set(qn("w:sz"), sz)
+    left.set(qn("w:space"), "4")
+    left.set(qn("w:color"), color_hex)
 
 
 def _set_paragraph_bottom_border(paragraph, color_hex, sz="4", space="1"):
@@ -293,8 +559,13 @@ def _add_horizontal_line(doc_or_cell, color_hex="444444", width_pt=0.5):
     return p
 
 
+def _text_has_cjk(s: str) -> bool:
+    """East Asian / CJK codepoints (incl. Japanese/Korean) for font fallback."""
+    return bool(re.search(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]", s or ""))
+
+
 def _set_run_font(run, font_name, fallback_name=None):
-    """Set font name on a run with optional rFonts fallback for cross-platform."""
+    """Set font name on a run with optional rFonts fallback for cross-platform + CJK."""
     run.font.name = font_name
     if fallback_name:
         from docx.oxml.ns import qn
@@ -303,12 +574,14 @@ def _set_run_font(run, font_name, fallback_name=None):
         if r_fonts is not None:
             r_fonts.set(qn("w:hAnsi"), font_name)
             r_fonts.set(qn("w:cs"), fallback_name)
+            r_fonts.set(qn("w:eastAsia"), fallback_name)
         else:
             from lxml import etree
             r_fonts = etree.SubElement(rPr, qn("w:rFonts"))
             r_fonts.set(qn("w:ascii"), font_name)
             r_fonts.set(qn("w:hAnsi"), font_name)
             r_fonts.set(qn("w:cs"), fallback_name)
+            r_fonts.set(qn("w:eastAsia"), fallback_name)
 
 
 def _is_sub_header(line: str) -> bool:
@@ -343,11 +616,31 @@ _SIDEBAR_SECTION_NAMES = {
 }
 
 
+_SIDEBAR_SECTION_NAMES_ZH = frozenset(
+    {
+        "技能",
+        "专业技能",
+        "技术技能",
+        "语言能力",
+        "证书",
+        "资格证书",
+        "兴趣爱好",
+        "兴趣",
+        "获奖",
+        "荣誉",
+        "奖项",
+        "联系方式",
+        "个人信息",
+    }
+)
+
+
 def _partition_sections(parsed: ParsedResume):
     """Split sections into sidebar vs main content."""
     sidebar, main = [], []
     for sec in parsed.sections:
-        if sec.title.lower() in _SIDEBAR_SECTION_NAMES:
+        t = sec.title.strip()
+        if t.lower() in _SIDEBAR_SECTION_NAMES or t in _SIDEBAR_SECTION_NAMES_ZH:
             sidebar.append(sec)
         else:
             main.append(sec)
@@ -373,14 +666,16 @@ def _remove_table_borders(table):
 
 
 def _is_skills_section(title: str) -> bool:
-    return title.lower() in {
-        "skills", "technical skills", "core competencies", "competencies",
-    }
+    t = title.strip().lower()
+    if t in {"skills", "technical skills", "core competencies", "competencies"}:
+        return True
+    return title.strip() in {"技能", "专业技能", "技术技能", "核心技能"}
 
 
 def _format_skills_inline(lines: List[str]) -> str:
-    """Convert bullet-list skills into a comma-separated string."""
-    items = []
+    """Convert skills lines into readable text; preserve 'Label: a, b' as structured segments."""
+    structured: List[str] = []
+    flat: List[str] = []
     for line in lines:
         stripped = line.strip()
         if not stripped:
@@ -388,11 +683,72 @@ def _format_skills_inline(lines: List[str]) -> str:
         stripped = stripped.lstrip("•-–▪►✦*▸ ").strip()
         if not stripped:
             continue
+        if re.match(r"^[^:]{1,48}:\s*.{2,}", stripped) and "http" not in stripped.lower():
+            structured.append(stripped)
+            continue
         for part in re.split(r"[,;]", stripped):
             part = part.strip()
             if part:
-                items.append(part)
-    return ", ".join(items)
+                flat.append(part)
+    parts_out: List[str] = []
+    if structured:
+        parts_out.append(" ".join(structured))
+    if flat:
+        parts_out.append(", ".join(flat))
+    return " · ".join(parts_out) if parts_out else ""
+
+
+def _emit_fresh_graduate_skills_section(
+    add_paragraph,
+    lines: List[str],
+    *,
+    font_name: str,
+    normal_pt: float,
+    gray_rgb,
+    dark_rgb,
+) -> None:
+    """Skills block with bold category labels (Programming: …) plus flat comma-separated items."""
+    from docx.shared import Pt
+
+    structured: List[str] = []
+    flat: List[str] = []
+    for line in lines:
+        stripped = line.strip().lstrip("•-–▪►✦*▸ ").strip()
+        if not stripped:
+            continue
+        if re.match(r"^[^:]{1,48}:\s*.{2,}", stripped) and "http" not in stripped.lower():
+            structured.append(stripped)
+            continue
+        for part in re.split(r"[,;]", stripped):
+            part = part.strip()
+            if part:
+                flat.append(part)
+
+    for sl in structured:
+        if ":" not in sl:
+            continue
+        label, rest = sl.split(":", 1)
+        p = add_paragraph()
+        r1 = p.add_run(label.strip() + ":")
+        r1.font.bold = True
+        r1.font.size = Pt(normal_pt)
+        r1.font.color.rgb = dark_rgb
+        r1.font.name = font_name
+        r2 = p.add_run(rest)
+        r2.font.size = Pt(normal_pt)
+        r2.font.color.rgb = gray_rgb
+        r2.font.name = font_name
+        _set_line_spacing_multiple(p, 1.15)
+        _set_paragraph_spacing(p, before=3, after=4)
+
+    if flat:
+        p = add_paragraph()
+        run = p.add_run(", ".join(flat))
+        run.font.size = Pt(normal_pt)
+        run.font.color.rgb = gray_rgb
+        run.font.name = font_name
+        _set_line_spacing_multiple(p, 1.15)
+        _set_paragraph_spacing(p, before=3, after=3)
 
 
 def _get_first_paragraph(cell):
@@ -437,7 +793,7 @@ def _build_professional_classic(parsed: ParsedResume) -> bytes:
         run.font.color.rgb = NAVY
         run.font.bold = True
         run.font.name = "Calibri"
-        run.font.letter_spacing = Pt(2)
+        _set_run_letter_spacing_twips(run, 40)
         _set_paragraph_spacing(h, before=0, after=4)
 
     if parsed.contact_lines:
@@ -448,7 +804,7 @@ def _build_professional_classic(parsed: ParsedResume) -> bytes:
         run.font.size = Pt(9)
         run.font.color.rgb = RGBColor(0x55, 0x55, 0x55)
         run.font.name = "Calibri"
-        run.font.letter_spacing = Pt(0.3)
+        _set_run_letter_spacing_twips(run, 6)
         _set_paragraph_spacing(p, before=0, after=6)
 
     _add_horizontal_line(doc, "1a1a2e", 1)
@@ -460,38 +816,23 @@ def _build_professional_classic(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = NAVY
         run.font.name = "Calibri"
-        run.font.letter_spacing = Pt(1.5)
-        _set_paragraph_spacing(p, before=10, after=3)
+        _set_run_letter_spacing_twips(run, 30)
+        _set_paragraph_spacing(p, before=10, after=6)
         _add_horizontal_line(doc, "cccccc", 0.5)
 
-        for line in section.lines:
-            stripped = line.strip()
-            if not stripped:
-                p = doc.add_paragraph()
-                _set_paragraph_spacing(p, before=0, after=2)
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            is_sub = _is_sub_header(stripped) and not is_bullet
-            p = doc.add_paragraph()
-            if is_bullet:
-                text = stripped.lstrip("•-–▪►✦* ").strip()
-                p.paragraph_format.left_indent = Inches(0.3)
-                p.paragraph_format.first_line_indent = Inches(-0.15)
-                run = p.add_run("•  " + text)
-                run.font.size = Pt(10.5)
-                run.font.color.rgb = DARK
-            elif is_sub:
-                run = p.add_run(stripped)
-                run.font.size = Pt(11)
-                run.font.bold = True
-                run.font.color.rgb = RGBColor(0x2a, 0x2a, 0x2a)
-            else:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10.5)
-                run.font.color.rgb = DARK
-            run.font.name = "Calibri"
-            _set_paragraph_spacing(p, before=1, after=1, line=14)
+        _emit_body_lines(
+            doc.add_paragraph,
+            section.lines,
+            font_name="Calibri",
+            normal_pt=10.5,
+            sub_pt=11,
+            normal_rgb=DARK,
+            sub_rgb=RGBColor(0x2a, 0x2a, 0x2a),
+            bullet_left=Inches(0.3),
+            bullet_hang=Inches(-0.15),
+        )
 
+    _finalize_doc_header_footer(doc, parsed)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -545,9 +886,11 @@ def _build_modern_tech(parsed: ParsedResume) -> bytes:
     _set_cell_vertical_alignment(left_cell, "top")
     _set_cell_margins(right_cell, top=300, bottom=200, left=200, right=200)
     _set_cell_vertical_alignment(right_cell, "top")
+    _ensure_cell_word_wrap(left_cell)
+    _ensure_cell_word_wrap(right_cell)
 
     for p in left_cell.paragraphs:
-        p.clear()
+        p.text = ""
 
     if parsed.name:
         p = _get_first_paragraph(left_cell)
@@ -581,31 +924,28 @@ def _build_modern_tech(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = ACCENT
         run.font.name = "Arial"
-        run.font.letter_spacing = Pt(1)
+        _set_run_letter_spacing_twips(run, 20)
         _set_paragraph_spacing(p, before=1, after=4)
         p.paragraph_format.left_indent = Inches(0.15)
 
-        for line in ssec.lines:
-            stripped = line.strip()
-            if not stripped:
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            if is_bullet:
-                stripped = stripped.lstrip("•-–▪►✦* ").strip()
-            p = left_cell.add_paragraph()
-            run = p.add_run(("- " if is_bullet else "") + stripped)
-            run.font.size = Pt(9)
-            run.font.color.rgb = RGBColor(0xcb, 0xd5, 0xe1)
-            run.font.name = "Arial"
-            _set_paragraph_spacing(p, before=1, after=1)
-            p.paragraph_format.left_indent = Inches(0.15)
+        _emit_body_lines(
+            left_cell.add_paragraph,
+            ssec.lines,
+            font_name="Arial",
+            normal_pt=9,
+            sub_pt=9.5,
+            normal_rgb=RGBColor(0xcb, 0xd5, 0xe1),
+            sub_rgb=RGBColor(0xee, 0xf2, 0xf6),
+            bullet_left=Inches(0.2),
+            bullet_hang=Inches(-0.12),
+        )
 
     p = left_cell.add_paragraph()
     _set_paragraph_spacing(p, before=0, after=10)
 
     _set_cell_shading(right_cell, "ffffff")
     for p in right_cell.paragraphs:
-        p.clear()
+        p.text = ""
 
     first_main = True
     for msec in main_sections:
@@ -616,7 +956,7 @@ def _build_modern_tech(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = RGBColor(0x0f, 0x17, 0x2a)
         run.font.name = "Arial"
-        run.font.letter_spacing = Pt(1.5)
+        _set_run_letter_spacing_twips(run, 30)
         _set_paragraph_spacing(p, before=10, after=2)
         p.paragraph_format.left_indent = Inches(0.1)
 
@@ -625,35 +965,25 @@ def _build_modern_tech(parsed: ParsedResume) -> bytes:
         _set_paragraph_spacing(p, before=0, after=6)
         p.paragraph_format.left_indent = Inches(0.1)
 
-        for line in msec.lines:
-            stripped = line.strip()
-            if not stripped:
-                p = right_cell.add_paragraph()
-                _set_paragraph_spacing(p, before=0, after=3)
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            is_sub = _is_sub_header(stripped) and not is_bullet
-            p = right_cell.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.1)
-            if is_bullet:
-                text = stripped.lstrip("•-–▪►✦* ").strip()
-                p.paragraph_format.left_indent = Inches(0.35)
-                p.paragraph_format.first_line_indent = Inches(-0.15)
-                run = p.add_run("- " + text)
-                run.font.size = Pt(10)
-                run.font.color.rgb = RGBColor(0x33, 0x33, 0x33)
-            elif is_sub:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10.5)
-                run.font.bold = True
-                run.font.color.rgb = RGBColor(0x1e, 0x29, 0x3b)
-            else:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10)
-                run.font.color.rgb = RGBColor(0x44, 0x44, 0x44)
-            run.font.name = "Arial"
-            _set_paragraph_spacing(p, before=1, after=1, line=13.5)
+        def _add_paragraph_main():
+            p2 = right_cell.add_paragraph()
+            p2.paragraph_format.left_indent = Inches(0.1)
+            return p2
 
+        _emit_body_lines(
+            right_cell.add_paragraph,
+            msec.lines,
+            font_name="Arial",
+            normal_pt=10,
+            sub_pt=10.5,
+            normal_rgb=RGBColor(0x44, 0x44, 0x44),
+            sub_rgb=RGBColor(0x1e, 0x29, 0x3b),
+            bullet_left=Inches(0.35),
+            bullet_hang=Inches(-0.15),
+            body_left_indent=Inches(0.1),
+        )
+
+    _finalize_doc_header_footer(doc, parsed)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -688,14 +1018,22 @@ def _build_creative_portfolio(parsed: ParsedResume) -> bytes:
 
     if parsed.name:
         h = doc.add_paragraph()
-        name = parsed.name
-        if len(name) > 1:
-            run1 = h.add_run(name[0])
+        name = parsed.name.strip()
+        first = name[:1]
+        rest = name[1:]
+        use_drop_cap = (
+            len(rest) > 0
+            and first.isascii()
+            and first.isalpha()
+            and len(name) <= 80
+        )
+        if use_drop_cap:
+            run1 = h.add_run(first)
             run1.font.size = Pt(36)
             run1.font.bold = True
             run1.font.color.rgb = PURPLE
             run1.font.name = "Georgia"
-            run2 = h.add_run(name[1:])
+            run2 = h.add_run(rest)
             run2.font.size = Pt(28)
             run2.font.color.rgb = DARK
             run2.font.name = "Georgia"
@@ -733,36 +1071,21 @@ def _build_creative_portfolio(parsed: ParsedResume) -> bytes:
         # Light purple underline
         _set_paragraph_bottom_border(p, LIGHT_PURPLE, sz="4")
 
-        for line in section.lines:
-            stripped = line.strip()
-            if not stripped:
-                p = doc.add_paragraph()
-                _set_paragraph_spacing(p, before=0, after=3)
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            is_sub = _is_sub_header(stripped) and not is_bullet
-            p = doc.add_paragraph()
-            p.paragraph_format.left_indent = Inches(0.2)
-            if is_bullet:
-                text = stripped.lstrip("•-–▪►✦* ").strip()
-                p.paragraph_format.left_indent = Inches(0.4)
-                p.paragraph_format.first_line_indent = Inches(-0.15)
-                run = p.add_run("- " + text)
-                run.font.size = Pt(10.5)
-                run.font.color.rgb = DARK
-            elif is_sub:
-                run = p.add_run(stripped)
-                run.font.size = Pt(11)
-                run.font.bold = True
-                run.font.color.rgb = RGBColor(0x4a, 0x4a, 0x4a)
-                run.font.italic = True
-            else:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10.5)
-                run.font.color.rgb = DARK
-            run.font.name = "Georgia"
-            _set_paragraph_spacing(p, before=1, after=1, line=14)
+        _emit_body_lines(
+            doc.add_paragraph,
+            section.lines,
+            font_name="Georgia",
+            normal_pt=10.5,
+            sub_pt=11,
+            normal_rgb=DARK,
+            sub_rgb=RGBColor(0x4a, 0x4a, 0x4a),
+            bullet_left=Inches(0.4),
+            bullet_hang=Inches(-0.15),
+            body_left_indent=Inches(0.2),
+            sub_italic=True,
+        )
 
+    _finalize_doc_header_footer(doc, parsed)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -803,7 +1126,7 @@ def _build_academic_research(parsed: ParsedResume) -> bytes:
     run.font.bold = True
     run.font.color.rgb = NAVY
     run.font.name = "Times New Roman"
-    run.font.letter_spacing = Pt(3)
+    _set_run_letter_spacing_twips(run, 60)
     _set_paragraph_spacing(h, before=0, after=6)
 
     _add_horizontal_line(doc, "0a2a4a", 1.5)
@@ -836,40 +1159,26 @@ def _build_academic_research(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = NAVY
         run.font.name = "Times New Roman"
-        run.font.letter_spacing = Pt(1)
+        _set_run_letter_spacing_twips(run, 20)
         _set_paragraph_spacing(p, before=14, after=2)
         _set_paragraph_bottom_border(p, "0a2a4a", sz="4")
 
-        for line in section.lines:
-            stripped = line.strip()
-            if not stripped:
-                p = doc.add_paragraph()
-                _set_paragraph_spacing(p, before=0, after=3)
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            is_sub = _is_sub_header(stripped) and not is_bullet
-            p = doc.add_paragraph()
-            if is_bullet:
-                text = stripped.lstrip("•-–▪►✦* ").strip()
-                p.paragraph_format.left_indent = Inches(0.5)
-                p.paragraph_format.first_line_indent = Inches(-0.2)
-                run = p.add_run("- " + text)
-                run.font.size = Pt(11)
-                run.font.color.rgb = DARK
-            elif is_sub:
-                p.paragraph_format.left_indent = Inches(0.3)
-                run = p.add_run(stripped)
-                run.font.size = Pt(11)
-                run.font.bold = True
-                run.font.color.rgb = DARK
-            else:
-                p.paragraph_format.left_indent = Inches(0.3)
-                run = p.add_run(stripped)
-                run.font.size = Pt(11)
-                run.font.color.rgb = DARK
-            run.font.name = "Times New Roman"
-            _set_paragraph_spacing(p, before=1, after=1, line=15)
+        _emit_body_lines(
+            doc.add_paragraph,
+            section.lines,
+            font_name="Times New Roman",
+            normal_pt=11,
+            sub_pt=11,
+            normal_rgb=DARK,
+            sub_rgb=DARK,
+            bullet_left=Inches(0.5),
+            bullet_hang=Inches(-0.2),
+            body_left_indent=Inches(0.3),
+            left_border_on_bullets=True,
+            left_border_hex="0a2a4a",
+        )
 
+    _finalize_doc_header_footer(doc, parsed)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -917,7 +1226,7 @@ def _build_executive(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = NAVY
         _set_run_font(run, "Cambria", "Georgia")
-        run.font.letter_spacing = Pt(4)
+        _set_run_letter_spacing_twips(run, 80)
         _set_paragraph_spacing(h, before=0, after=6)
 
     if parsed.contact_lines:
@@ -942,39 +1251,28 @@ def _build_executive(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = NAVY
         _set_run_font(run, "Cambria", "Georgia")
-        run.font.letter_spacing = Pt(2)
+        _set_run_letter_spacing_twips(run, 40)
         _set_paragraph_spacing(p, before=12, after=2)
         _set_paragraph_bottom_border(p, "bf943e", sz="6", space="2")
+        p_gray = doc.add_paragraph()
+        _set_paragraph_bottom_border(p_gray, "888888", sz="2")
+        _set_paragraph_spacing(p_gray, before=0, after=6)
 
-        for line in section.lines:
-            stripped = line.strip()
-            if not stripped:
-                p = doc.add_paragraph()
-                _set_paragraph_spacing(p, before=0, after=4)
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            is_sub = _is_sub_header(stripped) and not is_bullet
-            p = doc.add_paragraph()
-            if is_bullet:
-                text = stripped.lstrip("•-–▪►✦* ").strip()
-                p.paragraph_format.left_indent = Inches(0.4)
-                p.paragraph_format.first_line_indent = Inches(-0.2)
-                run = p.add_run("•  " + text)
-                run.font.size = Pt(11)
-                run.font.color.rgb = DARK
-            elif is_sub:
-                run = p.add_run(stripped)
-                run.font.size = Pt(11.5)
-                run.font.bold = True
-                run.font.color.rgb = NAVY
-            else:
-                p.paragraph_format.left_indent = Inches(0.1)
-                run = p.add_run(stripped)
-                run.font.size = Pt(11)
-                run.font.color.rgb = DARK
-            _set_run_font(run, "Cambria", "Georgia")
-            _set_paragraph_spacing(p, before=2, after=2, line=15)
+        _emit_body_lines(
+            doc.add_paragraph,
+            section.lines,
+            font_name="Cambria",
+            font_fallback="Georgia",
+            normal_pt=11,
+            sub_pt=11.5,
+            normal_rgb=DARK,
+            sub_rgb=NAVY,
+            bullet_left=Inches(0.4),
+            bullet_hang=Inches(-0.2),
+            body_left_indent=Inches(0.1),
+        )
 
+    _finalize_doc_header_footer(doc, parsed)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -1004,7 +1302,7 @@ def _build_minimalist_clean(parsed: ParsedResume) -> bytes:
     style.paragraph_format.space_after = Pt(2)
 
     sec = doc.sections[0]
-    sec.top_margin = Cm(3.5)
+    sec.top_margin = Cm(2.5)
     sec.bottom_margin = Cm(3)
     sec.left_margin = Cm(3)
     sec.right_margin = Cm(3)
@@ -1024,7 +1322,7 @@ def _build_minimalist_clean(parsed: ParsedResume) -> bytes:
         run.font.size = Pt(8.5)
         run.font.color.rgb = LIGHT
         run.font.name = FONT
-        _set_paragraph_spacing(p, before=0, after=18)
+        _set_paragraph_spacing(p, before=0, after=9)
 
     for section in parsed.sections:
         p = doc.add_paragraph()
@@ -1033,37 +1331,23 @@ def _build_minimalist_clean(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = BLACK
         run.font.name = FONT
-        run.font.letter_spacing = Pt(2)
+        _set_run_letter_spacing_twips(run, 40)
         _set_paragraph_spacing(p, before=16, after=6)
         _add_horizontal_line(doc, "dddddd", 0.25)
 
-        for line in section.lines:
-            stripped = line.strip()
-            if not stripped:
-                p = doc.add_paragraph()
-                _set_paragraph_spacing(p, before=0, after=4)
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            is_sub = _is_sub_header(stripped) and not is_bullet
-            p = doc.add_paragraph()
-            if is_bullet:
-                text = stripped.lstrip("•-–▪►✦* ").strip()
-                p.paragraph_format.left_indent = Inches(0.2)
-                run = p.add_run("-  " + text)
-                run.font.size = Pt(10)
-                run.font.color.rgb = MID
-            elif is_sub:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10.5)
-                run.font.bold = True
-                run.font.color.rgb = BLACK
-            else:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10)
-                run.font.color.rgb = MID
-            run.font.name = FONT
-            _set_paragraph_spacing(p, before=1, after=1, line=14)
+        _emit_body_lines(
+            doc.add_paragraph,
+            section.lines,
+            font_name=FONT,
+            normal_pt=10,
+            sub_pt=10.5,
+            normal_rgb=MID,
+            sub_rgb=BLACK,
+            bullet_left=Inches(0.2),
+            bullet_hang=Inches(-0.12),
+        )
 
+    _finalize_doc_header_footer(doc, parsed)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -1108,7 +1392,7 @@ def _build_corporate_elegance(parsed: ParsedResume) -> bytes:
     _set_cell_margins(header_cell, top=350, bottom=350, left=300, right=300)
 
     for p in header_cell.paragraphs:
-        p.clear()
+        p.text = ""
 
     if parsed.name:
         p = _get_first_paragraph(header_cell)
@@ -1118,7 +1402,7 @@ def _build_corporate_elegance(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = RGBColor(0xff, 0xff, 0xff)
         run.font.name = "Calibri"
-        run.font.letter_spacing = Pt(3)
+        _set_run_letter_spacing_twips(run, 60)
         _set_paragraph_spacing(p, before=4, after=4)
 
     if parsed.contact_lines:
@@ -1143,38 +1427,23 @@ def _build_corporate_elegance(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = RGBColor(0x13, 0x4e, 0x4a)
         run.font.name = "Calibri"
-        run.font.letter_spacing = Pt(1.5)
+        _set_run_letter_spacing_twips(run, 30)
         _set_paragraph_spacing(p, before=12, after=2)
         _set_paragraph_bottom_border(p, "14b8a6", sz="3")
 
-        for line in section.lines:
-            stripped = line.strip()
-            if not stripped:
-                p = doc.add_paragraph()
-                _set_paragraph_spacing(p, before=0, after=3)
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            is_sub = _is_sub_header(stripped) and not is_bullet
-            p = doc.add_paragraph()
-            if is_bullet:
-                text = stripped.lstrip("•-–▪►✦* ").strip()
-                p.paragraph_format.left_indent = Inches(0.35)
-                p.paragraph_format.first_line_indent = Inches(-0.15)
-                run = p.add_run("•  " + text)
-                run.font.size = Pt(10.5)
-                run.font.color.rgb = GRAY
-            elif is_sub:
-                run = p.add_run(stripped)
-                run.font.size = Pt(11)
-                run.font.bold = True
-                run.font.color.rgb = DARK
-            else:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10.5)
-                run.font.color.rgb = GRAY
-            run.font.name = "Calibri"
-            _set_paragraph_spacing(p, before=1, after=1, line=14)
+        _emit_body_lines(
+            doc.add_paragraph,
+            section.lines,
+            font_name="Calibri",
+            normal_pt=10.5,
+            sub_pt=11,
+            normal_rgb=GRAY,
+            sub_rgb=DARK,
+            bullet_left=Inches(0.35),
+            bullet_hang=Inches(-0.15),
+        )
 
+    _finalize_doc_header_footer(doc, parsed)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -1217,7 +1486,7 @@ def _build_fresh_graduate(parsed: ParsedResume) -> bytes:
     _set_cell_margins(header_cell, top=250, bottom=250, left=200, right=200)
 
     for p in header_cell.paragraphs:
-        p.clear()
+        p.text = ""
 
     if parsed.name:
         p = _get_first_paragraph(header_cell)
@@ -1227,7 +1496,7 @@ def _build_fresh_graduate(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = RGBColor(0xff, 0xff, 0xff)
         run.font.name = "Arial"
-        run.font.letter_spacing = Pt(3)
+        _set_run_letter_spacing_twips(run, 60)
         _set_paragraph_spacing(p, before=4, after=4)
 
     if parsed.contact_lines:
@@ -1248,7 +1517,10 @@ def _build_fresh_graduate(parsed: ParsedResume) -> bytes:
     experience_later = []
     for s in parsed.sections:
         title_lower = s.title.lower()
-        if any(k in title_lower for k in ("skill", "education", "certif", "language", "award")):
+        zh = s.title.strip()
+        if any(k in title_lower for k in ("skill", "education", "certif", "language", "award")) or any(
+            x in zh for x in ("技能", "教育", "证书", "语言", "获奖", "荣誉")
+        ):
             skills_first.append(s)
         else:
             experience_later.append(s)
@@ -1261,50 +1533,34 @@ def _build_fresh_graduate(parsed: ParsedResume) -> bytes:
         run.font.bold = True
         run.font.color.rgb = DARK
         run.font.name = "Arial"
-        run.font.letter_spacing = Pt(1)
+        _set_run_letter_spacing_twips(run, 20)
         _set_paragraph_spacing(p, before=10, after=2)
         _set_paragraph_bottom_border(p, "93c5fd", sz="4")
 
-        # Format skills sections as comma-separated inline text
         if _is_skills_section(section.title):
-            inline = _format_skills_inline(section.lines)
-            if inline:
-                p = doc.add_paragraph()
-                run = p.add_run(inline)
-                run.font.size = Pt(10)
-                run.font.color.rgb = GRAY
-                run.font.name = "Arial"
-                _set_paragraph_spacing(p, before=3, after=3, line=14)
+            _emit_fresh_graduate_skills_section(
+                doc.add_paragraph,
+                section.lines,
+                font_name="Arial",
+                normal_pt=10,
+                gray_rgb=GRAY,
+                dark_rgb=DARK,
+            )
             continue
 
-        for line in section.lines:
-            stripped = line.strip()
-            if not stripped:
-                p = doc.add_paragraph()
-                _set_paragraph_spacing(p, before=0, after=2)
-                continue
-            is_bullet = stripped.startswith(("•", "-", "–", "▪", "►", "✦", "*"))
-            is_sub = _is_sub_header(stripped) and not is_bullet
-            p = doc.add_paragraph()
-            if is_bullet:
-                text = stripped.lstrip("•-–▪►✦* ").strip()
-                p.paragraph_format.left_indent = Inches(0.3)
-                p.paragraph_format.first_line_indent = Inches(-0.15)
-                run = p.add_run("- " + text)
-                run.font.size = Pt(10)
-                run.font.color.rgb = GRAY
-            elif is_sub:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10.5)
-                run.font.bold = True
-                run.font.color.rgb = DARK
-            else:
-                run = p.add_run(stripped)
-                run.font.size = Pt(10)
-                run.font.color.rgb = GRAY
-            run.font.name = "Arial"
-            _set_paragraph_spacing(p, before=1, after=1, line=13)
+        _emit_body_lines(
+            doc.add_paragraph,
+            section.lines,
+            font_name="Arial",
+            normal_pt=10,
+            sub_pt=10.5,
+            normal_rgb=GRAY,
+            sub_rgb=DARK,
+            bullet_left=Inches(0.3),
+            bullet_hang=Inches(-0.15),
+        )
 
+    _finalize_doc_header_footer(doc, parsed)
     buf = io.BytesIO()
     doc.save(buf)
     buf.seek(0)
@@ -1325,6 +1581,11 @@ _TEMPLATE_BUILDERS = {
     "corporate_elegance": _build_corporate_elegance,
     "fresh_graduate": _build_fresh_graduate,
 }
+
+
+def resolve_template_builder_key(template_id: str, db: Session) -> str:
+    """Public helper for preview / analytics — maps DB template id to builder key."""
+    return _resolve_template_key(template_id, db)
 
 
 def _resolve_template_key(template_id: str, db: Session) -> str:
@@ -1356,6 +1617,12 @@ def apply_template(
     """
     Parse resume_content into structured sections, then build a fully-formatted
     DOCX using the template identified by template_id.
+
+    Layout is generated in code (``Document()`` + builders); disk ``.docx`` seeds are
+    not merged. Shared body rendering uses :func:`_emit_body_lines` (1.15 line spacing,
+    unified bullets, optional left bar for academic). Header shows the parsed name when
+    available; footer includes page numbers. Word custom styles can be introduced
+    gradually to reduce per-run formatting.
     """
     _ensure_docx()
 
@@ -1369,6 +1636,12 @@ def apply_template(
     _log.info("apply_template: using builder '%s' for template_id='%s'", key, template_id)
 
     parsed = parse_resume(resume_content or "")
+    try:
+        from backend.app.services.resume_structured import enhance_parsed_for_export
+
+        parsed = enhance_parsed_for_export(parsed)
+    except Exception as ex:
+        _log.warning("enhance_parsed_for_export skipped: %s", ex)
     _log.info(
         "apply_template: parsed name='%s', %d contact lines, %d sections",
         parsed.name, len(parsed.contact_lines), len(parsed.sections),

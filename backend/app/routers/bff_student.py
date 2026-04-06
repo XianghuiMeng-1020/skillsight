@@ -1782,10 +1782,13 @@ def bff_delete_document(
 def bff_student_resume_templates(
     role_id: Optional[str] = None,
     industry: Optional[str] = None,
+    review_id: Optional[str] = None,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    """List resume templates for the Resume Enhancement Center."""
+    """List resume templates for the Resume Enhancement Center. Optional review_id ranks templates for target role."""
+    from backend.app.services.resume_structured import score_templates_for_role
+
     rows = db.execute(
         text("""
             SELECT template_id, name, description, industry_tags, preview_url, template_file, is_active
@@ -1806,6 +1809,29 @@ def bff_student_resume_templates(
             except Exception:
                 d["industry_tags"] = []
         templates.append(d)
+
+    role_title: Optional[str] = None
+    if review_id and review_id.strip():
+        row = db.execute(
+            text("""
+                SELECT ro.role_title AS role_title
+                FROM resume_reviews r
+                LEFT JOIN roles ro ON ro.role_id = r.target_role_id
+                WHERE r.review_id = :rid AND r.user_id = :uid
+                LIMIT 1
+            """),
+            {"rid": review_id.strip(), "uid": ident.subject_id},
+        ).mappings().first()
+        if row and row.get("role_title"):
+            role_title = str(row["role_title"])
+    if not role_title and role_id and role_id.strip():
+        rt = db.execute(
+            text("SELECT role_title FROM roles WHERE role_id = :rid LIMIT 1"),
+            {"rid": role_id.strip()},
+        ).scalar()
+        if rt:
+            role_title = str(rt)
+
     if not templates:
         templates = [
             {
@@ -1881,6 +1907,9 @@ def bff_student_resume_templates(
                 "is_active": True,
             },
         ]
+
+    templates = score_templates_for_role(templates, role_title)
+
     log_audit(
         engine,
         subject_id=ident.subject_id,

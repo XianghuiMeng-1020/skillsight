@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
 import { studentBff } from '@/lib/bffClient';
+import { ModalShell } from '@/components/ModalShell';
 import styles from './resume.module.css';
 
 interface TemplateGalleryProps {
@@ -17,6 +18,8 @@ interface TemplateItem {
   industry_tags?: string[];
   preview_url?: string;
   template_file?: string;
+  recommend_score?: number;
+  recommended?: boolean;
 }
 
 /* ──────────────────────────────────────────────────────────────
@@ -338,51 +341,37 @@ function TemplatePreviewModal({
   visual,
   onClose,
   onApply,
+  onApplyPdf,
   applying,
   t,
+  htmlPreview,
+  htmlLoading,
 }: {
   template: TemplateItem;
   visual: TemplateVisual | null;
   onClose: () => void;
   onApply: () => void;
+  onApplyPdf: () => void;
   applying: boolean;
   t: (k: string) => string;
+  htmlPreview: string | null;
+  htmlLoading: boolean;
 }) {
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, [onClose]);
-
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'rgba(0,0,0,0.6)',
-        backdropFilter: 'blur(4px)',
+    <ModalShell
+      open
+      onClose={onClose}
+      titleId="template-preview-title"
+      modalStyle={{
+        maxWidth: 640,
+        width: '95%',
+        maxHeight: '90vh',
+        overflow: 'auto',
+        boxShadow: '0 24px 48px rgba(0,0,0,0.25)',
       }}
-      onClick={onClose}
+      overlayClassName={styles.previewOverlay}
     >
-      <div
-        style={{
-          background: 'var(--white, #fff)',
-          borderRadius: 16,
-          maxWidth: 640,
-          width: '95%',
-          maxHeight: '90vh',
-          overflow: 'auto',
-          boxShadow: '0 24px 48px rgba(0,0,0,0.25)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Large preview */}
+        {/* Large preview — server HTML when available, else abstract mini */}
         <div
           style={{
             background: visual?.gradient || 'linear-gradient(135deg,#374151,#4b5563)',
@@ -392,6 +381,18 @@ function TemplatePreviewModal({
             overflow: 'hidden',
           }}
         >
+          {htmlLoading && (
+            <div className={styles.previewHtmlLoading}>{t('common.loading')}</div>
+          )}
+          {!htmlLoading && htmlPreview && (
+            <iframe
+              title={t('resume.preview')}
+              className={styles.previewHtmlIframe}
+              srcDoc={htmlPreview}
+              sandbox="allow-same-origin"
+            />
+          )}
+          {!htmlLoading && !htmlPreview && (
           <div style={{
             position: 'absolute',
             inset: 0,
@@ -411,8 +412,11 @@ function TemplatePreviewModal({
               {visual && <TemplateMiniPreview layoutType={visual.layoutType} accent={visual.accent} />}
             </div>
           </div>
+          )}
           <button
+            type="button"
             onClick={onClose}
+            aria-label={t('common.close')}
             style={{
               position: 'absolute',
               top: 12,
@@ -437,8 +441,8 @@ function TemplatePreviewModal({
         {/* Details */}
         <div style={{ padding: '20px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-            <span style={{ fontSize: 24 }}>{visual?.icon}</span>
-            <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>{template.name}</h2>
+            <span style={{ fontSize: 24 }} aria-hidden>{visual?.icon}</span>
+            <h2 id="template-preview-title" style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>{template.name}</h2>
           </div>
 
           {template.description && (
@@ -492,17 +496,27 @@ function TemplatePreviewModal({
             </div>
           )}
 
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             <button
               type="button"
               className="btn btn-primary"
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 140 }}
               onClick={onApply}
               disabled={applying}
             >
               {applying
                 ? (t('common.loading') || 'Generating...')
                 : (t('resume.applyAndExport') || 'Apply & Download')}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ flex: 1, minWidth: 120 }}
+              onClick={onApplyPdf}
+              disabled={applying}
+              title={t('resume.exportPdfHint')}
+            >
+              {applying ? (t('common.loading') || '…') : (t('resume.exportPdf') || 'PDF')}
             </button>
             <button
               type="button"
@@ -514,8 +528,7 @@ function TemplatePreviewModal({
             </button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -589,11 +602,13 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
   const [loading, setLoading] = useState(true);
   const [applying, setApplying] = useState<string | null>(null);
   const [previewTemplate, setPreviewTemplate] = useState<TemplateItem | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  const [previewHtmlLoading, setPreviewHtmlLoading] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await studentBff.getResumeTemplates();
+        const res = await studentBff.getResumeTemplates(undefined, undefined, reviewId);
         setTemplates(res.templates?.length ? res.templates : []);
       } catch {
         setTemplates([]);
@@ -601,12 +616,40 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [reviewId]);
 
-  const handleApply = useCallback(async (templateId: string) => {
-    setApplying(templateId);
+  useEffect(() => {
+    if (!previewTemplate) {
+      setPreviewHtml(null);
+      setPreviewHtmlLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPreviewHtmlLoading(true);
+    setPreviewHtml(null);
+    studentBff
+      .resumeReviewPreviewHtml(reviewId, previewTemplate.template_id)
+      .then((html) => {
+        if (!cancelled) setPreviewHtml(html);
+      })
+      .catch(() => {
+        if (!cancelled) setPreviewHtml(null);
+      })
+      .finally(() => {
+        if (!cancelled) setPreviewHtmlLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [previewTemplate, reviewId]);
+
+  const handleApply = useCallback(async (templateId: string, format: 'docx' | 'pdf' = 'docx') => {
+    const key = `${templateId}:${format}`;
+    setApplying(key);
     try {
-      const res = await studentBff.resumeReviewApplyTemplate(reviewId, templateId);
+      const res = await studentBff.resumeReviewApplyTemplate(reviewId, templateId, {
+        exportFormat: format,
+      });
       const blob = base64ToBlob(
         res.content_base64,
         res.mime_type || 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -614,10 +657,14 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = res.filename || 'resume.docx';
+      a.download = res.filename || (format === 'pdf' ? 'resume.pdf' : 'resume.docx');
       a.click();
       URL.revokeObjectURL(url);
-      addToast('success', t('resume.exportSuccess'));
+      if (res.pdf_unavailable && format === 'pdf') {
+        addToast('success', `${t('resume.exportSuccess')} — ${t('resume.pdfFallbackNote')}`);
+      } else {
+        addToast('success', t('resume.exportSuccess'));
+      }
       setPreviewTemplate(null);
     } catch (e: unknown) {
       let msg = e instanceof Error ? e.message : String(e);
@@ -639,8 +686,12 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
   if (loading) {
     return (
       <>
-        <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step5Title')}</h2>
-        <p style={{ color: 'var(--gray-600)' }}>{t('common.loading')}</p>
+        <h2 className={styles.stepSectionTitle}>{t('resume.step5Title')}</h2>
+        <div className={styles.templateGridSkeleton} aria-busy="true">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className={styles.templateCardSkeleton} />
+          ))}
+        </div>
       </>
     );
   }
@@ -655,7 +706,7 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
 
   return (
     <>
-      <h2 style={{ fontSize: '1.25rem', marginBottom: '0.5rem' }}>{t('resume.step5Title')}</h2>
+      <h2 className={styles.stepSectionTitle}>{t('resume.step5Title')}</h2>
       <p style={{ color: 'var(--gray-600)', marginBottom: '0.35rem' }}>{t('resume.step5Desc')}</p>
       <p style={{ fontSize: '0.8125rem', color: 'var(--gray-600)', marginBottom: '1.25rem' }}>{t('resume.atsFullName')}</p>
 
@@ -664,28 +715,36 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
           const vKey = getVisualKey(tmpl);
           const visual = vKey ? TEMPLATE_VISUALS[vKey] : null;
 
+          const openPreview = () => setPreviewTemplate(tmpl);
+          const onThumbKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              openPreview();
+            }
+          };
+
           return (
             <div
               key={tmpl.template_id}
               className={styles.templateCard}
-              style={{ cursor: 'pointer' }}
-              onClick={() => setPreviewTemplate(tmpl)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && setPreviewTemplate(tmpl)}
             >
-              {/* Preview thumbnail */}
+              {/* Preview thumbnail — keyboard opens preview (avoids nested interactive with inner buttons) */}
               <div
+                role="button"
+                tabIndex={0}
+                onClick={openPreview}
+                onKeyDown={onThumbKeyDown}
+                className={styles.templateThumb}
                 style={{
                   background: visual?.gradient || 'linear-gradient(135deg,#374151,#4b5563)',
-                  borderRadius: 'var(--radius)',
-                  height: 150,
-                  marginBottom: '0.75rem',
-                  overflow: 'hidden',
-                  position: 'relative',
                 }}
+                aria-label={t('resume.preview')}
               >
-                {visual && (
+                {tmpl.preview_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={tmpl.preview_url} alt="" className={styles.templateThumbImg} />
+                ) : (
+                  visual && (
                   <div style={{
                     position: 'absolute',
                     inset: 0,
@@ -704,6 +763,10 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
                       <TemplateMiniPreview layoutType={visual.layoutType} accent={visual.accent} />
                     </div>
                   </div>
+                  )
+                )}
+                {tmpl.recommended && (
+                  <span className={styles.recommendedBadge}>{t('resume.recommended')}</span>
                 )}
                 {/* Preview badge */}
                 <div style={{
@@ -722,7 +785,7 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
               </div>
 
               {/* Info */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: '0.3rem' }}>
+              <div className={styles.templateCardTitleRow}>
                 <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, flex: 1 }}>
                   {visual?.icon ? `${visual.icon} ` : ''}{tmpl.name}
                 </h3>
@@ -769,20 +832,34 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
               )}
 
               {/* Action buttons */}
-              <div style={{ marginTop: '0.75rem', display: 'flex', gap: 6 }}>
+              <div className={styles.templateActions}>
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
                   style={{ flex: 1 }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleApply(tmpl.template_id);
+                    handleApply(tmpl.template_id, 'docx');
                   }}
-                  disabled={applying === tmpl.template_id}
+                  disabled={!!applying?.startsWith(`${tmpl.template_id}:`)}
                 >
-                  {applying === tmpl.template_id
+                  {applying === `${tmpl.template_id}:docx`
                     ? (t('common.loading') || 'Generating...')
                     : (t('resume.applyAndExport') || 'Apply & Download')}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  title={t('resume.exportPdfHint')}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleApply(tmpl.template_id, 'pdf');
+                  }}
+                  disabled={!!applying?.startsWith(`${tmpl.template_id}:`)}
+                >
+                  {applying === `${tmpl.template_id}:pdf`
+                    ? (t('common.loading') || '…')
+                    : t('resume.exportPdf')}
                 </button>
                 <button
                   type="button"
@@ -793,6 +870,7 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
                     setPreviewTemplate(tmpl);
                   }}
                   title={t('resume.preview') || 'Preview'}
+                  aria-label={t('resume.preview') || 'Preview'}
                 >
                   👁
                 </button>
@@ -812,9 +890,15 @@ export function TemplateGallery({ reviewId }: TemplateGalleryProps) {
           template={previewTemplate}
           visual={TEMPLATE_VISUALS[getVisualKey(previewTemplate)] || null}
           onClose={() => setPreviewTemplate(null)}
-          onApply={() => handleApply(previewTemplate.template_id)}
-          applying={applying === previewTemplate.template_id}
+          onApply={() => handleApply(previewTemplate.template_id, 'docx')}
+          onApplyPdf={() => handleApply(previewTemplate.template_id, 'pdf')}
+          applying={
+            applying === `${previewTemplate.template_id}:docx` ||
+            applying === `${previewTemplate.template_id}:pdf`
+          }
           t={t}
+          htmlPreview={previewHtml}
+          htmlLoading={previewHtmlLoading}
         />
       )}
     </>
