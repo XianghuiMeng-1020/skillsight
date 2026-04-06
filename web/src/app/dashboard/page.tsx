@@ -132,34 +132,47 @@ export default function StudentDashboard() {
               {t('dashboard.visionPitch')}
             </p>
           </div>
-          <div className="page-actions" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
-            <button
-              onClick={() => setShowAchievements(true)}
-              style={{
-                padding: '0.625rem 1rem',
-                borderRadius: '10px',
-                border: '2px solid #E7E5E4',
-                background: 'white',
-                color: '#44403C',
-                fontWeight: 500,
-                fontSize: '0.875rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                transition: 'all 0.2s ease',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--sage)';
-                e.currentTarget.style.background = 'var(--sage-50)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = '#E7E5E4';
-                e.currentTarget.style.background = 'white';
-              }}
-            >
-              🏆 {fmt2(totalPoints)} {t('achievements.points')}
-            </button>
+          <div className="page-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', width: '100%', maxWidth: '42rem' }}>
+            {/* Row 1: Quick action buttons */}
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              <button
+                onClick={() => setShowAchievements(true)}
+                style={{
+                  padding: '0.5rem 0.875rem',
+                  borderRadius: '10px',
+                  border: '2px solid #E7E5E4',
+                  background: 'white',
+                  color: '#44403C',
+                  fontWeight: 500,
+                  fontSize: '0.8125rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.375rem',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--sage)';
+                  e.currentTarget.style.background = 'var(--sage-50)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = '#E7E5E4';
+                  e.currentTarget.style.background = 'white';
+                }}
+              >
+                🏆 {fmt2(totalPoints)} {t('achievements.points')}
+              </button>
+              <Link href="/dashboard/upload" className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}>
+                📤 {t('dashboard.uploadEvidence')}
+              </Link>
+              <ShareButton
+                userName={userName}
+                skills={skills.map(s => ({ name: s.canonical_name, level: s.level }))}
+                overallScore={Math.round((skills.reduce((sum, s) => sum + s.level * 25, 0) / Math.max(skills.length, 1)) * 100) / 100}
+                onShareSuccess={unlockShareAchievement}
+              />
+            </div>
+            {/* Row 2: AI agent greeting bar */}
             <div
               style={{
                 display: 'flex',
@@ -170,11 +183,10 @@ export default function StudentDashboard() {
                 borderRadius: '10px',
                 border: '1px solid var(--sage-light, #98B8A8)',
                 background: 'linear-gradient(135deg, rgba(152,184,168,0.12), rgba(201,221,227,0.08))',
-                maxWidth: 'min(100%, 36rem)',
               }}
             >
-              <span style={{ fontSize: '1.25rem', lineHeight: 1 }} aria-hidden>🤖</span>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--gray-900)', flex: '1 1 12rem' }}>
+              <span style={{ fontSize: '1.125rem', lineHeight: 1 }} aria-hidden>🤖</span>
+              <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--gray-900)', flex: '1 1 10rem' }}>
                 {t('dashboard.agentGreeting')}
               </span>
               <Link href="/dashboard/assessments" className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}>
@@ -189,15 +201,6 @@ export default function StudentDashboard() {
                 {t('dashboard.reviewResume')}
               </button>
             </div>
-            <ShareButton
-              userName={userName}
-              skills={skills.map(s => ({ name: s.canonical_name, level: s.level }))}
-              overallScore={Math.round((skills.reduce((sum, s) => sum + s.level * 25, 0) / Math.max(skills.length, 1)) * 100) / 100}
-              onShareSuccess={unlockShareAchievement}
-            />
-            <Link href="/dashboard/upload" className="btn btn-primary">
-              📤 {t('dashboard.uploadEvidence')}
-            </Link>
           </div>
         </div>
 

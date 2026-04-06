@@ -60,6 +60,7 @@ function ResumePageContent() {
     router.replace(q ? `${pathname}?${q}` : pathname, { scroll: false });
   }, [reviewId, step, pathname, router]);
 
+  const [maxReachableStep, setMaxReachableStep] = useState<number>(5);
   useEffect(() => {
     if (!reviewId) return;
     let cancelled = false;
@@ -68,11 +69,12 @@ function ResumePageContent() {
         const st = await studentBff.resumeReviewState(reviewId);
         if (cancelled) return;
         const safeMax = Math.min(5, Math.max(1, Number(st.max_step || 1)));
-        if (step > safeMax) {
-          setStep(safeMax);
-        } else if (step < 2) {
-          setStep(2);
-        }
+        setMaxReachableStep(safeMax);
+        setStep((prev) => {
+          if (prev > safeMax) return safeMax;
+          if (prev < 2) return 2;
+          return prev;
+        });
       } catch {
         // Keep current UI state; backend still enforces invalid_state.
       }
@@ -80,24 +82,31 @@ function ResumePageContent() {
     return () => {
       cancelled = true;
     };
-  }, [reviewId, step]);
+  // Only validate on initial load / reviewId change, NOT on every step change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewId]);
 
   const handleStartReview = (id: string) => {
     setReviewId(id);
     setStep(2);
   };
 
+  const advanceStep = useCallback((target: number) => {
+    setMaxReachableStep((prev) => Math.max(prev, target));
+    setStep(target);
+  }, []);
+
   const handleScoreDone = (scores: Record<string, { score: number; comment: string }>, total: number) => {
     setInitialScores(scores);
     setTotalInitial(total);
-    setStep(3);
+    advanceStep(3);
   };
 
-  const handleContinueToComparison = () => setStep(4);
+  const handleContinueToComparison = () => advanceStep(4);
 
   const handleRescoreDone = () => {};
 
-  const handleContinueToTemplates = () => setStep(5);
+  const handleContinueToTemplates = () => advanceStep(5);
 
   const handleBack = () => {
     const next = Math.max(1, step - 1);

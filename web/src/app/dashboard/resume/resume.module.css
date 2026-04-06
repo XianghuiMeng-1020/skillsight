@@ -292,8 +292,8 @@
 /* Templates */
 .templateGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1.25rem;
 }
 
 .templateCard {
@@ -356,12 +356,18 @@
 
 /* Template thumbnails — real preview image or abstract mini */
 .templateThumb {
-  border-radius: var(--radius);
-  height: 150px;
+  border-radius: var(--radius-lg);
+  height: 200px;
   margin-bottom: 0.75rem;
   overflow: hidden;
   position: relative;
   cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.templateThumb:hover {
+  transform: scale(1.02);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
 }
 
 .templateThumbImg {
@@ -370,6 +376,11 @@
   object-fit: cover;
   object-position: top center;
   display: block;
+  transition: transform 0.3s ease;
+}
+
+.templateThumb:hover .templateThumbImg {
+  transform: scale(1.05);
 }
 
 .recommendedBadge {

@@ -125,27 +125,36 @@ export function RubricScoreCard({ reviewId, onDone }: RubricScoreCardProps) {
       </div>
 
       <div className={styles.scoreRing} role="img" aria-label={t('resume.step2Title')}>
-        <ResponsiveContainer width="100%" height={250}>
-          <RechartsRadarChart data={radarData} margin={{ top: 10, right: 10, bottom: 10, left: 10 }}>
-            <PolarGrid />
+        <ResponsiveContainer width="100%" height={340}>
+          <RechartsRadarChart data={radarData} margin={{ top: 30, right: 40, bottom: 30, left: 40 }}>
+            <PolarGrid gridType="polygon" stroke="var(--gray-200)" />
             <PolarAngleAxis
               dataKey="labelKey"
               tickFormatter={(labelKey) => (typeof labelKey === 'string' ? t(labelKey) : String(labelKey))}
+              tick={{ fontSize: 13, fontWeight: 600, fill: 'var(--gray-700)' }}
+              tickLine={false}
             />
-            <PolarRadiusAxis angle={90} domain={[0, 100]} />
+            <PolarRadiusAxis
+              angle={90}
+              domain={[0, 100]}
+              tick={{ fontSize: 10, fill: 'var(--gray-400)' }}
+              axisLine={false}
+              tickCount={5}
+            />
             <Radar
               name={t('resume.totalScore')}
               dataKey="score"
               stroke={ringColor}
               fill={ringColor}
-              fillOpacity={0.3}
+              fillOpacity={0.25}
+              strokeWidth={2}
             />
             <Tooltip
               content={({ payload }) =>
                 payload?.[0] ? (
-                  <span>
+                  <div style={{ background: '#fff', border: '1px solid var(--gray-200)', borderRadius: 8, padding: '6px 12px', fontSize: '0.85rem', fontWeight: 600, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                     {t(DIMENSION_LABEL_KEYS[payload[0].payload.dimension] || payload[0].payload.dimension)}: {fmt2(Number(payload[0].value))}
-                  </span>
+                  </div>
                 ) : null
               }
             />
