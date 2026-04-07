@@ -1,3 +1,9 @@
+import communicationScenario from "./scenarios/communication.json" assert { type: "json" };
+import programmingScenario from "./scenarios/programming.json" assert { type: "json" };
+import dataAnalysisScenario from "./scenarios/data_analysis.json" assert { type: "json" };
+import criticalThinkingScenario from "./scenarios/critical_thinking.json" assert { type: "json" };
+import defaultRubric from "./rubrics/default.json" assert { type: "json" };
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -8,24 +14,10 @@ const TUTOR_SYSTEM_PROMPT = `You are SkillSight, an HKU career advisor.
 Provide concise and practical coaching.`;
 
 const SCENARIOS = {
-  "HKU.SKILL.COMMUNICATION.v1": [
-    "Describe a time you influenced a team decision.",
-    "Explain a complex idea to a non-technical audience.",
-  ],
-  "HKU.SKILL.PYTHON.v1": [
-    "Walk through how you debugged a failing Python data pipeline.",
-    "Explain a Python project where you improved performance.",
-  ],
-  "HKU.SKILL.CRITICAL_THINKING.v1": [
-    "Describe a situation where you had conflicting evidence and made a decision.",
-  ],
-};
-
-const RUBRICS = {
-  novice: "Shows limited evidence and mostly theory.",
-  developing: "Shows partial practice with some concrete steps.",
-  proficient: "Shows repeated application with outcomes.",
-  advanced: "Shows high ownership, trade-off reasoning, and measurable impact.",
+  [communicationScenario.skill_id]: communicationScenario.scenarios,
+  [programmingScenario.skill_id]: programmingScenario.scenarios,
+  [dataAnalysisScenario.skill_id]: dataAnalysisScenario.scenarios,
+  [criticalThinkingScenario.skill_id]: criticalThinkingScenario.scenarios,
 };
 
 export default {
@@ -48,16 +40,17 @@ export default {
 
 function buildAssessmentPrompt(skillId, turnCount) {
   const scenarios = SCENARIOS[skillId] || SCENARIOS["HKU.SKILL.COMMUNICATION.v1"];
+  const levels = defaultRubric.levels || {};
   return `You are SkillSight Assessment Agent.
 Current skill_id: ${skillId}
 Scenarios:
 ${scenarios.map((s, i) => `${i + 1}. ${s}`).join("\n")}
 
 Rubric:
-- 0 novice: ${RUBRICS.novice}
-- 1 developing: ${RUBRICS.developing}
-- 2 proficient: ${RUBRICS.proficient}
-- 3 advanced: ${RUBRICS.advanced}
+- 0 novice: ${levels["0"] || "limited evidence and mostly theory"}
+- 1 developing: ${levels["1"] || "partial practice with some concrete steps"}
+- 2 proficient: ${levels["2"] || "repeated application with outcomes"}
+- 3 advanced: ${levels["3"] || "high ownership and measurable impact"}
 
 Rules:
 1) Stay on this skill only.
@@ -111,13 +104,23 @@ async function handleTutorMessage(request, env) {
   }
 
   if (concluded && assessment) {
-    await syncResultToBackend(env, session, assessment, text, sessionId);
+    try {
+      await syncResultToBackend(env, session, assessment, text, sessionId);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "sync_failed";
+      await env.SKILLSIGHT_KV.put(
+        `sync_error:${sessionId}`,
+        JSON.stringify({ session_id: sessionId, skill_id: session.skill_id, error: msg, ts: Date.now() }),
+        { expirationTtl: 86400 }
+      );
+      return jsonResponse({ reply, concluded, assessment, sync_error: msg }, 202);
+    }
   }
   return jsonResponse({ reply, concluded, assessment });
 }
 
 async function syncResultToBackend(env, session, assessment, responseText, sessionId) {
-  const backendBase = env.BACKEND_API_URL || "http://127.0.0.1:8001";
+  const backendBase = (env.BACKEND_API_URL || "").trim() || "https://skillsight-api.onrender.com";
   const token = env.BACKEND_BEARER_TOKEN || "";
   const payload = {
     user_id: session.user_id || "demo_student",
@@ -132,13 +135,15 @@ async function syncResultToBackend(env, session, assessment, responseText, sessi
       confidence: assessment.confidence || 0.5,
     },
   };
-  try {
-    await fetch(`${backendBase}/interactive/agent/sync-result`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      body: JSON.stringify(payload),
-    });
-  } catch (_) {}
+  const res = await fetch(`${backendBase}/interactive/agent/sync-result`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`backend_sync_${res.status}: ${body.slice(0, 200)}`);
+  }
 }
 
 async function callOpenAI(messages, env) {

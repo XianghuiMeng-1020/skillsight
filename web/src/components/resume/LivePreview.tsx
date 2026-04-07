@@ -15,15 +15,20 @@ export default function LivePreview({ reviewId, templateId, resumeOverrideText, 
   const [loading, setLoading] = useState(false);
 
   const srcDoc = useMemo(() => html || '<p style="padding:16px;color:#666">Preview unavailable.</p>', [html]);
+  const stableTemplateOptions = useMemo(
+    () => JSON.stringify(templateOptions || {}),
+    [templateOptions]
+  );
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       try {
+        const parsedOptions = JSON.parse(stableTemplateOptions) as Record<string, unknown>;
         const content = await studentBff.resumeReviewPreviewHtml(reviewId, templateId, {
           resumeOverrideText,
-          templateOptions,
+          templateOptions: parsedOptions,
         });
         if (!cancelled) setHtml(content);
       } catch {
@@ -35,7 +40,7 @@ export default function LivePreview({ reviewId, templateId, resumeOverrideText, 
     return () => {
       cancelled = true;
     };
-  }, [reviewId, templateId, resumeOverrideText, templateOptions]);
+  }, [reviewId, templateId, resumeOverrideText, stableTemplateOptions]);
 
   return (
     <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden', minHeight: 380, background: '#fff' }}>

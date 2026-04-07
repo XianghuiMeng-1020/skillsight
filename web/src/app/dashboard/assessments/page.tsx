@@ -78,6 +78,10 @@ export default function AssessmentsPage() {
   const [uiHint, setUiHint] = useState<string | null>(null);
   const [previewType, setPreviewType] = useState<AssessmentType | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [roles, setRoles] = useState<Array<{ role_id: string; role_title: string }>>([]);
+  const [prepRoleId, setPrepRoleId] = useState('');
+  const [prepQuestions, setPrepQuestions] = useState<Array<{ skill_id: string; skill_name: string; question: string }>>([]);
+  const [prepLoading, setPrepLoading] = useState(false);
   const lastActionAtRef = useRef(0);
   const idempotencyKeyRef = useRef<string | null>(null);
   
@@ -143,6 +147,32 @@ export default function AssessmentsPage() {
     setIsDemoMode(false);
     fetchRecentUpdates();
   }, [searchParams]);
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    studentBff.getRoles(50)
+      .then((r) => {
+        const items = ((r.items || []) as Array<{ role_id?: string; role_title?: string }>)
+          .filter((x) => x.role_id && x.role_title)
+          .map((x) => ({ role_id: String(x.role_id), role_title: String(x.role_title) }));
+        setRoles(items);
+        if (items.length > 0) setPrepRoleId(items[0].role_id);
+      })
+      .catch(() => setRoles([]));
+  }, [isDemoMode]);
+
+  const runInterviewPrep = async () => {
+    if (!prepRoleId) return;
+    setPrepLoading(true);
+    try {
+      const data = await studentBff.getInterviewPrep(prepRoleId, 5);
+      setPrepQuestions(data.questions || []);
+    } catch {
+      setPrepQuestions([]);
+    } finally {
+      setPrepLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!assessmentWidget) return;
@@ -529,6 +559,35 @@ export default function AssessmentsPage() {
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+              </div>
+              <div className="card" style={{ marginBottom: '1rem' }}>
+                <div className="card-header">
+                  <h3 className="card-title">Interview Prep Mode</h3>
+                </div>
+                <div className="card-content">
+                  <p style={{ color: 'var(--gray-600)', marginBottom: '0.75rem' }}>
+                    Generate AI interview questions based on your target role skill gaps.
+                  </p>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                    <select className="input" value={prepRoleId} onChange={(e) => setPrepRoleId(e.target.value)} style={{ minWidth: 260 }}>
+                      {roles.map((r) => (
+                        <option key={r.role_id} value={r.role_id}>{r.role_title}</option>
+                      ))}
+                    </select>
+                    <button className="btn btn-secondary btn-sm" onClick={runInterviewPrep} disabled={!prepRoleId || prepLoading || isDemoMode}>
+                      {prepLoading ? 'Generating...' : 'Generate Questions'}
+                    </button>
+                  </div>
+                  {prepQuestions.length > 0 && (
+                    <ol style={{ margin: 0, paddingLeft: '1.1rem' }}>
+                      {prepQuestions.map((q, i) => (
+                        <li key={`${q.skill_id}-${i}`} style={{ marginBottom: '0.45rem' }}>
+                          <strong>{q.skill_name}:</strong> {q.question}
+                        </li>
+                      ))}
+                    </ol>
                   )}
                 </div>
               </div>

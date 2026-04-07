@@ -25,10 +25,12 @@ function toRecentAssessmentEvent(value: unknown): RecentAssessmentEvent | null {
 
 export default function TimelinePage() {
   const [events, setEvents] = useState<TimelineEvent[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
       try {
         const profile = await studentBff.getProfile();
         if (cancelled) return;
@@ -45,16 +47,53 @@ export default function TimelinePage() {
             detail: `Score ${Math.round(Number(parsed.score || 0))}`,
           });
         }
+        const roleEvents = profile.recent_role_events || [];
+        for (const evt of roleEvents) {
+          const roleTitle = String(evt.role_title || evt.role_id || 'role');
+          timeline.push({
+            date: String(evt.created_at || new Date().toISOString()),
+            title: `Updated readiness for ${roleTitle}`,
+            detail: `Readiness ${Math.round(Number(evt.score || 0) * 100)}%`,
+          });
+        }
+        const exportEvents = profile.recent_export_events || [];
+        for (const evt of exportEvents) {
+          const action = String(evt.action || '').replace('bff.export.', '');
+          timeline.push({
+            date: String(evt.created_at || new Date().toISOString()),
+            title: `Exported ${action || 'statement'}`,
+          });
+        }
         timeline.sort((a, b) => (a.date < b.date ? 1 : -1));
         setEvents(timeline);
       } catch {
         setEvents([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  const exportReport = async () => {
+    try {
+      const data = await studentBff.exportTimelineReport();
+      const bytes = atob(data.content_base64);
+      const buffer = new Uint8Array(bytes.length);
+      for (let i = 0; i < bytes.length; i++) buffer[i] = bytes.charCodeAt(i);
+      const blob = new Blob([buffer], { type: data.mime_type || 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = data.filename || 'skillsight_growth_report.pdf';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // noop
+    }
+  };
 
   return (
     <div className="app-container">
@@ -65,10 +104,15 @@ export default function TimelinePage() {
             <h1>Skill Timeline</h1>
             <p style={{ margin: 0, color: 'var(--gray-500)' }}>Track how your verified skills evolve over time.</p>
           </div>
+          <div>
+            <button className="btn btn-secondary btn-sm" onClick={exportReport}>Export Growth Report</button>
+          </div>
         </div>
         <div className="card">
           <div className="card-content">
-            {events.length === 0 ? (
+            {loading ? (
+              [1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 20, marginBottom: 10 }} />)
+            ) : events.length === 0 ? (
               <p>No timeline events yet.</p>
             ) : (
               <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>

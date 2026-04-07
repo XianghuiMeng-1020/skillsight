@@ -45,6 +45,8 @@ export default function UploadPage() {
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [repoUrl, setRepoUrl] = useState('');
+  const [importingRepo, setImportingRepo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supportedFormats = [
@@ -194,6 +196,29 @@ export default function UploadPage() {
     return icons[ext || ''] || '📄';
   };
 
+  const handleImportGithub = async () => {
+    if (!repoUrl.trim() || isDemoMode) return;
+    setImportingRepo(true);
+    setError(null);
+    try {
+      const res = await studentBff.importGithubRepo(repoUrl.trim());
+      addToast('success', `Imported ${res.repo} (${res.chunks_created} chunks).`);
+      setResults((prev) => [
+        {
+          doc_id: res.doc_id,
+          filename: res.filename,
+          chunks_created: res.chunks_created,
+        },
+        ...prev,
+      ]);
+      setRepoUrl('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'GitHub import failed');
+    } finally {
+      setImportingRepo(false);
+    }
+  };
+
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
@@ -248,6 +273,23 @@ export default function UploadPage() {
               <p style={{ marginTop: '0.4rem', fontSize: '0.875rem', color: 'var(--gray-500)' }}>
                 1) {t('dashboard.uploadEvidence')} → 2) {t('dashboard.takeAssessment')} → 3) {t('dashboard.skills')} → 4) {t('dashboard.findJobs')}
               </p>
+            </div>
+          </div>
+          <div className="card" style={{ marginBottom: '1rem' }}>
+            <div className="card-header">
+              <h3 className="card-title">Import from GitHub</h3>
+            </div>
+            <div className="card-content" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <input
+                className="input"
+                value={repoUrl}
+                onChange={(e) => setRepoUrl(e.target.value)}
+                placeholder="https://github.com/owner/repo"
+                style={{ minWidth: '280px', flex: 1 }}
+              />
+              <button className="btn btn-secondary btn-sm" onClick={handleImportGithub} disabled={!repoUrl.trim() || importingRepo || isDemoMode}>
+                {importingRepo ? 'Importing...' : 'Import Repo'}
+              </button>
             </div>
           </div>
 

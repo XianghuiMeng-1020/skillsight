@@ -6,7 +6,7 @@ import { useEffect, useState, useCallback } from 'react';
 import ApiStatus from './ApiStatus';
 import DemoSafeHint from './DemoSafeHint';
 import { useLanguage, type Language } from '@/lib/contexts';
-import { clearToken } from '@/lib/bffClient';
+import { clearToken, studentBff } from '@/lib/bffClient';
 import { DEMO_MODE_EVENT, DEMO_MODE_KEY, readDemoMode, writeDemoMode } from '@/lib/demoMode';
 
 // SkillSight Logo - 代表技能洞察与成长的创意设计
@@ -71,6 +71,8 @@ const studentNav: NavItem[] = [
   { icon: '📚', labelKey: 'learning.path', hintKey: 'nav.hint.skills', href: '/dashboard/learning' },
   { icon: '🕒', labelKey: 'nav.timeline', href: '/dashboard/timeline' },
   { icon: '📈', labelKey: 'nav.marketInsights', href: '/dashboard/market-insights' },
+  { icon: '👥', labelKey: 'nav.peerBenchmark', href: '/dashboard/peer-benchmark' },
+  { icon: '🧭', labelKey: 'nav.jobsLive', href: '/dashboard/jobs-live' },
 ];
 
 const adminNav: NavItem[] = [
@@ -97,6 +99,8 @@ export default function Sidebar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     try {
@@ -109,6 +113,13 @@ export default function Sidebar() {
       console.warn('Failed to read user from localStorage:', e);
     }
   }, []);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    studentBff.getNotifications(20)
+      .then((r) => setUnreadNotifications(Number(r.unread_count || 0)))
+      .catch(() => setUnreadNotifications(0));
+  }, [isAdmin, pathname]);
 
   useEffect(() => {
     const syncDemoMode = () => setIsDemoMode(readDemoMode());
@@ -137,7 +148,6 @@ export default function Sidebar() {
     if (isMobile) setMobileOpen(false);
   }, [pathname, isMobile]);
 
-  const isAdmin = user?.role === 'admin';
   const navItems = isAdmin ? adminNav : studentNav;
 
   const handleLogout = () => {
@@ -176,6 +186,11 @@ export default function Sidebar() {
           </div>
           <span>SkillSight</span>
         </Link>
+        {!isAdmin && (
+          <Link href="/settings/notifications" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
+            🔔{unreadNotifications > 0 ? ` ${unreadNotifications}` : ''}
+          </Link>
+        )}
       </div>
 
       <nav className="sidebar-nav">

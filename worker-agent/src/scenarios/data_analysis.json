@@ -1,0 +1,8 @@
+{
+  "skill_id": "HKU.SKILL.DATA_ANALYSIS.v1",
+  "scenarios": [
+    "Given a noisy dataset, explain your cleaning strategy and quality checks before modeling.",
+    "Describe how you selected metrics and validated your analysis conclusions with stakeholders.",
+    "Share a case where your analysis changed a business decision and what evidence convinced decision makers."
+  ]
+}

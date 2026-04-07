@@ -15,6 +15,8 @@ export const translations: Translations = {
   'nav.sampleCases': { zh: '示例案例', 'zh-TW': '示例案例', en: 'Sample Cases' },
   'nav.timeline': { zh: '技能时间线', 'zh-TW': '技能時間線', en: 'Skill Timeline' },
   'nav.marketInsights': { zh: '市场洞察', 'zh-TW': '市場洞察', en: 'Market Insights' },
+  'nav.peerBenchmark': { zh: '同侪基准', 'zh-TW': '同儕基準', en: 'Peer Benchmark' },
+  'nav.jobsLive': { zh: '真实职位', 'zh-TW': '真實職位', en: 'Live Jobs' },
   'nav.settings': { zh: '设置', 'zh-TW': '設定', en: 'Settings' },
   'nav.privacy': { zh: '隐私与数据', 'zh-TW': '隱私與資料', en: 'Privacy & Data' },
   'nav.mainMenu': { zh: '主导航', 'zh-TW': '主選單', en: 'Main Menu' },

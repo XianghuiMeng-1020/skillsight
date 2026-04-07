@@ -167,6 +167,9 @@ export interface ProfileResponse {
   skills?: ProfileSkillEntry[];
   generated_at?: string;
   recent_assessment_events?: unknown[];
+  recent_role_events?: Array<{ role_id?: string; role_title?: string; score?: number; created_at?: string }>;
+  recent_export_events?: Array<{ action?: string; created_at?: string }>;
+  stale_skills?: Array<{ skill_id: string; skill_name: string; level?: number; label?: string; last_updated_at?: string }>;
 }
 
 export interface LeaderboardResponse {
@@ -382,6 +385,10 @@ export interface ProfileResponse {
   documents?: Array<{ doc_id: string; filename: string; status: string; scope?: string; created_at?: string }>;
   skills?: ProfileSkillEntry[];
   generated_at?: string;
+  recent_assessment_events?: unknown[];
+  recent_role_events?: Array<{ role_id?: string; role_title?: string; score?: number; created_at?: string }>;
+  recent_export_events?: Array<{ action?: string; created_at?: string }>;
+  stale_skills?: Array<{ skill_id: string; skill_name: string; level?: number; label?: string; last_updated_at?: string }>;
 }
 
 export interface LeaderboardResponse {
@@ -961,6 +968,56 @@ export const studentBff = {
   getMarketInsights: () =>
     bffRequest<{
       trends: Array<{ skill_id: string; skill_name: string; demand_count: number }>;
-      salary_reference: { currency: string; bands: Array<{ role: string; range: string }> };
+      salary_reference: { currency: string; source?: string; bands: Array<{ role: string; range: string }> };
+      source_postings_count?: number;
     }>('/bff/student/market-insights'),
+
+  getJobsLive: (params?: { q?: string; source_site?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set('q', params.q);
+    if (params?.source_site) qs.set('source_site', params.source_site);
+    if (params?.limit) qs.set('limit', String(params.limit));
+    return bffRequest<{
+      count: number;
+      items: Array<{
+        posting_id: string;
+        source_site: string;
+        title: string;
+        company?: string;
+        location?: string;
+        salary?: string;
+        source_url: string;
+        snapshot_at?: string;
+        match_score?: number;
+        matched_skills?: string[];
+      }>;
+    }>(`/bff/student/jobs-live${qs.toString() ? `?${qs.toString()}` : ''}`);
+  },
+
+  importGithubRepo: (repoUrl: string) =>
+    bffRequest<{ repo: string; doc_id: string; chunks_created: number; filename: string }>(
+      '/bff/student/documents/import-github',
+      { method: 'POST', body: { repo_url: repoUrl } }
+    ),
+
+  getInterviewPrep: (roleId: string, questionCount = 5) =>
+    bffRequest<{ role_id: string; role_title?: string; count: number; questions: Array<{ skill_id: string; skill_name: string; question: string }> }>(
+      '/bff/student/interview-prep',
+      { method: 'POST', body: { role_id: roleId, question_count: questionCount } }
+    ),
+
+  exportTimelineReport: () =>
+    bffRequest<{ filename: string; mime_type: string; content_base64: string; events_count: number; fallback?: boolean }>(
+      '/bff/student/timeline/export-report'
+    ),
+
+  getNotifications: (limit = 20) =>
+    bffRequest<{ count: number; unread_count: number; items: Array<{ notification_id: string; title: string; message: string; source_url?: string; is_read: boolean; created_at?: string }> }>(
+      `/bff/student/notifications?limit=${Math.max(1, Math.min(limit, 100))}`
+    ),
+
+  markNotificationRead: (notificationId: string) =>
+    bffRequest<{ ok: boolean }>(`/bff/student/notifications/${encodeURIComponent(notificationId)}/read`, {
+      method: 'POST',
+    }),
 };

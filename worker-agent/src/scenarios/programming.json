@@ -1,0 +1,8 @@
+{
+  "skill_id": "HKU.SKILL.PYTHON.v1",
+  "scenarios": [
+    "Walk through how you debugged a failing Python data pipeline end-to-end.",
+    "Explain a production incident caused by code quality and how you prevented recurrence.",
+    "Describe a performance optimization you implemented and quantify the impact."
+  ]
+}

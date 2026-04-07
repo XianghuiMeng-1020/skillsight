@@ -58,6 +58,7 @@ export default function StudentDashboard() {
   const [showUpdateCard, setShowUpdateCard] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [showMoreInsights, setShowMoreInsights] = useState(false);
+  const [staleSkills, setStaleSkills] = useState<Array<{ skill_id: string; skill_name: string; last_updated_at?: string }>>([]);
 
   const { totalPoints, recentUnlock, dismissRecentUnlock, unlockShareAchievement, checkSkillAchievements, checkDocumentAchievements } = useAchievements();
 
@@ -84,6 +85,8 @@ export default function StudentDashboard() {
       });
       const profile = profileData as ProfileResponse | null;
       const profileSkills = profile?.skills ?? [];
+      const stale = (((profile as Record<string, unknown> | null)?.stale_skills) as Array<{ skill_id: string; skill_name: string; last_updated_at?: string }> | undefined) || [];
+      setStaleSkills(stale);
       const skillsWithStatus: Skill[] = profileSkills.slice(0, 12).map((s) => {
         const label = (s.label || 'not_assessed').toLowerCase();
         const status: Skill['status'] =
@@ -281,6 +284,21 @@ export default function StudentDashboard() {
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+          {!loading && staleSkills.length > 0 && (
+            <div className="alert" style={{ marginBottom: '1rem', border: '1px solid var(--warning, #f59e0b)', background: 'var(--warning-light, #fef3c7)' }}>
+              <span className="alert-icon">⏳</span>
+              <div className="alert-content">
+                <div className="alert-title">Skills need refresh</div>
+                <p>
+                  {staleSkills.slice(0, 4).map((s) => s.skill_name).join(', ')}
+                  {staleSkills.length > 4 ? ` +${staleSkills.length - 4} more` : ''} have not been updated in 90+ days.
+                </p>
+              </div>
+              <Link href="/dashboard/assessments" className="btn btn-secondary btn-sm">
+                Re-assess now
+              </Link>
             </div>
           )}
 

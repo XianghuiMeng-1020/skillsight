@@ -88,6 +88,65 @@ def import_job_postings(
             )
             inserted += 1
     db.commit()
+    try:
+        user_rows = db.execute(
+            text(
+                """
+                SELECT DISTINCT user_id
+                FROM consents
+                WHERE status = 'granted'
+                ORDER BY user_id
+                LIMIT 500
+                """
+            )
+        ).mappings().all()
+        active_users = [str(r["user_id"]) for r in user_rows if r.get("user_id")]
+        posting_texts = [
+            f"{str(p.title or '')}\n{str(p.description or '')}".lower()
+            for p in payload
+        ]
+        for uid in active_users:
+            skill_rows = db.execute(
+                text(
+                    """
+                    SELECT DISTINCT ON (sp.skill_id) sp.skill_id, sp.level, s.canonical_name
+                    FROM skill_proficiency sp
+                    JOIN consents c ON c.doc_id = sp.doc_id::text
+                    LEFT JOIN skills s ON s.skill_id = sp.skill_id
+                    WHERE c.user_id = :uid AND c.status = 'granted'
+                    ORDER BY sp.skill_id, sp.created_at DESC
+                    """
+                ),
+                {"uid": uid},
+            ).mappings().all()
+            skill_names = [str(r.get("canonical_name") or "").lower() for r in skill_rows if int(r.get("level") or 0) > 0]
+            if not skill_names:
+                continue
+            hit_count = 0
+            for txt in posting_texts:
+                if any(s and s in txt for s in skill_names[:15]):
+                    hit_count += 1
+            if hit_count <= 0:
+                continue
+            db.execute(
+                text(
+                    """
+                    INSERT INTO notifications (notification_id, user_id, title, message, source_url, is_read, created_at)
+                    VALUES (:nid, :uid, :title, :message, :source_url, FALSE, :created_at)
+                    """
+                ),
+                {
+                    "nid": str(uuid.uuid4()),
+                    "uid": uid,
+                    "title": "New matched jobs imported",
+                    "message": f"{hit_count} newly imported job postings may match your verified skills.",
+                    "source_url": "/dashboard/jobs-live",
+                    "created_at": _now_utc(),
+                },
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
     return {"inserted": inserted, "updated": updated, "count": len(payload)}
 
 

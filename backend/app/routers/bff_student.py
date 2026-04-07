@@ -11,11 +11,13 @@ All student requests must:
 """
 import hashlib
 import hmac
+import io
 import json
 import logging
 import os
 import uuid
 import base64
+from urllib.parse import urlparse
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -501,6 +503,90 @@ class EvidenceSearchReq(BaseModel):
     min_score: float = 0.0
 
 
+class GithubImportReq(BaseModel):
+    repo_url: str
+
+
+def _parse_github_repo(repo_url: str) -> Optional[Dict[str, str]]:
+    try:
+        parsed = urlparse(repo_url.strip())
+    except Exception:
+        return None
+    if parsed.netloc not in ("github.com", "www.github.com"):
+        return None
+    parts = [p for p in parsed.path.split("/") if p]
+    if len(parts) < 2:
+        return None
+    return {"owner": parts[0], "repo": parts[1].replace(".git", "")}
+
+
+@router.post("/documents/import-github")
+async def bff_import_github_repo(
+    payload: GithubImportReq,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    parsed = _parse_github_repo(payload.repo_url)
+    if not parsed:
+        raise HTTPException(status_code=422, detail="Invalid GitHub repository URL")
+
+    owner = parsed["owner"]
+    repo = parsed["repo"]
+    api = "https://api.github.com"
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        readme_res = await client.get(f"{api}/repos/{owner}/{repo}/readme", headers={"Accept": "application/vnd.github.raw"})
+        commits_res = await client.get(f"{api}/repos/{owner}/{repo}/commits?per_page=20")
+        tree_res = await client.get(f"{api}/repos/{owner}/{repo}/git/trees/HEAD?recursive=1")
+    if readme_res.status_code >= 400:
+        raise HTTPException(status_code=400, detail=f"Cannot access README for {owner}/{repo}")
+
+    readme_text = readme_res.text[:20000]
+    commit_msgs: List[str] = []
+    if commits_res.status_code < 400:
+        try:
+            for c in commits_res.json()[:20]:
+                message = str((c.get("commit") or {}).get("message") or "").strip()
+                if message:
+                    commit_msgs.append(message.splitlines()[0][:200])
+        except Exception:
+            commit_msgs = []
+
+    files: List[str] = []
+    if tree_res.status_code < 400:
+        try:
+            for item in (tree_res.json().get("tree") or [])[:300]:
+                if item.get("type") == "blob":
+                    files.append(str(item.get("path")))
+        except Exception:
+            files = []
+
+    assembled = "\n".join(
+        [
+            f"Repository: {owner}/{repo}",
+            f"URL: {payload.repo_url}",
+            "",
+            "README:",
+            readme_text,
+            "",
+            "Recent commits:",
+            *[f"- {m}" for m in commit_msgs[:20]],
+            "",
+            "File list:",
+            *[f"- {f}" for f in files[:300]],
+        ]
+    )
+
+    from backend.app.routers.documents import import_document_txt
+    virtual_file = UploadFile(filename=f"github_{owner}_{repo}.txt", file=io.BytesIO(assembled.encode("utf-8")))
+    result = await import_document_txt(file=virtual_file, db=db, ident=ident)
+    return {
+        "repo": f"{owner}/{repo}",
+        "doc_id": result.get("doc_id"),
+        "chunks_created": result.get("chunks_created", 0),
+        "filename": result.get("filename", f"github_{owner}_{repo}.txt"),
+    }
+
+
 @router.post("/search/evidence_vector")
 def bff_search_evidence(
     payload: EvidenceSearchReq,
@@ -859,12 +945,106 @@ async def bff_student_profile(
         _log.warning("assessment events query failed: %s", exc)
         recent_assessment_events = []
 
+    recent_role_events: List[Dict[str, Any]] = []
+    try:
+        rows = db.execute(
+            text(
+                """
+                SELECT rr.role_id, r.role_title, rr.score, rr.created_at
+                FROM role_readiness rr
+                LEFT JOIN roles r ON r.role_id = rr.role_id
+                JOIN consents c ON c.doc_id = rr.doc_id::text
+                WHERE c.user_id = :uid AND c.status = 'granted'
+                ORDER BY rr.created_at DESC
+                LIMIT 6
+                """
+            ),
+            {"uid": subject},
+        ).mappings().all()
+        for r in rows:
+            evt = {
+                "role_id": str(r.get("role_id") or ""),
+                "role_title": str(r.get("role_title") or r.get("role_id") or ""),
+                "score": float(r.get("score") or 0),
+                "created_at": r.get("created_at").isoformat() if r.get("created_at") and hasattr(r.get("created_at"), "isoformat") else None,
+            }
+            recent_role_events.append(evt)
+    except Exception as exc:
+        _log.warning("role readiness events query failed: %s", exc)
+        recent_role_events = []
+
+    recent_export_events: List[Dict[str, Any]] = []
+    try:
+        rows = db.execute(
+            text(
+                """
+                SELECT action, created_at
+                FROM audit_logs
+                WHERE subject_id = :uid
+                  AND action IN ('bff.export.statement', 'bff.export.credential')
+                ORDER BY created_at DESC
+                LIMIT 6
+                """
+            ),
+            {"uid": subject},
+        ).mappings().all()
+        for r in rows:
+            recent_export_events.append(
+                {
+                    "action": str(r.get("action") or ""),
+                    "created_at": r.get("created_at").isoformat() if r.get("created_at") and hasattr(r.get("created_at"), "isoformat") else None,
+                }
+            )
+    except Exception as exc:
+        _log.warning("export events query failed: %s", exc)
+        recent_export_events = []
+
+    stale_skills: List[Dict[str, Any]] = []
+    try:
+        rows = db.execute(
+            text(
+                """
+                WITH latest_skill AS (
+                    SELECT DISTINCT ON (sp.skill_id)
+                        sp.skill_id, sp.label, sp.level, sp.created_at
+                    FROM skill_proficiency sp
+                    JOIN consents c ON c.doc_id = sp.doc_id::text
+                    WHERE c.user_id = :uid AND c.status = 'granted'
+                    ORDER BY sp.skill_id, sp.created_at DESC
+                )
+                SELECT ls.skill_id, ls.label, ls.level, ls.created_at, s.canonical_name
+                FROM latest_skill ls
+                LEFT JOIN skills s ON s.skill_id = ls.skill_id
+                WHERE ls.created_at < (now() - interval '90 days')
+                ORDER BY ls.created_at ASC
+                LIMIT 20
+                """
+            ),
+            {"uid": subject},
+        ).mappings().all()
+        for r in rows:
+            stale_skills.append(
+                {
+                    "skill_id": str(r.get("skill_id") or ""),
+                    "skill_name": str(r.get("canonical_name") or r.get("skill_id") or ""),
+                    "level": int(r.get("level") or 0),
+                    "label": str(r.get("label") or ""),
+                    "last_updated_at": r.get("created_at").isoformat() if r.get("created_at") and hasattr(r.get("created_at"), "isoformat") else None,
+                }
+            )
+    except Exception as exc:
+        _log.warning("stale skills query failed: %s", exc)
+        stale_skills = []
+
     return {
         "subject_id": subject,
         "documents_count": len(doc_rows),
         "documents": [dict(d) for d in doc_rows],
         "skills": skills_profile,
         "recent_assessment_events": recent_assessment_events,
+        "recent_role_events": recent_role_events,
+        "recent_export_events": recent_export_events,
+        "stale_skills": stale_skills,
         "generated_at": _now_utc().isoformat(),
     }
 
@@ -956,6 +1136,11 @@ class RoleAlignmentReq(BaseModel):
 class RoleAlignmentBatchReq(BaseModel):
     role_ids: List[str]
     doc_id: Optional[str] = None
+
+
+class InterviewPrepReq(BaseModel):
+    role_id: str
+    question_count: int = 5
 
 
 @router.post("/roles/alignment/batch")
@@ -1179,6 +1364,65 @@ async def bff_role_alignment(
     except Exception:
         pass
     return result
+
+
+@router.post("/interview-prep")
+def bff_interview_prep(
+    payload: InterviewPrepReq,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    role = db.execute(
+        text("SELECT role_id, role_title, description FROM roles WHERE role_id = :rid LIMIT 1"),
+        {"rid": payload.role_id},
+    ).mappings().first()
+    if not role:
+        raise HTTPException(status_code=404, detail="Role not found")
+    req_rows = db.execute(
+        text(
+            """
+            SELECT rsr.skill_id, rsr.target_level, COALESCE(s.canonical_name, rsr.skill_id) AS skill_name
+            FROM role_skill_requirements rsr
+            LEFT JOIN skills s ON s.skill_id = rsr.skill_id
+            WHERE rsr.role_id = :rid
+            ORDER BY rsr.weight DESC, rsr.required DESC
+            LIMIT 20
+            """
+        ),
+        {"rid": payload.role_id},
+    ).mappings().all()
+    my_rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT ON (sp.skill_id) sp.skill_id, sp.level
+            FROM skill_proficiency sp
+            JOIN consents c ON c.doc_id = sp.doc_id::text
+            WHERE c.user_id = :uid AND c.status = 'granted'
+            ORDER BY sp.skill_id, sp.created_at DESC
+            """
+        ),
+        {"uid": ident.subject_id},
+    ).mappings().all()
+    my_level = {str(r["skill_id"]): int(r.get("level") or 0) for r in my_rows}
+    gaps = []
+    for r in req_rows:
+        sid = str(r["skill_id"])
+        target = int(r.get("target_level") or 2)
+        achieved = my_level.get(sid, 0)
+        if achieved < target:
+            gaps.append({"skill_id": sid, "skill_name": str(r.get("skill_name") or sid), "target": target, "achieved": achieved})
+    if not gaps:
+        gaps = [{"skill_id": str(r["skill_id"]), "skill_name": str(r.get("skill_name") or r["skill_id"]), "target": int(r.get("target_level") or 2), "achieved": my_level.get(str(r["skill_id"]), 0)} for r in req_rows[:3]]
+    questions = []
+    for g in gaps[: max(1, min(payload.question_count, 10))]:
+        questions.append(
+            {
+                "skill_id": g["skill_id"],
+                "skill_name": g["skill_name"],
+                "question": f"For {role.get('role_title')}, describe a real project where you demonstrated {g['skill_name']}. What was the challenge, your approach, and measurable result?",
+            }
+        )
+    return {"role_id": role["role_id"], "role_title": role.get("role_title"), "questions": questions, "count": len(questions)}
 
 
 # ─── Course Recommendations for Skill Gaps ───────────────────────────────────
@@ -1667,11 +1911,125 @@ def bff_market_insights(
     ident: Identity = Depends(require_auth),
 ):
     trends = market_skill_trends(db, limit=12)
-    salary = salary_reference()
-    return {"trends": trends, "salary_reference": salary}
+    salary = salary_reference(db)
+    total_postings = db.execute(
+        text("SELECT COUNT(*) FROM job_postings WHERE status = 'active'")
+    ).scalar() or 0
+    return {"trends": trends, "salary_reference": salary, "source_postings_count": int(total_postings)}
+
+
+@router.get("/jobs-live")
+def bff_jobs_live(
+    q: Optional[str] = None,
+    source_site: Optional[str] = None,
+    limit: int = 30,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    safe_limit = max(1, min(limit, 100))
+    where: List[str] = ["status = 'active'"]
+    params: Dict[str, Any] = {"lim": safe_limit}
+    if q:
+        where.append("(title ILIKE :q OR company ILIKE :q OR description ILIKE :q)")
+        params["q"] = f"%{q}%"
+    if source_site:
+        where.append("source_site = :source_site")
+        params["source_site"] = source_site
+    where_sql = " AND ".join(where)
+    rows = db.execute(
+        text(
+            f"""
+            SELECT posting_id, source_site, title, company, location, salary, source_url, description, snapshot_at
+            FROM job_postings
+            WHERE {where_sql}
+            ORDER BY snapshot_at DESC
+            LIMIT :lim
+            """
+        ),
+        params,
+    ).mappings().all()
+
+    my_rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT ON (sp.skill_id) sp.skill_id, sp.level, s.canonical_name
+            FROM skill_proficiency sp
+            JOIN consents c ON c.doc_id = sp.doc_id::text
+            LEFT JOIN skills s ON s.skill_id = sp.skill_id
+            WHERE c.user_id = :uid AND c.status = 'granted'
+            ORDER BY sp.skill_id, sp.created_at DESC
+            """
+        ),
+        {"uid": ident.subject_id},
+    ).mappings().all()
+    my_skill_names = [str(r.get("canonical_name") or "") for r in my_rows if int(r.get("level") or 0) > 0]
+    my_skill_names = [s for s in my_skill_names if s]
+
+    items: List[Dict[str, Any]] = []
+    for row in rows:
+        desc = f"{row.get('title', '')}\n{row.get('description', '')}".lower()
+        matched = [s for s in my_skill_names if s.lower() in desc]
+        denom = max(1, min(len(my_skill_names), 10))
+        score = round((len(matched) / denom) * 100, 1)
+        item = dict(row)
+        if item.get("snapshot_at") and hasattr(item.get("snapshot_at"), "isoformat"):
+            item["snapshot_at"] = item["snapshot_at"].isoformat()
+        item["match_score"] = score
+        item["matched_skills"] = matched[:6]
+        items.append(item)
+    return {"count": len(items), "items": items}
+
+
+@router.get("/notifications")
+def bff_notifications(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    rows = db.execute(
+        text(
+            """
+            SELECT notification_id, title, message, source_url, is_read, created_at
+            FROM notifications
+            WHERE user_id = :uid
+            ORDER BY created_at DESC
+            LIMIT :lim
+            """
+        ),
+        {"uid": ident.subject_id, "lim": max(1, min(limit, 100))},
+    ).mappings().all()
+    items = []
+    for r in rows:
+        item = dict(r)
+        if item.get("created_at") and hasattr(item["created_at"], "isoformat"):
+            item["created_at"] = item["created_at"].isoformat()
+        items.append(item)
+    unread = sum(1 for i in items if not i.get("is_read"))
+    return {"count": len(items), "unread_count": unread, "items": items}
+
+
+@router.post("/notifications/{notification_id}/read")
+def bff_mark_notification_read(
+    notification_id: str,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    db.execute(
+        text(
+            """
+            UPDATE notifications
+            SET is_read = TRUE
+            WHERE notification_id = :nid AND user_id = :uid
+            """
+        ),
+        {"nid": notification_id, "uid": ident.subject_id},
+    )
+    db.commit()
+    return {"ok": True}
 
 
 class MentorCommentReq(BaseModel):
+    subject_id: str
     skill_id: str
     comment: str
 
@@ -1684,20 +2042,9 @@ def bff_add_mentor_comment(
 ):
     if ident.role not in ("staff", "admin", "programme"):
         raise HTTPException(status_code=403, detail="Only staff/admin can add mentor comments")
-    db.execute(
-        text(
-            """
-            CREATE TABLE IF NOT EXISTS mentor_comments (
-                comment_id UUID PRIMARY KEY,
-                subject_id TEXT NOT NULL,
-                skill_id TEXT NOT NULL,
-                comment TEXT NOT NULL,
-                created_by TEXT NOT NULL,
-                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-            )
-            """
-        )
-    )
+    subject_id = (payload.subject_id or "").strip()
+    if not subject_id:
+        raise HTTPException(status_code=422, detail="subject_id is required")
     db.execute(
         text(
             """
@@ -1707,7 +2054,7 @@ def bff_add_mentor_comment(
         ),
         {
             "cid": str(uuid.uuid4()),
-            "sid": ident.subject_id,
+            "sid": subject_id,
             "skill_id": payload.skill_id,
             "comment": payload.comment[:2000],
             "created_by": ident.subject_id,
@@ -2221,6 +2568,66 @@ async def bff_export_credential(
         },
     }
     return {"credential": credential, "share_hint": "You can attach this credential when sharing to LinkedIn."}
+
+
+@router.get("/timeline/export-report")
+async def bff_export_timeline_report(
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    profile = await bff_student_profile(db=db, ident=ident)
+    lines: List[str] = []
+    for doc in profile.get("documents", []) or []:
+        created_at = str(doc.get("created_at") or "")[:19]
+        lines.append(f"{created_at}  Uploaded document: {doc.get('filename')}")
+    for evt in profile.get("recent_assessment_events", []) or []:
+        created_at = str(evt.get("created_at") or evt.get("completed_at") or "")[:19]
+        lines.append(f"{created_at}  Completed assessment: {evt.get('assessment_type')} (score={evt.get('score')})")
+    for evt in profile.get("recent_role_events", []) or []:
+        created_at = str(evt.get("created_at") or "")[:19]
+        lines.append(f"{created_at}  Role readiness refreshed: {evt.get('role_title')} ({evt.get('score')})")
+    for evt in profile.get("recent_export_events", []) or []:
+        created_at = str(evt.get("created_at") or "")[:19]
+        action = str(evt.get("action") or "").replace("bff.export.", "")
+        lines.append(f"{created_at}  Exported: {action}")
+    if not lines:
+        lines = ["No timeline events yet."]
+    lines = sorted(lines, reverse=True)
+
+    try:
+        import fitz  # pymupdf
+        pdf = fitz.open()
+        page = pdf.new_page(width=595, height=842)
+        y = 50
+        page.insert_text((50, y), f"SkillSight Growth Report - {ident.subject_id}", fontsize=14)
+        y += 24
+        page.insert_text((50, y), f"Generated at: {_now_utc().isoformat()}", fontsize=10)
+        y += 24
+        for line in lines[:48]:
+            page.insert_text((50, y), f"- {line}", fontsize=9)
+            y += 14
+            if y > 800:
+                page = pdf.new_page(width=595, height=842)
+                y = 40
+        data = pdf.write()
+        pdf.close()
+        return {
+            "filename": f"skillsight_growth_report_{ident.subject_id}.pdf",
+            "mime_type": "application/pdf",
+            "content_base64": base64.b64encode(data).decode("ascii"),
+            "events_count": len(lines),
+        }
+    except Exception as exc:
+        # Fallback text payload when PDF engine is unavailable.
+        payload = "\n".join(lines)
+        return {
+            "filename": f"skillsight_growth_report_{ident.subject_id}.txt",
+            "mime_type": "text/plain",
+            "content_base64": base64.b64encode(payload.encode("utf-8")).decode("ascii"),
+            "events_count": len(lines),
+            "fallback": True,
+            "reason": str(exc),
+        }
 
 
 # ─── Tutor dialogue (Live Agent + RAG) ───────────────────────────────────────
