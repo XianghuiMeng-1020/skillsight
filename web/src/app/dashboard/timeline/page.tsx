@@ -61,8 +61,10 @@ export default function TimelinePage() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <h1>Skill Timeline</h1>
-          <p>Track how your verified skills evolve over time.</p>
+          <div>
+            <h1>Skill Timeline</h1>
+            <p style={{ margin: 0, color: 'var(--gray-500)' }}>Track how your verified skills evolve over time.</p>
+          </div>
         </div>
         <div className="card">
           <div className="card-content">

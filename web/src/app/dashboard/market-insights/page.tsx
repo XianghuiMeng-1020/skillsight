@@ -32,8 +32,10 @@ export default function MarketInsightsPage() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <h1>HK Job Market Insights</h1>
-          <p>Live demand signals from role requirements and public job snapshots.</p>
+          <div>
+            <h1>HK Job Market Insights</h1>
+            <p style={{ margin: 0, color: 'var(--gray-500)' }}>Live demand signals from role requirements and public job snapshots.</p>
+          </div>
         </div>
         <div className="grid grid-2">
           <div className="card">
