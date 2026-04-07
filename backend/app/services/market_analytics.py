@@ -39,7 +39,9 @@ def market_skill_trends(db: Session, limit: int = 12) -> List[Dict[str, Any]]:
     rows = db.execute(
         text(
             """
-            SELECT s.skill_id, s.canonical_name, COUNT(jp.posting_id) AS demand_count
+            SELECT MIN(s.skill_id) AS skill_id,
+                   INITCAP(LOWER(s.canonical_name)) AS skill_name,
+                   COUNT(DISTINCT jp.posting_id) AS demand_count
             FROM skills s
             JOIN job_postings jp
               ON jp.status = 'active'
@@ -47,7 +49,7 @@ def market_skill_trends(db: Session, limit: int = 12) -> List[Dict[str, Any]]:
                jp.title ILIKE ('%%' || s.canonical_name || '%%')
                OR jp.description ILIKE ('%%' || s.canonical_name || '%%')
              )
-            GROUP BY s.skill_id, s.canonical_name
+            GROUP BY LOWER(s.canonical_name)
             ORDER BY demand_count DESC
             LIMIT :lim
             """
@@ -57,7 +59,7 @@ def market_skill_trends(db: Session, limit: int = 12) -> List[Dict[str, Any]]:
     return [
         {
             "skill_id": str(r["skill_id"]),
-            "skill_name": str(r.get("canonical_name") or r["skill_id"]),
+            "skill_name": str(r["skill_name"]),
             "demand_count": int(r["demand_count"]),
         }
         for r in rows

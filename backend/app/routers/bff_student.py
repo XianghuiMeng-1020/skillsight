@@ -1879,21 +1879,6 @@ def bff_peer_benchmark(
         {"uid": ident.subject_id},
     ).mappings().all()
 
-    # --- Fallback: via documents table ownership ---
-    if not me_rows:
-        me_rows = db.execute(
-            text(
-                """
-                SELECT DISTINCT ON (sp.skill_id) sp.skill_id, sp.level
-                FROM skill_proficiency sp
-                JOIN documents d ON d.doc_id = sp.doc_id::text
-                WHERE d.user_id = :uid
-                ORDER BY sp.skill_id, sp.created_at DESC
-                """
-            ),
-            {"uid": ident.subject_id},
-        ).mappings().all()
-
     # --- Fallback: skill_assessment_snapshots which has subject_id directly ---
     use_snapshots = False
     if not me_rows:
@@ -2001,6 +1986,13 @@ def bff_jobs_live(
         where.append("source_site = :source_site")
         params["source_site"] = source_site
     where_sql = " AND ".join(where)
+    # Total count (without limit) for frontend pagination display
+    count_params = {k: v for k, v in params.items() if k != "lim"}
+    total_count = db.execute(
+        text(f"SELECT COUNT(*) FROM job_postings WHERE {where_sql}"),
+        count_params,
+    ).scalar() or 0
+
     rows = db.execute(
         text(
             f"""
@@ -2014,6 +2006,7 @@ def bff_jobs_live(
         params,
     ).mappings().all()
 
+    # Get user skills from consents path first, then skill_assessment_snapshots fallback
     my_rows = db.execute(
         text(
             """
@@ -2027,22 +2020,38 @@ def bff_jobs_live(
         ),
         {"uid": ident.subject_id},
     ).mappings().all()
+
+    if not my_rows:
+        # Fallback: use skill_assessment_snapshots for skill names
+        my_rows = db.execute(
+            text(
+                """
+                SELECT DISTINCT ON (skill_id) skill_id, level,
+                       REPLACE(REPLACE(skill_id, 'HKU.SKILL.', ''), '.v1', '') AS canonical_name
+                FROM skill_assessment_snapshots
+                WHERE subject_id = :uid AND level IS NOT NULL AND level > 0
+                ORDER BY skill_id, created_at DESC
+                """
+            ),
+            {"uid": ident.subject_id},
+        ).mappings().all()
+
     my_skill_names = [str(r.get("canonical_name") or "") for r in my_rows if int(r.get("level") or 0) > 0]
-    my_skill_names = [s for s in my_skill_names if s]
+    my_skill_names = [s.replace("_", " ").lower() for s in my_skill_names if s]
 
     items: List[Dict[str, Any]] = []
     for row in rows:
         desc = f"{row.get('title', '')}\n{row.get('description', '')}".lower()
-        matched = [s for s in my_skill_names if s.lower() in desc]
+        matched = [s for s in my_skill_names if s in desc]
         denom = max(1, min(len(my_skill_names), 10))
-        score = round((len(matched) / denom) * 100, 1)
+        score = round((len(matched) / denom) * 100, 1) if my_skill_names else 0.0
         item = dict(row)
         if item.get("snapshot_at") and hasattr(item.get("snapshot_at"), "isoformat"):
             item["snapshot_at"] = item["snapshot_at"].isoformat()
         item["match_score"] = score
         item["matched_skills"] = matched[:6]
         items.append(item)
-    return {"count": len(items), "items": items}
+    return {"count": int(total_count), "items": items}
 
 
 @router.get("/notifications")
