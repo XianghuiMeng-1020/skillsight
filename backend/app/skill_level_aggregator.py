@@ -12,7 +12,9 @@ Documented in docs/P5_SKILL_LEVEL_AGGREGATOR.md
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy import text
@@ -37,6 +39,8 @@ class EvidenceItem:
     decision: str  # demonstrated, mentioned, not_enough_information
     source: str  # "proficiency" | "assessment"
     evidence_id: str  # assessment_id or prof_id for dedup
+    created_at: Optional[datetime] = None
+    modality: str = "document"  # document | interactive | project
 
 
 @dataclass
@@ -117,6 +121,8 @@ def _collect_evidence_for_skill(
             decision=decision,
             source="proficiency",
             evidence_id=str(row["prof_id"]),
+            created_at=row.get("created_at"),
+            modality="document",
         ))
 
     # From skill_assessments
@@ -155,9 +161,67 @@ def _collect_evidence_for_skill(
             decision=decision or "not_enough_information",
             source="assessment",
             evidence_id=str(row["assessment_id"]),
+            created_at=row.get("created_at"),
+            modality="document",
         ))
 
+    # Interactive/project evidence from assessment sessions (if available)
+    try:
+        sess_rows = db.execute(
+            text(
+                """
+                SELECT s.session_id, s.assessment_type, s.skill_id, s.created_at,
+                       a.score, a.evaluation
+                FROM assessment_sessions s
+                LEFT JOIN LATERAL (
+                    SELECT score, evaluation
+                    FROM assessment_attempts
+                    WHERE session_id = s.session_id
+                    ORDER BY attempt_number DESC
+                    LIMIT 1
+                ) a ON true
+                WHERE s.user_id = :sub AND s.skill_id = :skill_id
+                ORDER BY s.created_at DESC
+                LIMIT 20
+                """
+            ),
+            {"sub": subject_id, "skill_id": skill_id},
+        ).mappings().all()
+        for row in sess_rows:
+            sid = str(row["session_id"])
+            if f"sess:{sid}" in seen:
+                continue
+            seen.add(f"sess:{sid}")
+            score = float(row.get("score") or 0.0)
+            level = 3 if score >= 85 else 2 if score >= 70 else 1 if score >= 50 else 0
+            items.append(
+                EvidenceItem(
+                    doc_id="interactive",
+                    chunk_id=None,
+                    level=level,
+                    label="interactive_assessment",
+                    decision="demonstrated" if level >= 1 else "not_enough_information",
+                    source="assessment",
+                    evidence_id=sid,
+                    created_at=row.get("created_at"),
+                    modality="interactive",
+                )
+            )
+    except Exception:
+        pass
+
     return items
+
+
+def _time_decay_weight(created_at: Optional[datetime]) -> float:
+    if not created_at:
+        return 0.85
+    now = datetime.now(timezone.utc)
+    if created_at.tzinfo is None:
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    days = max(0.0, (now - created_at).total_seconds() / 86400.0)
+    # ~6 month half-life
+    return max(0.35, math.exp(-days / 180.0))
 
 
 def _check_consistency(items: List[EvidenceItem]) -> Tuple[bool, float, str]:
@@ -230,21 +294,15 @@ def aggregate_skill_level(
             conflict_detected=False,
         )
 
-    # Single evidence -> medium reliability (below min for high)
-    if len(items) < MIN_EVIDENCE_FOR_HIGH:
-        levels = [i.level for i in items]
-        avg = sum(levels) / len(levels)
-        level = min(LEVEL_MAX, max(0, round(avg)))
-        chunk_ids = [i.chunk_id for i in items if i.chunk_id]
-        return AggregatedSkillLevel(
-            skill_id=skill_id,
-            level=level,
-            reliability_level="medium",
-            reliability_explain=f"Only {len(items)} evidence item(s); need >= {MIN_EVIDENCE_FOR_HIGH} for high reliability.",
-            supporting_evidence_ids=chunk_ids[:10],
-            needs_human_review=False,
-            conflict_detected=False,
-        )
+    modality_weight = {"document": 0.3, "interactive": 0.4, "project": 0.3}
+    weighted_sum = 0.0
+    weight_total = 0.0
+    for it in items:
+        w = modality_weight.get(it.modality, 0.3) * _time_decay_weight(it.created_at)
+        weighted_sum += it.level * w
+        weight_total += w
+    fused_level = int(round(weighted_sum / weight_total)) if weight_total > 0 else 0
+    fused_level = min(LEVEL_MAX, max(0, fused_level))
 
     # Decision 2 B3: Mutual conflict (demonstrated vs not) -> fail-closed
     if _check_conflict_mutual(items):
@@ -279,17 +337,23 @@ def aggregate_skill_level(
             conflict_detected=True,
         )
 
-    # Consistent: use majority / median
-    levels = [i.level for i in items]
-    from collections import Counter
-    cnt = Counter(levels)
-    level = cnt.most_common(1)[0][0]
-    chunk_ids = [i.chunk_id for i in items if i.chunk_id and i.level == level][:10]
+    # Consistent: use weighted fused level with reliability confidence
+    chunk_ids = [i.chunk_id for i in items if i.chunk_id][:10]
+    confidence = min(0.99, max(0.1, ratio * (len(items) / (len(items) + 1.0))))
+    if len(items) < MIN_EVIDENCE_FOR_HIGH:
+        reliability = "medium"
+        explain = (
+            f"Fused multi-source level={fused_level} with confidence={confidence:.2f}; "
+            f"need >= {MIN_EVIDENCE_FOR_HIGH} evidence for high reliability."
+        )
+    else:
+        reliability = "high" if confidence >= 0.7 else "medium"
+        explain = f"{explain} Fused level={fused_level}, confidence={confidence:.2f}."
 
     return AggregatedSkillLevel(
         skill_id=skill_id,
-        level=level,
-        reliability_level="high",
+        level=fused_level,
+        reliability_level=reliability,
         reliability_explain=explain,
         supporting_evidence_ids=chunk_ids,
         needs_human_review=False,

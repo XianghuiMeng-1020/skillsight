@@ -9,7 +9,15 @@ from unittest.mock import MagicMock, patch
 
 # Set test environment (use 127.0.0.1 to avoid IPv6 localhost resolution issues)
 os.environ["TESTING"] = "true"
-os.environ["DATABASE_URL"] = "postgresql+psycopg2://skillsight:skillsight@127.0.0.1:55432/skillsight_test"
+
+# Respect externally provided DATABASE_URL (e.g. CI/local overrides),
+# otherwise fall back to a sensible local default.
+if "DATABASE_URL" not in os.environ:
+    default_test_db_port = os.environ.get("TEST_DB_PORT", "55432")
+    os.environ["DATABASE_URL"] = (
+        "postgresql+psycopg2://skillsight:skillsight@127.0.0.1:"
+        f"{default_test_db_port}/skillsight_test"
+    )
 
 
 @pytest.fixture(scope="session")

@@ -40,6 +40,8 @@ from backend.app.change_log_events import (
 from backend.app.db.deps import get_db
 from backend.app.db.session import engine
 from backend.app.security import Identity, issue_token, require_auth, _is_dev_login_allowed
+from backend.app.services.learning_path_recommender import recommend_learning_path
+from backend.app.services.market_analytics import market_skill_trends, salary_reference
 
 router = APIRouter(prefix="/bff/student", tags=["bff-student"])
 _log = logging.getLogger(__name__)
@@ -1071,6 +1073,7 @@ async def bff_role_alignment_batch(
             total_weight += weight
 
         readiness = round((weighted_score / total_weight) * 100, 2) if total_weight > 0 else 0
+        required_skills = [str(req_item.get("skill_name", "")) for req_item in reqs if req_item.get("skill_name")]
         items.append({
             "role_id": rid,
             "role_title": role_titles.get(rid, ""),
@@ -1078,6 +1081,8 @@ async def bff_role_alignment_batch(
             "skills_met": meet_count,
             "skills_total": len(reqs),
             "gaps": gap_skills[:3],
+            "gaps_all": gap_skills,
+            "required_skills": required_skills,
         })
 
     return {"items": items, "count": len(items)}
@@ -1601,6 +1606,118 @@ def bff_leaderboard(
     return {"my_rank": my_rank, "my_points": my_points, "top": top}
 
 
+@router.get("/peer-benchmark")
+def bff_peer_benchmark(
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Anonymous peer percentile by skill using latest proficiency snapshots."""
+    me_rows = db.execute(
+        text(
+            """
+            SELECT DISTINCT ON (skill_id) skill_id, level
+            FROM skill_proficiency sp
+            JOIN consents c ON c.doc_id = sp.doc_id::text
+            WHERE c.user_id = :uid AND c.status = 'granted'
+            ORDER BY skill_id, created_at DESC
+            """
+        ),
+        {"uid": ident.subject_id},
+    ).mappings().all()
+    out = []
+    for row in me_rows:
+        sid = str(row["skill_id"])
+        level = int(row["level"] or 0)
+        pct = db.execute(
+            text(
+                """
+                WITH latest AS (
+                  SELECT DISTINCT ON (c.user_id, sp.skill_id) c.user_id, sp.skill_id, sp.level
+                  FROM skill_proficiency sp
+                  JOIN consents c ON c.doc_id = sp.doc_id::text
+                  WHERE c.status = 'granted' AND sp.skill_id = :sid
+                  ORDER BY c.user_id, sp.skill_id, sp.created_at DESC
+                )
+                SELECT COALESCE(
+                  ROUND(100.0 * SUM(CASE WHEN level <= :lvl THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0), 2),
+                  0
+                ) AS pct
+                FROM latest
+                """
+            ),
+            {"sid": sid, "lvl": level},
+        ).scalar() or 0
+        out.append({"skill_id": sid, "level": level, "percentile": float(pct)})
+    return {"count": len(out), "items": out}
+
+
+@router.get("/learning-path")
+def bff_learning_path(
+    limit: int = 8,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    items = recommend_learning_path(db, ident.subject_id, limit=limit)
+    return {"count": len(items), "items": items}
+
+
+@router.get("/market-insights")
+def bff_market_insights(
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    trends = market_skill_trends(db, limit=12)
+    salary = salary_reference()
+    return {"trends": trends, "salary_reference": salary}
+
+
+class MentorCommentReq(BaseModel):
+    skill_id: str
+    comment: str
+
+
+@router.post("/collaboration/mentor-comment")
+def bff_add_mentor_comment(
+    payload: MentorCommentReq,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    if ident.role not in ("staff", "admin", "programme"):
+        raise HTTPException(status_code=403, detail="Only staff/admin can add mentor comments")
+    db.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS mentor_comments (
+                comment_id UUID PRIMARY KEY,
+                subject_id TEXT NOT NULL,
+                skill_id TEXT NOT NULL,
+                comment TEXT NOT NULL,
+                created_by TEXT NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+            )
+            """
+        )
+    )
+    db.execute(
+        text(
+            """
+            INSERT INTO mentor_comments (comment_id, subject_id, skill_id, comment, created_by, created_at)
+            VALUES (:cid, :sid, :skill_id, :comment, :created_by, :now)
+            """
+        ),
+        {
+            "cid": str(uuid.uuid4()),
+            "sid": ident.subject_id,
+            "skill_id": payload.skill_id,
+            "comment": payload.comment[:2000],
+            "created_by": ident.subject_id,
+            "now": _now_utc(),
+        },
+    )
+    db.commit()
+    return {"ok": True}
+
+
 # ─── Consent Management ───────────────────────────────────────────────────────
 
 @router.get("/consents")
@@ -2078,6 +2195,32 @@ def bff_export_verify(token: str = ""):
     subject_id = payload.get("subject_id", "")
     generated_at = (payload.get("generated_at") or "")[:10]
     return {"valid": True, "message": f"Valid statement from {generated_at} for subject.", "subject_id": subject_id, "generated_at": generated_at}
+
+
+@router.get("/export/credential")
+async def bff_export_credential(
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """W3C-like lightweight verifiable credential payload."""
+    statement = await bff_export_statement(db=db, ident=ident)
+    issued = _now_utc().isoformat()
+    credential = {
+        "@context": ["https://www.w3.org/2018/credentials/v1"],
+        "type": ["VerifiableCredential", "SkillSightCredential"],
+        "issuer": "did:web:skillsight.hku.hk",
+        "issuanceDate": issued,
+        "credentialSubject": {
+            "id": f"did:skillsight:{ident.subject_id}",
+            "subject_id": ident.subject_id,
+            "skills_summary": statement.get("statement", {}).get("skills", [])[:20],
+        },
+        "proof": {
+            "type": "HmacProof2026",
+            "token": statement.get("verification_token"),
+        },
+    }
+    return {"credential": credential, "share_hint": "You can attach this credential when sharing to LinkedIn."}
 
 
 # ─── Tutor dialogue (Live Agent + RAG) ───────────────────────────────────────

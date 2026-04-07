@@ -2,13 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
+import DemoSafeHint from '@/components/DemoSafeHint';
 import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
 import { getToken, studentBff } from '@/lib/bffClient';
 import { useAssessmentWidget } from '@/lib/AssessmentWidgetContext';
 import { useAudioRecorder, useWhisperTranscriber, useAchievements } from '@/lib/hooks';
 import { fmt2 } from '@/lib/formatNumber';
+import { DEMO_RECENT_ASSESSMENT_UPDATES } from '@/lib/demoDataset';
+import { isDemoQuery, readDemoMode, writeDemoMode } from '@/lib/demoMode';
 
 type AssessmentType =
   | 'communication'
@@ -62,6 +66,7 @@ interface RecentUpdateItem {
 
 export default function AssessmentsPage() {
   const { t } = useLanguage();
+  const searchParams = useSearchParams();
   const { addToast } = useToast();
   const [activeTab, setActiveTab] = useState<AssessmentType>('communication');
   const [session, setSession] = useState<Session | null>(null);
@@ -71,6 +76,8 @@ export default function AssessmentsPage() {
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
   const [recentUpdates, setRecentUpdates] = useState<RecentUpdateItem[]>([]);
   const [uiHint, setUiHint] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<AssessmentType | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const lastActionAtRef = useRef(0);
   const idempotencyKeyRef = useRef<string | null>(null);
   
@@ -112,6 +119,10 @@ export default function AssessmentsPage() {
   ];
 
   const fetchRecentUpdates = async () => {
+    if (isDemoMode) {
+      setRecentUpdates(DEMO_RECENT_ASSESSMENT_UPDATES as unknown as RecentUpdateItem[]);
+      return;
+    }
     if (!getToken()) return;
     try {
       const data = await studentBff.getRecentAssessmentUpdates(6);
@@ -122,18 +133,26 @@ export default function AssessmentsPage() {
   };
 
   useEffect(() => {
+    const demo = isDemoQuery(searchParams.get('demo')) || readDemoMode();
+    if (demo) {
+      writeDemoMode(true);
+      setIsDemoMode(true);
+      setRecentUpdates(DEMO_RECENT_ASSESSMENT_UPDATES as unknown as RecentUpdateItem[]);
+      return;
+    }
+    setIsDemoMode(false);
     fetchRecentUpdates();
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!assessmentWidget) return;
     assessmentWidget.setOnAssessmentComplete((assessment) => {
       setAgentAssessmentResult({ level: assessment?.level ?? 0, why: assessment?.why });
       addToast('success', t('assessmentsList.assessmentUpdated'));
-      fetchRecentUpdates();
+      if (!isDemoMode) fetchRecentUpdates();
     });
     return () => assessmentWidget.setOnAssessmentComplete(undefined);
-  }, [assessmentWidget]);
+  }, [assessmentWidget, isDemoMode]);
 
   const formatAssessmentType = (type: string) => {
     if (type === 'communication') return t('assessmentsList.typeCommunication');
@@ -145,7 +164,27 @@ export default function AssessmentsPage() {
     return type;
   };
 
+  const getCoverageDesc = (type: AssessmentType) => {
+    if (type === 'communication') return t('assessmentsList.coverageCommunicationDesc');
+    if (type === 'programming') return t('assessmentsList.coverageCodingDesc');
+    if (type === 'writing') return t('assessmentsList.coverageWritingDesc');
+    return null;
+  };
+
+  const getPreviewPromptKey = (type: AssessmentType) => {
+    if (type === 'communication') return 'assessmentsList.previewCommPrompt';
+    if (type === 'programming') return 'assessmentsList.previewProgPrompt';
+    if (type === 'writing') return 'assessmentsList.previewWritingPrompt';
+    if (type === 'data_analysis') return 'assessmentsList.previewDataPrompt';
+    if (type === 'problem_solving') return 'assessmentsList.previewProblemPrompt';
+    return 'assessmentsList.previewPresentationPrompt';
+  };
+
   const startSession = async () => {
+    if (isDemoMode) {
+      addToast('info', t('demo.assessmentBlocked'));
+      return;
+    }
     if (Date.now() - lastActionAtRef.current < 800) {
       setUiHint(t('assessmentsList.actionDebounced'));
       return;
@@ -223,6 +262,10 @@ export default function AssessmentsPage() {
   };
 
   const submitAssessment = async () => {
+    if (isDemoMode) {
+      addToast('info', t('demo.assessmentBlocked'));
+      return;
+    }
     if (!session) return;
     if (Date.now() - lastActionAtRef.current < 800) {
       setUiHint(t('assessmentsList.actionDebounced'));
@@ -372,9 +415,33 @@ export default function AssessmentsPage() {
             <h1 className="page-title">{t('assessmentsList.pageTitle')}</h1>
             <p className="page-subtitle">{t('assessmentsList.pageSubtitle')}</p>
           </div>
+          <div className="page-actions">
+            {isDemoMode && <span className="badge badge-warning">{t('jobs.demoModeOn')}</span>}
+            {isDemoMode && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  writeDemoMode(false);
+                  window.location.href = '/dashboard/assessments';
+                }}
+              >
+                {t('jobs.exitDemoMode')}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="page-content">
+          {isDemoMode && (
+            <div className="alert" style={{ marginBottom: '1rem', border: '1px solid var(--warning, #f59e0b)', background: 'var(--warning-light, #fef3c7)' }}>
+              <span className="alert-icon">🧪</span>
+              <div className="alert-content">
+                <div className="alert-title">{t('jobs.demoModeOn')}</div>
+                <p><DemoSafeHint withIcon={false} /></p>
+              </div>
+            </div>
+          )}
           {/* Result Display */}
           {result && (
             <div className="alert alert-success fade-in" style={{ marginBottom: '1.5rem' }}>
@@ -466,26 +533,6 @@ export default function AssessmentsPage() {
                 </div>
               </div>
 
-              <div className="card" style={{ marginBottom: '1.5rem' }}>
-                <div className="card-header">
-                  <h3 className="card-title">{t('assessmentsList.skillCoverageTitle')}</h3>
-                </div>
-                <div className="card-content">
-                  <p style={{ color: 'var(--gray-600)', marginBottom: '0.75rem' }}>{t('assessmentsList.skillCoverageSubtitle')}</p>
-                  <div style={{ display: 'grid', gap: '0.5rem' }}>
-                    <div style={{ padding: '0.625rem 0.75rem', borderRadius: 'var(--radius)', background: 'var(--gray-50)' }}>
-                      <strong>{t('assessmentsList.coverageCommunication')}</strong>: {t('assessmentsList.coverageCommunicationDesc')}
-                    </div>
-                    <div style={{ padding: '0.625rem 0.75rem', borderRadius: 'var(--radius)', background: 'var(--gray-50)' }}>
-                      <strong>{t('assessmentsList.coverageCoding')}</strong>: {t('assessmentsList.coverageCodingDesc')}
-                    </div>
-                    <div style={{ padding: '0.625rem 0.75rem', borderRadius: 'var(--radius)', background: 'var(--gray-50)' }}>
-                      <strong>{t('assessmentsList.coverageWriting')}</strong>: {t('assessmentsList.coverageWritingDesc')}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <h2 style={{ marginBottom: '1rem' }}>{t('assessmentsList.chooseType')}</h2>
               <div className="assessment-grid" style={{ marginBottom: '2rem' }}>
                 {assessments.map((assessment) => (
@@ -499,6 +546,11 @@ export default function AssessmentsPage() {
                       <div className="assessment-icon">{assessment.icon}</div>
                       <div className="assessment-title">{t(assessment.titleKey)}</div>
                       <div className="assessment-subtitle">{t(assessment.descKey)}</div>
+                      {getCoverageDesc(assessment.id) && (
+                        <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--gray-600)' }}>
+                          {getCoverageDesc(assessment.id)}
+                        </div>
+                      )}
                     </div>
                     <div className="assessment-content">
                       <div style={{ fontSize: '0.875rem', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>
@@ -511,11 +563,23 @@ export default function AssessmentsPage() {
                       </ul>
                     </div>
                     <div className="assessment-footer">
-                      {activeTab === assessment.id ? (
-                        <span className="badge badge-primary">{t('assessmentsList.selected')}</span>
-                      ) : (
-                        <span style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>{t('assessmentsList.clickToSelect')}</span>
-                      )}
+                      <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        {activeTab === assessment.id ? (
+                          <span className="badge badge-primary">{t('assessmentsList.selected')}</span>
+                        ) : (
+                          <span style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>{t('assessmentsList.clickToSelect')}</span>
+                        )}
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewType(assessment.id);
+                          }}
+                        >
+                          {t('assessmentsList.previewButton')}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -563,7 +627,7 @@ export default function AssessmentsPage() {
                     <button
                       className="btn btn-secondary"
                       onClick={startSession}
-                      disabled={loading}
+                      disabled={loading || isDemoMode}
                     >
                       {loading ? (
                         <>
@@ -577,6 +641,10 @@ export default function AssessmentsPage() {
                     <button
                       className="btn btn-primary"
                       onClick={() => {
+                        if (isDemoMode) {
+                          addToast('info', t('demo.assessmentBlocked'));
+                          return;
+                        }
                         setAgentAssessmentResult(null);
                         assessmentWidget?.setContext({
                           assessmentType: activeTab,
@@ -587,6 +655,7 @@ export default function AssessmentsPage() {
                         });
                         assessmentWidget?.openWidget();
                       }}
+                      disabled={isDemoMode}
                     >
                       🤖 {t('assess.aiAgentMode')}
                     </button>
@@ -708,7 +777,7 @@ export default function AssessmentsPage() {
                           <button 
                             className="btn btn-secondary"
                             onClick={submitAssessment}
-                            disabled={submitting || transcribing}
+                            disabled={submitting || transcribing || isDemoMode}
                           >
                             {transcribing ? t('assessmentsList.transcribing') : submitting ? t('assessmentsList.submitting') : t('assessmentsList.submitResponse')}
                           </button>
@@ -768,7 +837,7 @@ export default function AssessmentsPage() {
                       className="btn btn-primary"
                       style={{ marginTop: '1rem', width: '100%' }}
                       onClick={submitAssessment}
-                      disabled={!code.trim() || submitting}
+                      disabled={!code.trim() || submitting || isDemoMode}
                     >
                       {submitting ? t('assessmentsList.evaluating') : t('assessmentsList.submitSolution')}
                     </button>
@@ -830,7 +899,7 @@ export default function AssessmentsPage() {
                       className="btn btn-primary"
                       style={{ marginTop: '1rem', width: '100%' }}
                       onClick={submitAssessment}
-                      disabled={essay.split(/\s+/).filter(Boolean).length < 50 || submitting}
+                      disabled={essay.split(/\s+/).filter(Boolean).length < 50 || submitting || isDemoMode}
                     >
                       {submitting ? t('assessmentsList.evaluating') : t('assessmentsList.submitEssay')}
                     </button>
@@ -896,7 +965,7 @@ export default function AssessmentsPage() {
                       className="btn btn-primary"
                       style={{ width: '100%' }}
                       onClick={submitAssessment}
-                      disabled={!dataAnalysis.trim() || submitting}
+                      disabled={!dataAnalysis.trim() || submitting || isDemoMode}
                     >
                       {submitting ? t('assessmentsList.evaluating') : t('assessmentsList.submitResponse')}
                     </button>
@@ -923,7 +992,7 @@ export default function AssessmentsPage() {
                       className="btn btn-primary"
                       style={{ marginTop: '1rem', width: '100%' }}
                       onClick={submitAssessment}
-                      disabled={!caseResponse.trim() || submitting}
+                      disabled={!caseResponse.trim() || submitting || isDemoMode}
                     >
                       {submitting ? t('assessmentsList.evaluating') : t('assessmentsList.submitResponse')}
                     </button>
@@ -981,7 +1050,7 @@ export default function AssessmentsPage() {
                           <button
                             className="btn btn-secondary"
                             onClick={submitAssessment}
-                            disabled={submitting || transcribing}
+                            disabled={submitting || transcribing || isDemoMode}
                           >
                             {transcribing ? t('assessmentsList.transcribing') : submitting ? t('assessmentsList.submitting') : t('assessmentsList.submitResponse')}
                           </button>
@@ -990,6 +1059,57 @@ export default function AssessmentsPage() {
                     </div>
                   </>
                 )}
+              </div>
+            </div>
+          )}
+
+          {previewType && (
+            <div
+              role="dialog"
+              aria-modal="true"
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(28, 25, 23, 0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 1000,
+                padding: '1rem',
+              }}
+              onClick={() => setPreviewType(null)}
+            >
+              <div
+                className="card"
+                style={{ width: '100%', maxWidth: '560px', border: '1px solid var(--gray-200)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 className="card-title">
+                    {t('assessmentsList.previewTitle')} · {t(assessments.find((a) => a.id === previewType)?.titleKey || 'assess.assessmentSuffix')}
+                  </h3>
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setPreviewType(null)}>
+                    {t('common.close')}
+                  </button>
+                </div>
+                <div className="card-content" style={{ display: 'grid', gap: '0.75rem' }}>
+                  <div style={{ background: 'var(--gray-50)', borderRadius: '10px', padding: '0.75rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.25rem' }}>
+                      {t('assessmentsList.previewPromptLabel')}
+                    </div>
+                    <div style={{ fontSize: '0.9375rem', color: 'var(--gray-900)' }}>
+                      {t(getPreviewPromptKey(previewType))}
+                    </div>
+                  </div>
+                  <div style={{ background: 'var(--sage-50, #f0f7f2)', borderRadius: '10px', padding: '0.75rem' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.25rem' }}>
+                      {t('assessmentsList.previewGuideLabel')}
+                    </div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--gray-700)' }}>
+                      {t('assessmentsList.previewGuide')}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

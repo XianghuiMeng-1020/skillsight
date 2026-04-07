@@ -12,6 +12,8 @@ from backend.app.db.deps import get_db
 from backend.app.db.session import engine
 from backend.app.deps import check_doc_access
 from backend.app.security import Identity, require_auth
+from backend.app.services.bloom_classifier import compute_bloom_score
+from backend.app.services.assessment_rubric import DEFAULT_BLOOM_RUBRIC
 
 router = APIRouter(prefix="/assessments", tags=["assessments"])
 
@@ -291,13 +293,26 @@ def run_assessments(
                     all_hits.extend(hits)
 
             all_hits = sorted(set(all_hits))
+            bloom = compute_bloom_score([m[2].get("snippet", "") for m in matched[:8]])
             level, label = _level_from_hits(total_hit, all_hits)
+            bloom_score = float(bloom.get("score", 0.0))
+            if bloom_score >= 0.8:
+                level = max(level, 3)
+            elif bloom_score >= 0.55:
+                level = max(level, 2)
+            elif bloom_score >= 0.3:
+                level = max(level, 1)
             decision = "no_match" if level == 0 else "match"
 
             matched.sort(key=lambda x: x[0], reverse=True)
             evidence = [_make_pointer(m[2]) for m in matched[:3]]
 
-            rationale = f"Rule={rule_version}. Skill='{name}'. Matched_chunks={len(matched)}. Hit_count={total_hit}. Keywords_hit={all_hits}."
+            rubric = DEFAULT_BLOOM_RUBRIC.get(str(level), {})
+            rationale = (
+                f"Rule={rule_version}. Skill='{name}'. Matched_chunks={len(matched)}. "
+                f"Hit_count={total_hit}. Bloom={bloom.get('dominant_level')}({bloom_score}). "
+                f"Keywords_hit={all_hits}. Rubric={rubric.get('descriptor','')}."
+            )
 
             results.append(
                 {
@@ -307,6 +322,8 @@ def run_assessments(
                     "label": label,
                     "rationale": rationale,
                     "evidence": evidence,
+                    "bloom": bloom,
+                    "rubric": rubric,
                 }
             )
 
@@ -327,7 +344,12 @@ def run_assessments(
                         "skill_id": r["skill_id"],
                         "decision": r["decision"],
                         "evidence": r["evidence"],
-                        "decision_meta": {"run_id": run_id, "rule_version": rule_version},
+                        "decision_meta": {
+                            "run_id": run_id,
+                            "rule_version": rule_version,
+                            "bloom": r.get("bloom", {}),
+                            "rubric": r.get("rubric", {}),
+                        },
                         "created_at": now,
                     },
                 )
@@ -346,7 +368,12 @@ def run_assessments(
                         "best_evidence": (r["evidence"][0] if r["evidence"] else {}),
                         "signals": {"hit_count": int(re.search(r"Hit_count=(\d+)", r["rationale"]).group(1)) if re.search(r"Hit_count=(\d+)", r["rationale"]) else 0,
                                     "keywords_hit": r.get("evidence", [])},
-                        "meta": {"run_id": run_id, "rule_version": rule_version},
+                        "meta": {
+                            "run_id": run_id,
+                            "rule_version": rule_version,
+                            "bloom": r.get("bloom", {}),
+                            "rubric": r.get("rubric", {}),
+                        },
                         "created_at": now,
                     },
                 )

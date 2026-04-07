@@ -28,6 +28,7 @@ except ImportError:
     from app.db.deps import get_db
     from app.queue import enqueue_assessment_repair
     from app.security import require_auth
+from backend.app.services.irt_estimator import IRTItemResult, estimate_theta, theta_to_level
 
 router = APIRouter(prefix="/interactive", tags=["interactive-assessment"], dependencies=[Depends(require_auth)])
 
@@ -518,7 +519,26 @@ def _persist_skill_outcome(
         # Fallback from score bands.
         level = 3 if score >= 85 else 2 if score >= 70 else 1 if score >= 50 else 0
 
-    decision = "demonstrated" if score >= 75 else "mentioned" if score >= 55 else "not_enough_information"
+    # IRT upgrade: estimate ability theta from recent attempts with type-based difficulty.
+    diff_map = {"communication": -0.2, "writing": 0.1, "programming": 0.8, "data_analysis": 0.6, "problem_solving": 0.7}
+    recent_rows = db.execute(
+        text(
+            """
+            SELECT score
+            FROM assessment_attempts
+            WHERE session_id = :session_id
+            ORDER BY submitted_at DESC
+            LIMIT 5
+            """
+        ),
+        {"session_id": session_id},
+    ).mappings().all() if session_id else []
+    irt_items = [IRTItemResult(score=min(1.0, max(0.0, float((r.get("score") or 0) / 100.0))), difficulty=diff_map.get(assessment_type, 0.3)) for r in recent_rows]
+    irt_items.append(IRTItemResult(score=min(1.0, max(0.0, score / 100.0)), difficulty=diff_map.get(assessment_type, 0.3)))
+    theta = estimate_theta(irt_items)
+    level = max(level, theta_to_level(theta))
+
+    decision = "demonstrated" if score >= 75 or level >= 2 else "mentioned" if score >= 55 else "not_enough_information"
     proficiency_label = "strong_match" if level >= 3 else "match" if level == 2 else "weak_match" if level == 1 else "no_match"
     rationale = evaluation.get("feedback") or f"Interactive {assessment_type} assessment score={score:.1f}, level={level}."
 
@@ -583,6 +603,7 @@ def _persist_skill_outcome(
             "assessment_type": assessment_type,
             "score": score,
             "level": level,
+            "irt_theta": theta,
             "user_id": user_id,
             "session_id": session_id,
             "attempt_id": attempt_id,
@@ -604,8 +625,8 @@ def _persist_skill_outcome(
         "label": proficiency_label,
         "rationale": rationale,
         "best_evidence": json.dumps(evidence[0] if evidence else {}),
-        "signals": json.dumps({"score": score, "assessment_type": assessment_type}),
-        "meta": json.dumps({"source": "interactive_assessment", "decision": decision}),
+        "signals": json.dumps({"score": score, "assessment_type": assessment_type, "irt_theta": theta}),
+        "meta": json.dumps({"source": "interactive_assessment", "decision": decision, "irt_theta": theta}),
         "created_at": now,
     })
     return {
@@ -615,9 +636,38 @@ def _persist_skill_outcome(
         "decision": decision,
         "level": level,
         "score": score,
+        "irt_theta": theta,
         "assessment_id": assessment_id,
         "prof_id": prof_id,
     }
+
+
+class AgentSyncRequest(BaseModel):
+    user_id: str
+    skill_id: str
+    session_id: Optional[str] = None
+    attempt_id: Optional[str] = None
+    assessment_type: str = "agent_dialogue"
+    response_text: str = ""
+    evaluation: Dict[str, Any]
+
+
+@router.post("/agent/sync-result")
+def sync_agent_result(
+    req: AgentSyncRequest,
+    db: Session = Depends(get_db),
+) -> Dict[str, Any]:
+    """Sync worker-agent result into skill_assessments/skill_proficiency."""
+    return _persist_skill_outcome(
+        db,
+        user_id=req.user_id,
+        skill_id=req.skill_id,
+        assessment_type=req.assessment_type,
+        response_text=req.response_text,
+        evaluation=req.evaluation,
+        session_id=req.session_id,
+        attempt_id=req.attempt_id,
+    )
 
 
 # ====================

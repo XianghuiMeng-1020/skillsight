@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import { ModalShell } from '@/components/ModalShell';
+import DemoSafeHint from '@/components/DemoSafeHint';
 import { studentBff, getToken } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
+import { isDemoQuery, readDemoMode, withDemoQuery, writeDemoMode } from '@/lib/demoMode';
 
 /** Clamp readiness to [0,100] for progress bar width (API may return decimals). */
 function rwPct(n: number): number {
@@ -37,6 +40,16 @@ interface SkillAlignment {
   status: string;
 }
 
+interface GapEvidence {
+  skill_id: string;
+  skill_name: string;
+  documentEvidenceCount: number;
+  documentIds: string[];
+  sampleSnippet?: string;
+  recentAssessmentAt?: string;
+  actionStatus: 'completed' | 'pending' | 'none';
+}
+
 interface Role {
   role_id: string;
   role_title: string;
@@ -47,18 +60,192 @@ interface Role {
   gaps: string[];
   gapDetails: GapSkill[];
   skillAlignment: SkillAlignment[];
+  gapEvidence: GapEvidence[];
 }
+
+const DEMO_ROLES: Role[] = [
+  {
+    role_id: 'demo-role-1',
+    role_title: 'Data Analyst (Demo)',
+    description: 'Demo role for presentation. Analyze datasets, communicate insights, and support business decisions.',
+    readiness: 72,
+    skills_met: 4,
+    skills_total: 6,
+    gaps: ['Data Visualization', 'Storytelling'],
+    gapDetails: [
+      { skill_id: 'HKU.SKILL.DATA_VIZ.v1', skill_name: 'Data Visualization', status: 'needs_strengthening', achieved_level: 1, target_level: 3 },
+      { skill_id: 'HKU.SKILL.COMMUNICATION.v1', skill_name: 'Storytelling', status: 'missing_proof', achieved_level: 0, target_level: 2 },
+    ],
+    skillAlignment: [
+      { skill_id: 'HKU.SKILL.DATA_ANALYSIS.v1', skill_name: 'Data Analysis', required_level: 3, current_level: 3, status: 'meet' },
+      { skill_id: 'HKU.SKILL.SQL.v1', skill_name: 'SQL', required_level: 2, current_level: 2, status: 'meet' },
+      { skill_id: 'HKU.SKILL.DATA_VIZ.v1', skill_name: 'Data Visualization', required_level: 3, current_level: 1, status: 'needs_strengthening' },
+      { skill_id: 'HKU.SKILL.COMMUNICATION.v1', skill_name: 'Storytelling', required_level: 2, current_level: 0, status: 'missing_proof' },
+    ],
+    gapEvidence: [],
+  },
+  {
+    role_id: 'demo-role-2',
+    role_title: 'Product Analyst (Demo)',
+    description: 'Demo role for product metrics, experiment analysis, and roadmap support.',
+    readiness: 64,
+    skills_met: 3,
+    skills_total: 6,
+    gaps: ['A/B Testing', 'Presentation'],
+    gapDetails: [
+      { skill_id: 'HKU.SKILL.EXPERIMENT.v1', skill_name: 'A/B Testing', status: 'missing_proof', achieved_level: 0, target_level: 2 },
+      { skill_id: 'HKU.SKILL.PRESENTATION.v1', skill_name: 'Presentation', status: 'needs_strengthening', achieved_level: 1, target_level: 3 },
+    ],
+    skillAlignment: [
+      { skill_id: 'HKU.SKILL.DATA_ANALYSIS.v1', skill_name: 'Data Analysis', required_level: 3, current_level: 2, status: 'needs_strengthening' },
+      { skill_id: 'HKU.SKILL.EXPERIMENT.v1', skill_name: 'A/B Testing', required_level: 2, current_level: 0, status: 'missing_proof' },
+      { skill_id: 'HKU.SKILL.PRESENTATION.v1', skill_name: 'Presentation', required_level: 3, current_level: 1, status: 'needs_strengthening' },
+    ],
+    gapEvidence: [],
+  },
+  {
+    role_id: 'demo-role-3',
+    role_title: 'Business Intelligence Intern (Demo)',
+    description: 'Demo role focusing on dashboards and operational reporting.',
+    readiness: 81,
+    skills_met: 5,
+    skills_total: 6,
+    gaps: ['Dashboard Automation'],
+    gapDetails: [
+      { skill_id: 'HKU.SKILL.DASHBOARD.v1', skill_name: 'Dashboard Automation', status: 'needs_strengthening', achieved_level: 1, target_level: 2 },
+    ],
+    skillAlignment: [
+      { skill_id: 'HKU.SKILL.SQL.v1', skill_name: 'SQL', required_level: 2, current_level: 2, status: 'meet' },
+      { skill_id: 'HKU.SKILL.DATA_ANALYSIS.v1', skill_name: 'Data Analysis', required_level: 3, current_level: 3, status: 'meet' },
+      { skill_id: 'HKU.SKILL.DASHBOARD.v1', skill_name: 'Dashboard Automation', required_level: 2, current_level: 1, status: 'needs_strengthening' },
+    ],
+    gapEvidence: [],
+  },
+];
+
+const DEMO_COURSES_BY_ROLE: Record<string, RecommendedCourse[]> = {
+  'demo-role-1': [
+    { course_id: 'STAT1010', course_name: 'Data Visualization Fundamentals', credits: 6, programme: 'BSc', category: 'Elective', skills: [{ skill_id: 'HKU.SKILL.DATA_VIZ.v1', skill_name: 'Data Visualization' }] },
+    { course_id: 'CCHU9007', course_name: 'Storytelling with Data', credits: 6, programme: 'Common Core', category: 'Common Core', skills: [{ skill_id: 'HKU.SKILL.COMMUNICATION.v1', skill_name: 'Storytelling' }] },
+  ],
+  'demo-role-2': [
+    { course_id: 'COMP2211', course_name: 'Experiment Design Basics', credits: 6, programme: 'BEng', category: 'Elective', skills: [{ skill_id: 'HKU.SKILL.EXPERIMENT.v1', skill_name: 'A/B Testing' }] },
+  ],
+};
 
 export default function JobsPage() {
   const { t } = useLanguage();
+  const searchParams = useSearchParams();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
   const [recommendedCourses, setRecommendedCourses] = useState<RecommendedCourse[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
   const [expandedGaps, setExpandedGaps] = useState<Set<string>>(new Set());
+  const [compareRoleIds, setCompareRoleIds] = useState<string[]>([]);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+
+  const comparedRoles = useMemo(
+    () => compareRoleIds.map((id) => roles.find((r) => r.role_id === id)).filter((r): r is Role => Boolean(r)),
+    [compareRoleIds, roles],
+  );
+
+  const attachGapEvidence = async (baseRole: Role): Promise<Role> => {
+    if (baseRole.gapDetails.length === 0) return { ...baseRole, gapEvidence: [] };
+    try {
+      const [profileRes, recentRes, progressRes] = await Promise.all([
+        studentBff.getProfile().catch(() => null),
+        studentBff.getRecentAssessmentUpdates(20).catch(() => null),
+        studentBff.getActionsProgress(baseRole.role_id).catch(() => null),
+      ]);
+
+      const profileSkills = ((profileRes as { skills?: Array<{ skill_id?: string; evidence_items?: Array<{ doc_id?: string; snippet?: string }> }> } | null)?.skills || []);
+      const recentItems = ((recentRes as { items?: Array<{ skill_id?: string; submitted_at?: string; completed_at?: string }> } | null)?.items || []);
+      const actionItems = ((progressRes as { items?: Array<{ skill_id?: string; status?: string }> } | null)?.items || []);
+
+      const evidenceBySkill = new Map<string, { count: number; docIds: string[]; snippet?: string }>();
+      for (const s of profileSkills) {
+        const sid = s.skill_id || '';
+        if (!sid) continue;
+        const evidenceItems = s.evidence_items || [];
+        const docIds = Array.from(new Set(evidenceItems.map((e) => e.doc_id || '').filter(Boolean)));
+        evidenceBySkill.set(sid, {
+          count: evidenceItems.length,
+          docIds,
+          snippet: evidenceItems.find((e) => (e.snippet || '').trim().length > 0)?.snippet,
+        });
+      }
+
+      const recentBySkill = new Map<string, string>();
+      for (const item of recentItems) {
+        const sid = item.skill_id || '';
+        if (!sid || recentBySkill.has(sid)) continue;
+        recentBySkill.set(sid, item.submitted_at || item.completed_at || '');
+      }
+
+      const actionBySkill = new Map<string, 'completed' | 'pending' | 'none'>();
+      for (const item of actionItems) {
+        const sid = item.skill_id || '';
+        if (!sid) continue;
+        if (item.status === 'completed') {
+          actionBySkill.set(sid, 'completed');
+        } else if (!actionBySkill.has(sid)) {
+          actionBySkill.set(sid, 'pending');
+        }
+      }
+
+      const gapEvidence: GapEvidence[] = baseRole.gapDetails.map((gap) => {
+        const ev = evidenceBySkill.get(gap.skill_id);
+        return {
+          skill_id: gap.skill_id,
+          skill_name: gap.skill_name,
+          documentEvidenceCount: ev?.count ?? 0,
+          documentIds: ev?.docIds ?? [],
+          sampleSnippet: ev?.snippet,
+          recentAssessmentAt: recentBySkill.get(gap.skill_id),
+          actionStatus: actionBySkill.get(gap.skill_id) || 'none',
+        };
+      });
+
+      return { ...baseRole, gapEvidence };
+    } catch {
+      return { ...baseRole, gapEvidence: [] };
+    }
+  };
+
+  const buildDemoRoleWithEvidence = (role: Role): Role => ({
+    ...role,
+    gapEvidence: role.gapDetails.map((gap) => ({
+      skill_id: gap.skill_id,
+      skill_name: gap.skill_name,
+      documentEvidenceCount: gap.status === 'missing_proof' ? 0 : 1,
+      documentIds: gap.status === 'missing_proof' ? [] : ['demo_doc_001'],
+      sampleSnippet: gap.status === 'missing_proof' ? undefined : 'Built dashboard for cohort-level trend analysis and presented insights.',
+      recentAssessmentAt: gap.status === 'missing_proof' ? undefined : '2026-04-01',
+      actionStatus: gap.status === 'missing_proof' ? 'pending' : 'completed',
+    })),
+  });
+
+  const loadDemoDataset = () => {
+    const seeded = DEMO_ROLES.map(buildDemoRoleWithEvidence);
+    setRoles(seeded);
+    setSelectedRole(null);
+    setRecommendedCourses([]);
+    setCompareRoleIds([]);
+    setIsDemoMode(true);
+    setLoading(false);
+    writeDemoMode(true);
+  };
 
   useEffect(() => {
+    if (isDemoQuery(searchParams.get('demo'))) {
+      loadDemoDataset();
+      return;
+    }
+    if (readDemoMode()) {
+      loadDemoDataset();
+      return;
+    }
     const token = getToken();
     if (!token) {
       setLoading(false);
@@ -102,11 +289,13 @@ export default function JobsPage() {
             gaps: b?.gaps ?? [],
             gapDetails: [],
             skillAlignment: [],
+            gapEvidence: [],
           };
         });
 
         rolesWithReadiness.sort((a, b) => b.readiness - a.readiness);
         setRoles(rolesWithReadiness);
+        setIsDemoMode(false);
       } catch {
         setRoles([]);
       } finally {
@@ -114,11 +303,18 @@ export default function JobsPage() {
       }
     };
     load();
-  }, []);
+  }, [searchParams]);
 
   const handleSelectRole = async (role: Role) => {
     setSelectedRole(role);
     setRecommendedCourses([]);
+
+    if (isDemoMode) {
+      const roleWithEvidence = buildDemoRoleWithEvidence(role);
+      setSelectedRole(roleWithEvidence);
+      setRecommendedCourses(DEMO_COURSES_BY_ROLE[role.role_id] || []);
+      return;
+    }
 
     // Lazy-fetch real alignment data if not yet loaded
     if (role.skillAlignment.length === 0) {
@@ -146,7 +342,8 @@ export default function JobsPage() {
           status: s.status || 'missing_proof',
         }));
 
-        const updatedRole: Role = { ...role, gapDetails, skillAlignment };
+        let updatedRole: Role = { ...role, gapDetails, skillAlignment };
+        updatedRole = await attachGapEvidence(updatedRole);
         setSelectedRole(updatedRole);
         setRoles(prev => prev.map(r => r.role_id === role.role_id ? updatedRole : r));
 
@@ -166,10 +363,13 @@ export default function JobsPage() {
         // alignment fetch failed; modal still shows readiness summary
       }
     } else if (role.gapDetails.length > 0) {
+      const roleWithEvidence = await attachGapEvidence(role);
+      setSelectedRole(roleWithEvidence);
+      setRoles(prev => prev.map(r => r.role_id === role.role_id ? roleWithEvidence : r));
       setCoursesLoading(true);
       try {
-        const gapSkillIds = role.gapDetails.map((g) => g.skill_id);
-        const res = await studentBff.getCourseRecommendations(role.role_id, gapSkillIds);
+        const gapSkillIds = roleWithEvidence.gapDetails.map((g) => g.skill_id);
+        const res = await studentBff.getCourseRecommendations(roleWithEvidence.role_id, gapSkillIds);
         setRecommendedCourses((res.items || []) as RecommendedCourse[]);
       } catch {
         setRecommendedCourses([]);
@@ -191,6 +391,14 @@ export default function JobsPage() {
     return t('jobs.inProgress');
   };
 
+  const toggleCompareRole = (roleId: string) => {
+    setCompareRoleIds((prev) => {
+      if (prev.includes(roleId)) return prev.filter((id) => id !== roleId);
+      if (prev.length >= 3) return prev;
+      return [...prev, roleId];
+    });
+  };
+
   return (
     <div className="app-container">
       <Sidebar />
@@ -199,6 +407,26 @@ export default function JobsPage() {
           <div>
             <h1 className="page-title">{t('jobs.pageTitle')}</h1>
             <p className="page-subtitle">{t('jobs.pageSubtitle')}</p>
+          </div>
+          <div className="page-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {isDemoMode && <span className="badge badge-warning">{t('jobs.demoModeOn')}</span>}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={loadDemoDataset}>
+              {t('jobs.loadDemoDataset')}
+            </button>
+            {isDemoMode && <DemoSafeHint severity="warn" size="compact" />}
+            {isDemoMode && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  setIsDemoMode(false);
+                  writeDemoMode(false);
+                  window.location.href = '/dashboard/jobs';
+                }}
+              >
+                {t('jobs.exitDemoMode')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -219,6 +447,12 @@ export default function JobsPage() {
                   <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎯</div>
                   <p style={{ fontWeight: 500, marginBottom: '0.5rem' }}>{t('jobs.noRolesYet')}</p>
                   <p style={{ fontSize: '0.875rem' }}>{t('jobs.uploadFirst')}</p>
+                  <button type="button" className="btn btn-primary btn-sm" style={{ marginTop: '0.75rem' }} onClick={loadDemoDataset}>
+                    {t('jobs.tryDemoNow')}
+                  </button>
+                  <p style={{ marginTop: '0.5rem' }}>
+                    <DemoSafeHint severity="warn" display="block" style={{ margin: '0 auto' }} />
+                  </p>
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
@@ -279,6 +513,7 @@ export default function JobsPage() {
                 <table className="table">
                   <thead>
                     <tr>
+                      <th>{t('jobs.compare')}</th>
                       <th>{t('jobs.role')}</th>
                       <th>{t('jobs.readiness')}</th>
                       <th>{t('jobs.skills')}</th>
@@ -290,6 +525,15 @@ export default function JobsPage() {
                   <tbody>
                     {roles.map((role) => (
                       <tr key={role.role_id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            checked={compareRoleIds.includes(role.role_id)}
+                            disabled={!compareRoleIds.includes(role.role_id) && compareRoleIds.length >= 3}
+                            onChange={() => toggleCompareRole(role.role_id)}
+                            aria-label={`${t('jobs.compare')} ${role.role_title}`}
+                          />
+                        </td>
                         <td style={{ fontWeight: 500 }}>{role.role_title}</td>
                         <td>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -367,6 +611,80 @@ export default function JobsPage() {
               )}
             </div>
           </div>
+
+          {comparedRoles.length >= 2 && (
+            <div className="card" style={{ marginTop: '1rem' }}>
+              <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <h3 className="card-title">⚖️ {t('jobs.compareTitle')}</h3>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--gray-500)' }}>
+                    {t('jobs.compareHint')}
+                  </span>
+                  {isDemoMode && <DemoSafeHint severity="warn" size="compact" />}
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCompareRoleIds([])}>
+                    {t('jobs.clearCompare')}
+                  </button>
+                </div>
+              </div>
+              <div className="card-content" style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid var(--gray-200)' }}>
+                      <th style={{ textAlign: 'left', padding: '0.625rem 0.5rem' }}>{t('jobs.role')}</th>
+                      {comparedRoles.map((r) => (
+                        <td key={r.role_id} style={{ padding: '0.625rem 0.5rem', fontWeight: 600 }}>{r.role_title}</td>
+                      ))}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                      <th style={{ textAlign: 'left', padding: '0.625rem 0.5rem' }}>{t('jobs.readiness')}</th>
+                      {comparedRoles.map((r) => (
+                        <td key={r.role_id} style={{ padding: '0.625rem 0.5rem' }}>{fmt2(r.readiness)}%</td>
+                      ))}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                      <th style={{ textAlign: 'left', padding: '0.625rem 0.5rem' }}>{t('jobs.skillsMet')}</th>
+                      {comparedRoles.map((r) => (
+                        <td key={r.role_id} style={{ padding: '0.625rem 0.5rem' }}>{fmt2(r.skills_met)}/{fmt2(r.skills_total)}</td>
+                      ))}
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid var(--gray-100)' }}>
+                      <th style={{ textAlign: 'left', padding: '0.625rem 0.5rem' }}>{t('jobs.skillGaps')}</th>
+                      {comparedRoles.map((r) => (
+                        <td key={r.role_id} style={{ padding: '0.625rem 0.5rem' }}>
+                          {r.gaps.length > 0 ? (
+                            <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                              {r.gaps.map((g, i) => (
+                                <span key={`${r.role_id}-${i}`} className="badge badge-neutral" style={{ fontSize: '0.7rem' }}>
+                                  {g}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <span style={{ color: 'var(--success)' }}>{t('jobs.allMet')}</span>
+                          )}
+                        </td>
+                      ))}
+                    </tr>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '0.625rem 0.5rem' }}>{t('jobs.learningPathDiff')}</th>
+                      {comparedRoles.map((r) => (
+                        <td key={r.role_id} style={{ padding: '0.625rem 0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: '0.8125rem', color: 'var(--gray-600)' }}>
+                              {r.gaps.length > 0 ? `${t('jobs.focusOn')}: ${r.gaps.slice(0, 2).join(', ')}` : t('jobs.keepCurrentPath')}
+                            </span>
+                            <button type="button" className="btn btn-secondary btn-sm" onClick={() => handleSelectRole(r)}>
+                              {t('jobs.viewDetails')}
+                            </button>
+                          </div>
+                        </td>
+                      ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Role Detail Modal */}
           <ModalShell
@@ -499,6 +817,11 @@ export default function JobsPage() {
                   {selectedRole.gapDetails.length > 0 && (
                     <>
                       <h4 style={{ marginBottom: '0.75rem' }}>{t('jobs.recommendedActions')}</h4>
+                      {isDemoMode && (
+                        <p style={{ marginTop: '-0.25rem', marginBottom: '0.75rem' }}>
+                          <DemoSafeHint severity="warn" size="compact" />
+                        </p>
+                      )}
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
                         {selectedRole.gapDetails.map((gap, i) => (
                           <div 
@@ -519,12 +842,52 @@ export default function JobsPage() {
                                 {gap.status === 'needs_strengthening' ? t('jobs.gapNeedsStrengthening') : t('jobs.gapMissingProof')}
                               </div>
                             </div>
-                            <a href="/dashboard/upload" className="btn btn-sm btn-secondary">
+                            <a href={withDemoQuery('/dashboard/upload', isDemoMode)} className="btn btn-sm btn-secondary">
                               {t('jobs.addEvidence')}
                             </a>
                           </div>
                         ))}
                       </div>
+
+                      {selectedRole.gapEvidence.length > 0 && (
+                        <>
+                          <h4 style={{ marginBottom: '0.75rem' }}>{t('jobs.gapEvidenceTrace')}</h4>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                            {selectedRole.gapEvidence.map((ev) => {
+                              const matchedCourseCount = recommendedCourses.filter((c) => c.skills.some((s) => s.skill_id === ev.skill_id)).length;
+                              return (
+                                <div key={ev.skill_id} style={{ padding: '0.875rem', borderRadius: 'var(--radius)', background: 'var(--gray-50)', border: '1px solid var(--gray-200)' }}>
+                                  <div style={{ fontWeight: 600, marginBottom: '0.5rem' }}>{ev.skill_name}</div>
+                                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.5rem' }}>
+                                    <span className="badge badge-neutral" style={{ fontSize: '0.72rem' }}>
+                                      {t('jobs.evidenceDocs')}: {fmt2(ev.documentEvidenceCount)}
+                                    </span>
+                                    <span className="badge badge-neutral" style={{ fontSize: '0.72rem' }}>
+                                      {t('jobs.evidenceAssessment')}: {ev.recentAssessmentAt ? ev.recentAssessmentAt.slice(0, 10) : t('jobs.noRecentAssessment')}
+                                    </span>
+                                    <span className={`badge badge-${ev.actionStatus === 'completed' ? 'success' : ev.actionStatus === 'pending' ? 'warning' : 'neutral'}`} style={{ fontSize: '0.72rem' }}>
+                                      {t('jobs.evidenceActionProgress')}: {ev.actionStatus === 'completed' ? t('jobs.actionCompleted') : ev.actionStatus === 'pending' ? t('jobs.actionPending') : t('jobs.actionNotStarted')}
+                                    </span>
+                                    <span className="badge badge-neutral" style={{ fontSize: '0.72rem' }}>
+                                      {t('jobs.evidenceCourses')}: {fmt2(matchedCourseCount)}
+                                    </span>
+                                  </div>
+                                  {ev.documentIds.length > 0 && (
+                                    <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginBottom: '0.35rem' }}>
+                                      {t('jobs.evidenceDocIds')}: {ev.documentIds.join(', ')}
+                                    </div>
+                                  )}
+                                  {ev.sampleSnippet && (
+                                    <div style={{ fontSize: '0.8125rem', color: 'var(--gray-700)', lineHeight: 1.5 }}>
+                                      “{ev.sampleSnippet}”
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
 
                       <h4 style={{ marginBottom: '0.75rem' }}>{t('jobs.recommendedCourses')}</h4>
                       {coursesLoading ? (
@@ -580,7 +943,7 @@ export default function JobsPage() {
                   <button type="button" className="btn btn-secondary" onClick={() => setSelectedRole(null)}>
                     {t('jobs.close')}
                   </button>
-                  <a href="/dashboard/skills" className="btn btn-primary">
+                  <a href={withDemoQuery('/dashboard/skills', isDemoMode)} className="btn btn-primary">
                     {t('jobs.viewMySkills')}
                   </a>
                 </div>

@@ -111,7 +111,7 @@ class PatchSuggestionRequest(BaseModel):
 
 class ApplyTemplateRequest(BaseModel):
     template_id: str = Field(..., max_length=256)
-    export_format: Literal["docx", "pdf"] = "docx"
+    export_format: Literal["docx", "pdf", "html", "linkedin"] = "docx"
     resume_override_text: Optional[str] = Field(None, max_length=120000)
     template_options: Optional[Dict[str, Any]] = None
 
@@ -136,6 +136,43 @@ class ExportAttributionReportRequest(BaseModel):
     export_format: Literal["docx", "pdf"] = "docx"
     compare_review_id: Optional[str] = Field(None, max_length=128)
     resume_override_text: Optional[str] = Field(None, max_length=120000)
+
+
+@router.post("/{review_id}/one-click-enhance")
+def resume_review_one_click_enhance(
+    review_id: str,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Generate suggestions -> auto accept high/medium -> rescore in one call."""
+    review = _get_review_for_user(db, review_id, ident.subject_id)
+    if not review:
+        raise HTTPException(status_code=404, detail={"error": "review_not_found", "message": "Review not found"})
+    if review.get("status") == "scoring":
+        resume_review_score(review_id, db, ident)
+    existing = db.execute(
+        text("SELECT suggestion_id, priority FROM resume_suggestions WHERE review_id = :rid ORDER BY created_at"),
+        {"rid": review_id},
+    ).mappings().all()
+    if not existing:
+        resume_review_suggest(review_id, db, ident)
+        existing = db.execute(
+            text("SELECT suggestion_id, priority FROM resume_suggestions WHERE review_id = :rid ORDER BY created_at"),
+            {"rid": review_id},
+        ).mappings().all()
+    accepted = 0
+    for row in existing:
+        pri = (row.get("priority") or "").lower()
+        status = "accepted" if pri in ("high", "medium") else "rejected"
+        db.execute(
+            text("UPDATE resume_suggestions SET status = :status WHERE suggestion_id = :sid"),
+            {"status": status, "sid": str(row["suggestion_id"])},
+        )
+        if status == "accepted":
+            accepted += 1
+    db.commit()
+    rescore = resume_review_rescore(review_id, db, ident)
+    return {"review_id": review_id, "accepted_suggestions": accepted, "rescore": rescore}
 
 
 def _status_to_step(status: str) -> int:
@@ -1664,7 +1701,19 @@ def resume_review_apply_template(
         filename = f"resume_enhanced_{review_id[:8]}.docx"
         out_bytes = doc_bytes
 
-        if want_pdf:
+        if payload.export_format == "html":
+            html = html_preview_for_resume(
+                resume_content, resolve_template_builder_key(payload.template_id, db), payload.template_options or {}
+            )
+            out_bytes = html.encode("utf-8")
+            mime = "text/html; charset=utf-8"
+            filename = f"resume_enhanced_{review_id[:8]}.html"
+        elif payload.export_format == "linkedin":
+            linkedin_text = re.sub(r"\n{3,}", "\n\n", resume_content).strip()
+            out_bytes = linkedin_text.encode("utf-8")
+            mime = "text/plain; charset=utf-8"
+            filename = f"resume_enhanced_{review_id[:8]}_linkedin.txt"
+        elif want_pdf:
             pdf_bytes = docx_bytes_to_pdf_bytes(doc_bytes)
             if pdf_bytes:
                 out_bytes = pdf_bytes

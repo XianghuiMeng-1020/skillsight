@@ -13,6 +13,26 @@ vi.mock('@/lib/logger', () => ({
   logger: { error: vi.fn(), warn: vi.fn() },
 }));
 
+const storageShim = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => (key in store ? store[key] : null),
+    setItem: (key: string, value: string) => { store[key] = value; },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { store = {}; },
+  };
+})();
+
+const ensureStorageApi = () => {
+  const s = globalThis.localStorage as unknown as Partial<Storage> | undefined;
+  if (!s || typeof s.clear !== 'function') {
+    Object.defineProperty(globalThis, 'localStorage', {
+      value: storageShim,
+      configurable: true,
+    });
+  }
+};
+
 describe('useWritingAnalyzer', () => {
   it('analyzes basic text statistics', async () => {
     const { useWritingAnalyzer } = await import('@/lib/hooks');
@@ -58,6 +78,7 @@ describe('useWritingAnalyzer', () => {
 
 describe('useLocalStorage', () => {
   beforeEach(() => {
+    ensureStorageApi();
     localStorage.clear();
   });
 

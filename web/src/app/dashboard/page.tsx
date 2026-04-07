@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import { AchievementNotification } from '@/components/Achievements';
 import { ShareButton } from '@/components/ShareCard';
@@ -14,6 +15,8 @@ import { useAchievements } from '@/lib/hooks';
 import { studentBff, getToken, type ProfileResponse } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
+import { DEMO_DASHBOARD_DOCUMENTS, DEMO_DASHBOARD_JOB_MATCHES, DEMO_DASHBOARD_SKILLS } from '@/lib/demoDataset';
+import { isDemoQuery, readDemoMode, writeDemoMode } from '@/lib/demoMode';
 
 interface Document {
   doc_id: string;
@@ -34,12 +37,15 @@ interface JobMatch {
   role_title: string;
   readiness: number;
   gaps: string[];
+  gaps_all?: string[];
+  required_skills?: string[];
   skills_met: number;
   skills_total: number;
 }
 
 export default function StudentDashboard() {
   const { t } = useLanguage();
+  const searchParams = useSearchParams();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +55,9 @@ export default function StudentDashboard() {
   const [jobsMatchedCount, setJobsMatchedCount] = useState(0);
   const [jobMatches, setJobMatches] = useState<JobMatch[]>([]);
   const [showResumeReviewAgent, setShowResumeReviewAgent] = useState(false);
+  const [showUpdateCard, setShowUpdateCard] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [showMoreInsights, setShowMoreInsights] = useState(false);
 
   const { totalPoints, recentUnlock, dismissRecentUnlock, unlockShareAchievement, checkSkillAchievements, checkDocumentAchievements } = useAchievements();
 
@@ -100,6 +109,19 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     try {
+      const demo = isDemoQuery(searchParams.get('demo')) || readDemoMode();
+      if (demo) {
+        writeDemoMode(true);
+        setIsDemoMode(true);
+        setUserName('Demo Student');
+        setDocuments(DEMO_DASHBOARD_DOCUMENTS);
+        setSkills(DEMO_DASHBOARD_SKILLS);
+        setJobsMatchedCount(DEMO_DASHBOARD_JOB_MATCHES.length);
+        setJobMatches(DEMO_DASHBOARD_JOB_MATCHES);
+        setLoading(false);
+        setShowUpdateCard(true);
+        return;
+      }
       const userData = localStorage.getItem('user');
       if (userData) {
         const user = JSON.parse(userData);
@@ -111,13 +133,39 @@ export default function StudentDashboard() {
         setShowFirstTimeHint(true);
         localStorage.setItem('skillsight-first-route-seen', 'true');
       }
+
+      const dismissedUpdateCard = localStorage.getItem('skillsight-student-update-card-dismissed-v1');
+      setShowUpdateCard(!dismissedUpdateCard);
     } catch (e) {
       console.warn('Failed to read user data from localStorage:', e);
     }
 
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
+
+  const hasDocuments = documents.length > 0;
+  const hasVerifiedOrScoredSkills = skills.some((s) => s.status === 'verified' || s.level > 0);
+  const hasJobMatches = jobsMatchedCount > 0;
+  const showNextStepCard = !loading && (!hasDocuments || !hasVerifiedOrScoredSkills || !hasJobMatches);
+
+  const nextStep = !hasDocuments
+    ? {
+        hint: t('dashboard.emptyDocsHint'),
+        href: '/dashboard/upload',
+        label: t('dashboard.uploadEvidence'),
+      }
+    : !hasVerifiedOrScoredSkills
+      ? {
+          hint: t('dashboard.emptySkillsHint'),
+          href: '/dashboard/assessments',
+          label: t('dashboard.goToAssessments'),
+        }
+      : {
+          hint: t('dashboard.emptyJobsHint'),
+          href: '/dashboard/jobs',
+          label: t('dashboard.goToJobs'),
+        };
 
   return (
     <div className="app-container">
@@ -128,13 +176,11 @@ export default function StudentDashboard() {
           <div>
             <h1 className="page-title">{t('dashboard.welcome')}, {userName}! 👋</h1>
             <p className="page-subtitle">{t('dashboard.subtitle')}</p>
-            <p style={{ marginTop: '0.25rem', fontSize: '0.8125rem', color: 'var(--gray-500)', maxWidth: '42rem' }}>
-              {t('dashboard.visionPitch')}
-            </p>
           </div>
           <div className="page-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', width: '100%', maxWidth: '42rem' }}>
             {/* Row 1: Quick action buttons */}
             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+              {isDemoMode && <span className="badge badge-warning">{t('jobs.demoModeOn')}</span>}
               <button
                 onClick={() => setShowAchievements(true)}
                 style={{
@@ -165,41 +211,27 @@ export default function StudentDashboard() {
               <Link href="/dashboard/upload" className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}>
                 📤 {t('dashboard.uploadEvidence')}
               </Link>
+              <Link href="/dashboard/sample-cases" className="btn btn-secondary btn-sm" style={{ whiteSpace: 'nowrap' }}>
+                🧪 {t('nav.sampleCases')}
+              </Link>
+              {isDemoMode && (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => {
+                    writeDemoMode(false);
+                    window.location.href = '/dashboard';
+                  }}
+                >
+                  {t('jobs.exitDemoMode')}
+                </button>
+              )}
               <ShareButton
                 userName={userName}
                 skills={skills.map(s => ({ name: s.canonical_name, level: s.level }))}
                 overallScore={Math.round((skills.reduce((sum, s) => sum + s.level * 25, 0) / Math.max(skills.length, 1)) * 100) / 100}
                 onShareSuccess={unlockShareAchievement}
               />
-            </div>
-            {/* Row 2: AI agent greeting bar */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                flexWrap: 'wrap',
-                padding: '0.5rem 0.75rem',
-                borderRadius: '10px',
-                border: '1px solid var(--sage-light, #98B8A8)',
-                background: 'linear-gradient(135deg, rgba(152,184,168,0.12), rgba(201,221,227,0.08))',
-              }}
-            >
-              <span style={{ fontSize: '1.125rem', lineHeight: 1 }} aria-hidden>🤖</span>
-              <span style={{ fontSize: '0.8125rem', fontWeight: 500, color: 'var(--gray-900)', flex: '1 1 10rem' }}>
-                {t('dashboard.agentGreeting')}
-              </span>
-              <Link href="/dashboard/assessments" className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}>
-                {t('dashboard.startAssessment')}
-              </Link>
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                onClick={() => setShowResumeReviewAgent(true)}
-                style={{ whiteSpace: 'nowrap' }}
-              >
-                {t('dashboard.reviewResume')}
-              </button>
             </div>
           </div>
         </div>
@@ -216,6 +248,64 @@ export default function StudentDashboard() {
               <button className="btn btn-ghost btn-sm" onClick={() => setShowFirstTimeHint(false)}>
                 {t('common.close')}
               </button>
+            </div>
+          )}
+
+          {showUpdateCard && (
+            <div className="card" style={{ marginBottom: '1rem', border: '1px solid var(--gray-200)', background: 'linear-gradient(135deg, rgba(201,221,227,0.1), rgba(152,184,168,0.08))' }}>
+              <div className="card-content" style={{ padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: '16rem' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>📌 {t('dashboard.updateCardTitle')}</div>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--gray-600)' }}>{t('dashboard.updateCardBody')}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <Link href="/dashboard/learning" className="btn btn-secondary btn-sm">
+                    {t('dashboard.goToLearningPath')}
+                  </Link>
+                  <Link href="/dashboard/sample-cases" className="btn btn-primary btn-sm">
+                    {t('dashboard.viewSampleCases')}
+                  </Link>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => {
+                      setShowUpdateCard(false);
+                      try {
+                        localStorage.setItem('skillsight-student-update-card-dismissed-v1', '1');
+                      } catch {
+                        // noop
+                      }
+                    }}
+                  >
+                    {t('common.close')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setShowMoreInsights((v) => !v)}>
+              {showMoreInsights ? 'Hide extra details' : t('dashboard.learnMore')}
+            </button>
+          </div>
+
+          {showNextStepCard && (
+            <div className="card" style={{ marginBottom: '1rem', border: '1px solid var(--gray-200)' }}>
+              <div className="card-content" style={{ padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: '16rem' }}>
+                  <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>🧭 {t('dashboard.emptyStateTitle')}</div>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--gray-600)' }}>{nextStep.hint}</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <Link href={nextStep.href} className="btn btn-primary btn-sm">
+                    {nextStep.label}
+                  </Link>
+                  <Link href="/dashboard/sample-cases" className="btn btn-secondary btn-sm">
+                    {t('dashboard.viewSampleCases')}
+                  </Link>
+                </div>
+              </div>
             </div>
           )}
 
@@ -269,7 +359,7 @@ export default function StudentDashboard() {
             </div>
 
             {/* Right 2×2: Recommended Next Steps */}
-            <div className="card" style={{ border: '1px solid var(--gray-200)', padding: 0 }}>
+            {showMoreInsights ? <div className="card" style={{ border: '1px solid var(--gray-200)', padding: 0 }}>
               <div className="card-header" style={{ padding: '0.75rem 1rem' }}>
                 <h3 className="card-title" style={{ fontSize: '0.9375rem' }}>💡 {t('dashboard.nextSteps')}</h3>
               </div>
@@ -346,7 +436,7 @@ export default function StudentDashboard() {
                   </p>
                 </button>
               </div>
-            </div>
+            </div> : null}
           </div>
 
           {/* ── Section 2: Skills ↔ Jobs connection diagram ── */}

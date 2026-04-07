@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useMemo, type FocusEvent } from 'react';
+import { useState, useRef, useCallback, useMemo, useEffect, type FocusEvent } from 'react';
 import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
@@ -17,8 +17,26 @@ interface JobMatch {
   role_title: string;
   readiness: number;
   gaps: string[];
+  gaps_all?: string[];
+  required_skills?: string[];
   skills_met: number;
   skills_total: number;
+}
+
+export function buildRoleConnections(skills: Skill[], job: JobMatch): Array<{ skillId: string; isGap: boolean }> {
+  const gapNamesLower = new Set((job.gaps_all || job.gaps || []).map(g => g.toLowerCase()));
+  const requiredNamesLower = new Set((job.required_skills || []).map(s => s.toLowerCase()));
+  const connected: Array<{ skillId: string; isGap: boolean }> = [];
+  for (const skill of skills) {
+    const nameLower = skill.canonical_name.toLowerCase();
+    if (!requiredNamesLower.has(nameLower)) continue;
+    if (gapNamesLower.has(nameLower)) {
+      connected.push({ skillId: skill.skill_id, isGap: true });
+    } else if (skill.level > 0) {
+      connected.push({ skillId: skill.skill_id, isGap: false });
+    }
+  }
+  return connected;
 }
 
 function readinessNum(r: number): number {
@@ -48,6 +66,16 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
   const [hoveredJob, setHoveredJob] = useState<string | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [connectedSkills, setConnectedSkills] = useState<Set<string>>(new Set());
+  const [lineFilter, setLineFilter] = useState<'all' | 'gap' | 'met'>('all');
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)');
+    const sync = () => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
 
   const sortedSkills = useMemo(
     () => [...skills].sort((a, b) => b.level - a.level),
@@ -59,23 +87,12 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
     [jobMatches]
   );
 
-  // Build a map: for each job, which displayed skill_ids are relevant?
-  // A skill is relevant if its canonical_name appears in the role's gaps (needed but unmet),
-  // OR if the student has the skill (level > 0) and it's NOT a gap (implies it's met for that role).
+  // Build a map: only connect skills explicitly required by each role.
+  // Among required skills: dotted = gap, solid = met (level > 0).
   const jobSkillMap = useMemo(() => {
     const map = new Map<string, { skillId: string; isGap: boolean }[]>();
     for (const job of sortedJobs) {
-      const gapNamesLower = new Set(job.gaps.map(g => g.toLowerCase()));
-      const connected: { skillId: string; isGap: boolean }[] = [];
-      for (const skill of skills) {
-        const nameLower = skill.canonical_name.toLowerCase();
-        if (gapNamesLower.has(nameLower)) {
-          connected.push({ skillId: skill.skill_id, isGap: true });
-        } else if (skill.level > 0) {
-          connected.push({ skillId: skill.skill_id, isGap: false });
-        }
-      }
-      map.set(job.role_id, connected);
+      map.set(job.role_id, buildRoleConnections(skills, job));
     }
     return map;
   }, [sortedJobs, skills]);
@@ -119,6 +136,7 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
     setHoveredJob(null);
     setLines([]);
     setConnectedSkills(new Set());
+    setLineFilter('all');
   }, []);
 
   const handleJobRowBlur = useCallback(
@@ -143,12 +161,20 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
     return 'var(--peach, #F9CE9C)';
   };
 
+  const visibleLines = useMemo(
+    () => lines.filter((line) => lineFilter === 'all' || (lineFilter === 'gap' ? line.isGap : !line.isGap)),
+    [lines, lineFilter],
+  );
+
   if (sortedSkills.length === 0 && sortedJobs.length === 0) {
     return (
       <div className="card" style={{ border: '1px solid var(--gray-200)' }}>
         <div className="card-content" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔗</div>
           <p style={{ color: 'var(--gray-500)' }}>{t('dashboard.noSkillsGraph')}</p>
+          <Link href="/dashboard/upload" className="btn btn-primary btn-sm" style={{ marginTop: '0.75rem' }}>
+            📤 {t('dashboard.uploadEvidence')}
+          </Link>
         </div>
       </div>
     );
@@ -171,14 +197,24 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
       </div>
       <div style={{ padding: '0 1.5rem', marginTop: '-0.25rem', marginBottom: '0.5rem' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', fontSize: '0.75rem', color: 'var(--gray-600)' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          <button
+            type="button"
+            onClick={() => setLineFilter((prev) => (prev === 'gap' ? 'all' : 'gap'))}
+            title={t('dashboard.graphLegendGap')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', border: lineFilter === 'gap' ? '1px solid var(--peach, #F9CE9C)' : '1px solid transparent', borderRadius: 8, background: 'transparent', padding: '0.2rem 0.35rem', cursor: 'pointer', color: 'inherit' }}
+          >
             <span style={{ width: 22, height: 0, borderTop: '2px dashed var(--peach, #F9CE9C)' }} aria-hidden />
             {t('dashboard.graphLegendGap')}
-          </span>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+          </button>
+          <button
+            type="button"
+            onClick={() => setLineFilter((prev) => (prev === 'met' ? 'all' : 'met'))}
+            title={t('dashboard.graphLegendMet')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', border: lineFilter === 'met' ? '1px solid var(--sage, #98B8A8)' : '1px solid transparent', borderRadius: 8, background: 'transparent', padding: '0.2rem 0.35rem', cursor: 'pointer', color: 'inherit' }}
+          >
             <span style={{ width: 22, height: 0, borderTop: '2px solid var(--sage, #98B8A8)' }} aria-hidden />
             {t('dashboard.graphLegendMet')}
-          </span>
+          </button>
         </div>
         <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', lineHeight: 1.45, color: 'var(--gray-500)' }}>
           {t('dashboard.graphConnectionHelp')}
@@ -187,7 +223,7 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
       <div className="card-content" style={{ padding: '1rem 1.5rem 1.5rem' }}>
         <div
           ref={containerRef}
-          style={{ position: 'relative', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}
+          style={{ position: 'relative', display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '1fr 1fr', gap: isNarrow ? '1rem' : '3rem' }}
         >
           {/* SVG overlay */}
           <svg
@@ -202,7 +238,7 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
               overflow: 'visible',
             }}
           >
-            {lines.map((line, i) => {
+            {visibleLines.map((line, i) => {
               const dx = line.x2 - line.x1;
               const cpx = dx * 0.4;
               return (
@@ -215,8 +251,9 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
                   strokeOpacity="0.65"
                   strokeDasharray={line.isGap ? '6 4' : 'none'}
                   style={{
-                    transition: 'all 0.2s ease',
+                    transition: 'all 0.25s ease',
                     filter: `drop-shadow(0 0 2px ${line.isGap ? 'rgba(249,206,156,0.3)' : 'rgba(152,184,168,0.3)'})`,
+                    animation: 'fadeIn 220ms ease-out',
                   }}
                 />
               );

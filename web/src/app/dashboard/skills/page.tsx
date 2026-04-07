@@ -4,9 +4,12 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
+import DemoSafeHint from '@/components/DemoSafeHint';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
 import { studentBff, getToken, BffError } from '@/lib/bffClient';
 import SkillAssessmentProgress from '@/components/SkillAssessmentProgress';
+import { DEMO_SKILLS_PROFILE } from '@/lib/demoDataset';
+import { isDemoQuery, readDemoMode, writeDemoMode } from '@/lib/demoMode';
 
 interface AssessmentTask {
   docId: string;
@@ -75,6 +78,8 @@ export default function SkillsProfilePage() {
   const [reassessMsg, setReassessMsg] = useState<string | null>(null);
   const [assessmentTasks, setAssessmentTasks] = useState<AssessmentTask[]>([]);
   const [showProgress, setShowProgress] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [showAllSkills, setShowAllSkills] = useState(false);
   const highlightedRef = useRef<HTMLDivElement | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -82,6 +87,13 @@ export default function SkillsProfilePage() {
     setLoading(true);
     setError(null);
     try {
+      const demo = isDemoQuery(searchParams.get('demo')) || readDemoMode();
+      if (demo) {
+        writeDemoMode(true);
+        setIsDemoMode(true);
+        setProfile(DEMO_SKILLS_PROFILE as unknown as ProfileData);
+        return;
+      }
       if (!getToken()) {
         setProfile(null);
         setError(t('skills.loginRequired') as string);
@@ -90,6 +102,7 @@ export default function SkillsProfilePage() {
       }
       const data = await studentBff.getProfile();
       setProfile(data as ProfileData);
+      setIsDemoMode(false);
     } catch (e) {
       if (e instanceof BffError && e.status === 401) {
         setError((t('skills.sessionExpired') as string) || 'Session expired. Please log in again.');
@@ -259,6 +272,7 @@ export default function SkillsProfilePage() {
     const matchSearch = !searchQuery || s.canonical_name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchFilter && matchSearch;
   });
+  const visibleSkills = showAllSkills || searchQuery ? filtered : filtered.slice(0, 5);
 
   const counts = {
     all: skills.length,
@@ -280,20 +294,34 @@ export default function SkillsProfilePage() {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            {isDemoMode && <span className="badge badge-warning">{t('jobs.demoModeOn')}</span>}
             <button
               className="btn btn-primary btn-sm"
               onClick={handleReassess}
-              disabled={reassessing || !getToken()}
+              disabled={isDemoMode || reassessing || !getToken()}
               style={{ opacity: reassessing ? 0.6 : 1 }}
             >
               {reassessing ? '⏳' : '🔄'} {reassessing ? t('skills.reassessing') : t('skills.reassess')}
             </button>
+            {isDemoMode && <DemoSafeHint severity="warn" />}
             <Link href="/export" className="btn btn-secondary btn-sm">
               📄 {t('skills.exportStatement')}
             </Link>
             <button className="btn btn-ghost btn-sm" onClick={fetchProfile}>
               ↻ {t('skills.refresh')}
             </button>
+            {isDemoMode && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  writeDemoMode(false);
+                  window.location.href = '/dashboard/skills';
+                }}
+              >
+                {t('jobs.exitDemoMode')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -379,6 +407,11 @@ export default function SkillsProfilePage() {
                 width: '180px',
               }}
             />
+            {!searchQuery && filtered.length > 5 && (
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowAllSkills((v) => !v)}>
+                {showAllSkills ? 'Show top 5' : `Show all (${filtered.length})`}
+              </button>
+            )}
           </div>
 
           {/* Skills list */}
@@ -421,7 +454,7 @@ export default function SkillsProfilePage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {filtered.map(skill => {
+              {visibleSkills.map(skill => {
                 const style = LABEL_STYLE[skill.label] ?? LABEL_STYLE.not_assessed;
                 const badgeLabel = t(LABEL_KEYS[skill.label] ?? LABEL_KEYS.not_assessed);
                 const isExpanded = expanded.has(skill.skill_id);

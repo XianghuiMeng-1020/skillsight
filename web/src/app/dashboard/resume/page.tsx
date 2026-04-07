@@ -15,6 +15,8 @@ import { ResumeStepErrorBoundary } from './ResumeStepErrorBoundary';
 import { LayoutHealthPanel } from './LayoutHealthPanel';
 import { ResumeReviewsFooter } from './ResumeReviewsFooter';
 import { ResumeWorkbench } from './ResumeWorkbench';
+import LivePreview from '@/components/resume/LivePreview';
+import TemplateCustomizer from '@/components/resume/TemplateCustomizer';
 import styles from './resume.module.css';
 
 const STEPS = [
@@ -205,6 +207,13 @@ function ResumePageContent() {
                   onResumeOverrideChange={handleOverrideChange}
                   onTemplateOptionsChange={handleTemplateOptionsChange}
                 />
+                <TemplateCustomizer onChange={handleTemplateOptionsChange} />
+                <LivePreview
+                  reviewId={reviewId}
+                  templateId="__professional_classic"
+                  resumeOverrideText={resumeOverrideText}
+                  templateOptions={templateOptions}
+                />
                 <TemplateGallery
                   reviewId={reviewId}
                   resumeOverrideText={resumeOverrideText}
@@ -229,9 +238,6 @@ function ResumePageContent() {
         <div className={styles.footer}>
           <Link href="/dashboard" className="btn btn-ghost btn-sm">
             {t('nav.dashboard')}
-          </Link>
-          <Link href="/dashboard/change-log" className="btn btn-ghost btn-sm">
-            {t('resume.viewHistory')}
           </Link>
           <ResumeReviewsFooter />
         </div>

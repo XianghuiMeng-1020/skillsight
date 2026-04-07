@@ -619,6 +619,7 @@ from backend.app.routers.search import router as search_router
 from backend.app.routers.actions import router as actions_router
 from backend.app.routers.interactive_assess import router as interactive_router
 from backend.app.routers.auth import router as auth_router
+from backend.app.routers.job_postings import router as job_postings_router
 # BFF tier routers (P2)
 from backend.app.routers.bff_student import router as bff_student_router
 from backend.app.routers.resume_review import router as resume_review_router
@@ -644,6 +645,7 @@ app.include_router(search_router)
 app.include_router(actions_router)
 app.include_router(interactive_router)
 app.include_router(auth_router)
+app.include_router(job_postings_router)
 # BFF tier (P2)
 app.include_router(bff_student_router)
 app.include_router(resume_review_router, prefix="/bff/student")

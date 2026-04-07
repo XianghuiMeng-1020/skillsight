@@ -30,6 +30,8 @@ from backend.app.change_log_events import (
     write_skill_snapshot,
     write_change_event,
 )
+from backend.app.services.market_demand_index import compute_market_demand_index
+from backend.app.services.semantic_job_matcher import match_job_skill_semantic
 from backend.app.change_log_events import (
     get_prev_skill_snapshot,
     write_skill_snapshot,
@@ -171,7 +173,7 @@ def _determine_readiness_status(
     return "missing_proof"
 
 
-def _calculate_readiness_score(items: List[Dict[str, Any]]) -> float:
+def _calculate_readiness_score(items: List[Dict[str, Any]], demand_index: Optional[Dict[str, float]] = None) -> float:
     """
     Calculate weighted readiness score with proportional credit:
     - meet: 100%
@@ -183,7 +185,8 @@ def _calculate_readiness_score(items: List[Dict[str, Any]]) -> float:
     weighted_score = 0.0
 
     for item in items:
-        weight = item.get("weight", 1.0)
+        demand_boost = 1.0 + 0.25 * float((demand_index or {}).get(item.get("skill_id", ""), 0.0))
+        weight = item.get("weight", 1.0) * demand_boost
         status = item.get("status", "missing_proof")
 
         if status == "meet":
@@ -656,6 +659,19 @@ def role_readiness(
         # Determine status (P5: meets/missing_proof/needs_strengthening)
         status = _determine_readiness_status(achieved_level, target_level, decision, required)
         status_counts[status] += 1
+        if status == "missing_proof" and required:
+            gap_severity = "critical"
+        elif status == "needs_strengthening":
+            gap_severity = "moderate"
+        else:
+            gap_severity = "minor"
+
+        rec_hours = max(2, (target_level - achieved_level) * 12) if status != "meet" else 0
+        learning_path = [] if status == "meet" else [
+            f"Take HKU course mapped to {skill_name}",
+            f"Complete one project artifact and upload evidence for {skill_name}",
+            f"Expected effort: ~{rec_hours} hours",
+        ]
 
         # Build explanation (P5: why links to pointers)
         if status == "meet":
@@ -672,6 +688,10 @@ def role_readiness(
             else:
                 explanation = "Insufficient evidence to demonstrate this skill."
 
+        sem = match_job_skill_semantic(
+            role.get("description", "") or role.get("role_title", ""),
+            [rationale] + [str(e.get("snippet", "")) for e in (evidence or []) if isinstance(e, dict)],
+        )
         item = {
             "skill_id": skill_id,
             "skill_name": skill_name,
@@ -683,6 +703,10 @@ def role_readiness(
             "decision": decision or "not_assessed",
             "explanation": explanation,
             "evidence": evidence[:3] if evidence else [],
+            "gap_severity": gap_severity,
+            "learning_path": learning_path,
+            "estimated_hours": rec_hours,
+            "semantic_alignment": sem,
         }
         if agg_meta:
             item["reliability_level"] = agg_meta.get("reliability_level")
@@ -691,7 +715,8 @@ def role_readiness(
         items.append(item)
     
     # Calculate overall score
-    score = _calculate_readiness_score(items)
+    demand_index = compute_market_demand_index(db)
+    score = _calculate_readiness_score(items, demand_index=demand_index)
     
     # Decision 2 B1: overall reliability for role_readiness
     agg_items = [it for it in items if it.get("reliability_level")]

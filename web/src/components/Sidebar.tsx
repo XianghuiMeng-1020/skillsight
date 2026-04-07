@@ -4,8 +4,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState, useCallback } from 'react';
 import ApiStatus from './ApiStatus';
+import DemoSafeHint from './DemoSafeHint';
 import { useLanguage, type Language } from '@/lib/contexts';
 import { clearToken } from '@/lib/bffClient';
+import { DEMO_MODE_EVENT, DEMO_MODE_KEY, readDemoMode, writeDemoMode } from '@/lib/demoMode';
 
 // SkillSight Logo - 代表技能洞察与成长的创意设计
 // 融合了眼睛（洞察）+ 上升图表（成长）+ 技能连接点的概念
@@ -61,12 +63,14 @@ interface NavItem {
 const studentNav: NavItem[] = [
   { icon: '🏠', labelKey: 'nav.dashboard', hintKey: 'nav.hint.dashboard', href: '/dashboard' },
   { icon: '📤', labelKey: 'dashboard.uploadEvidence', hintKey: 'nav.hint.upload', href: '/dashboard/upload' },
+  { icon: '🧪', labelKey: 'nav.sampleCases', hintKey: 'nav.hint.sampleCases', href: '/dashboard/sample-cases' },
   { icon: '📊', labelKey: 'dashboard.skills', hintKey: 'nav.hint.skills', href: '/dashboard/skills' },
   { icon: '🎯', labelKey: 'dashboard.jobs', hintKey: 'nav.hint.jobs', href: '/dashboard/jobs' },
   { icon: '📝', labelKey: 'dashboard.assessments', hintKey: 'nav.hint.assessments', href: '/dashboard/assessments' },
   { icon: '📄', labelKey: 'nav.resume', hintKey: 'nav.hint.resume', href: '/dashboard/resume' },
   { icon: '📚', labelKey: 'learning.path', hintKey: 'nav.hint.skills', href: '/dashboard/learning' },
-  { icon: '📜', labelKey: 'changelog.navLabel', hintKey: 'nav.hint.changeLog', href: '/dashboard/change-log' },
+  { icon: '🕒', labelKey: 'nav.timeline', href: '/dashboard/timeline' },
+  { icon: '📈', labelKey: 'nav.marketInsights', href: '/dashboard/market-insights' },
 ];
 
 const adminNav: NavItem[] = [
@@ -92,6 +96,7 @@ export default function Sidebar() {
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   useEffect(() => {
     try {
@@ -99,9 +104,23 @@ export default function Sidebar() {
       if (userData) {
         setUser(JSON.parse(userData));
       }
+      setIsDemoMode(readDemoMode());
     } catch (e) {
       console.warn('Failed to read user from localStorage:', e);
     }
+  }, []);
+
+  useEffect(() => {
+    const syncDemoMode = () => setIsDemoMode(readDemoMode());
+    const onStorage = (e: StorageEvent) => {
+      if (!e.key || e.key === DEMO_MODE_KEY) syncDemoMode();
+    };
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(DEMO_MODE_EVENT, syncDemoMode as EventListener);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(DEMO_MODE_EVENT, syncDemoMode as EventListener);
+    };
   }, []);
 
   useEffect(() => {
@@ -202,6 +221,27 @@ export default function Sidebar() {
         <div style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--gray-100)' }}>
           <ApiStatus />
         </div>
+        {!isAdmin && isDemoMode && (
+          <div style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--gray-100)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+              <span className="badge badge-warning">{t('jobs.demoModeOn')}</span>
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  writeDemoMode(false);
+                  window.location.href = '/dashboard';
+                }}
+              >
+                {t('jobs.exitDemoMode')}
+              </button>
+            </div>
+            <div style={{ marginTop: '0.35rem' }}>
+              <DemoSafeHint severity="warn" size="compact" />
+            </div>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--gray-100)' }}>
           {([['zh', '简'], ['zh-TW', '繁'], ['en', 'EN']] as [Language, string][]).map(([lang, label]) => (
             <button
@@ -252,6 +292,18 @@ export default function Sidebar() {
         </div>
       </div>
     </aside>
+      {isMobile && !isAdmin && (
+        <nav className="mobile-bottom-nav" aria-label="mobile navigation">
+          {studentNav.slice(0, 5).map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link key={`mb-${item.href}`} href={item.href} className={`mobile-bottom-item ${isActive ? 'active' : ''}`}>
+                <span aria-hidden>{item.icon}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      )}
     </>
   );
 }

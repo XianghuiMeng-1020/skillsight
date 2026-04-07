@@ -436,7 +436,7 @@ export const studentBff = {
     ),
 
   getRoleAlignmentBatch: (roleIds: string[], docId: string) =>
-    bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[] }>; count: number }>(
+    bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[]; gaps_all?: string[]; required_skills?: string[] }>; count: number }>(
       '/bff/student/roles/alignment/batch',
       { method: 'POST', body: { role_ids: roleIds, doc_id: docId } }
     ),
@@ -599,7 +599,7 @@ export const studentBff = {
   getCareerSummary: () =>
     bffRequest<CareerSummaryResponse>('/bff/student/career-summary'),
 
-  getJobMatches: async (): Promise<{ count: number; items: Array<{ role_id: string; role_title: string; readiness: number; gaps: string[]; skills_met: number; skills_total: number }> }> => {
+  getJobMatches: async (): Promise<{ count: number; items: Array<{ role_id: string; role_title: string; readiness: number; gaps: string[]; gaps_all: string[]; required_skills: string[]; skills_met: number; skills_total: number }> }> => {
     const [rolesData, docsData] = await Promise.all([
       bffRequest<{ items: unknown[] }>('/bff/student/roles?limit=20'),
       bffRequest<{ items: Array<{ doc_id?: string }> }>('/bff/student/documents?limit=1').catch(() => ({ items: [] })),
@@ -609,7 +609,7 @@ export const studentBff = {
     if (!latestDocId || !roles.length) return { count: 0, items: [] };
 
     const roleIds = roles.map(r => r.role_id ?? '').filter(Boolean);
-    const batch = await bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[] }> }>(
+    const batch = await bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[]; gaps_all?: string[]; required_skills?: string[] }> }>(
       '/bff/student/roles/alignment/batch',
       { method: 'POST', body: { role_ids: roleIds, doc_id: latestDocId } }
     );
@@ -618,9 +618,18 @@ export const studentBff = {
       .map(r => {
         const id = r.role_id ?? '';
         const b = byId.get(id);
-        return b ? { role_id: id, role_title: b.role_title || (r.role_title ?? ''), readiness: b.readiness, gaps: b.gaps ?? [], skills_met: b.skills_met ?? 0, skills_total: b.skills_total ?? 0 } : null;
+        return b ? {
+          role_id: id,
+          role_title: b.role_title || (r.role_title ?? ''),
+          readiness: b.readiness,
+          gaps: b.gaps ?? [],
+          gaps_all: b.gaps_all ?? b.gaps ?? [],
+          required_skills: b.required_skills ?? [],
+          skills_met: b.skills_met ?? 0,
+          skills_total: b.skills_total ?? 0,
+        } : null;
       })
-      .filter((x): x is { role_id: string; role_title: string; readiness: number; gaps: string[]; skills_met: number; skills_total: number } => x !== null && x.readiness >= 60);
+      .filter((x): x is { role_id: string; role_title: string; readiness: number; gaps: string[]; gaps_all: string[]; required_skills: string[]; skills_met: number; skills_total: number } => x !== null && x.readiness >= 60);
     return { count: matched.length, items: matched };
   },
 
@@ -699,6 +708,17 @@ export const studentBff = {
       total_initial: number;
       improvements: Record<string, number>;
     }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/rescore`, { method: 'POST' }),
+
+  resumeReviewOneClickEnhance: (reviewId: string) =>
+    bffRequest<{
+      review_id: string;
+      accepted_suggestions: number;
+      rescore: {
+        total_final: number;
+        total_initial: number;
+        improvements: Record<string, number>;
+      };
+    }>(`/bff/student/resume-review/${encodeURIComponent(reviewId)}/one-click-enhance`, { method: 'POST' }),
 
   getResumeTemplates: (roleId?: string, industry?: string, reviewId?: string) => {
     const params = new URLSearchParams();
@@ -876,7 +896,7 @@ export const studentBff = {
   resumeReviewApplyTemplate: (
     reviewId: string,
     templateId: string,
-    opts?: { exportFormat?: 'docx' | 'pdf'; resumeOverrideText?: string; templateOptions?: Record<string, unknown> }
+    opts?: { exportFormat?: 'docx' | 'pdf' | 'html' | 'linkedin'; resumeOverrideText?: string; templateOptions?: Record<string, unknown> }
   ) =>
     bffRequest<{
       filename: string;
@@ -927,4 +947,20 @@ export const studentBff = {
       total_shares: number;
       last_share_at?: string;
     }>('/actions/share/status'),
+
+  getPeerBenchmark: () =>
+    bffRequest<{ count: number; items: Array<{ skill_id: string; level: number; percentile: number }> }>(
+      '/bff/student/peer-benchmark'
+    ),
+
+  getLearningPath: (limit = 8) =>
+    bffRequest<{ count: number; items: Array<{ skill_id: string; skill_name: string; current_level: number; target_level: number; gap: number; estimated_hours: number; milestones: string[] }> }>(
+      `/bff/student/learning-path?limit=${Math.max(1, Math.min(limit, 20))}`
+    ),
+
+  getMarketInsights: () =>
+    bffRequest<{
+      trends: Array<{ skill_id: string; skill_name: string; demand_count: number }>;
+      salary_reference: { currency: string; bands: Array<{ role: string; range: string }> };
+    }>('/bff/student/market-insights'),
 };

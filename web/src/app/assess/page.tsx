@@ -9,6 +9,7 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/bffClient';
 import { SkillSightLogo, ScoreCircle, ScoreBar, LevelBadge } from './AssessComponents';
 import { fmt2 } from '@/lib/formatNumber';
+import { useRouter } from 'next/navigation';
 
 type AssessmentType =
   | 'communication'
@@ -46,6 +47,7 @@ interface EvaluationResult {
 
 export default function AssessPage() {
   const { t } = useLanguage();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<AssessmentType>('communication');
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(false);
@@ -121,6 +123,11 @@ export default function AssessPage() {
       return 'demo_user';
     }
   };
+
+  useEffect(() => {
+    // Unified assessment entry: keep this page as compatibility redirect.
+    router.replace('/dashboard/assessments');
+  }, [router]);
 
   useEffect(() => {
     setShowLoginHint(!getToken());
@@ -1657,29 +1664,6 @@ export default function AssessPage() {
             </div>
           )}
 
-          {!session && !result && (
-            <div className="card" style={{ marginTop: '1rem' }}>
-              <div className="card-content" style={{ padding: '1.25rem' }}>
-                <h3 style={{ fontSize: '1rem', marginBottom: '0.375rem', color: '#1C1917' }}>
-                  {t('assessmentsList.skillCoverageTitle')}
-                </h3>
-                <p style={{ fontSize: '0.875rem', color: '#78716C', marginBottom: '0.75rem' }}>
-                  {t('assessmentsList.skillCoverageSubtitle')}
-                </p>
-                <div style={{ display: 'grid', gap: '0.5rem' }}>
-                  <div style={{ padding: '0.625rem 0.75rem', borderRadius: '10px', background: '#FAFAF9' }}>
-                    <strong>{t('assessmentsList.coverageCommunication')}</strong>: {t('assessmentsList.coverageCommunicationDesc')}
-                  </div>
-                  <div style={{ padding: '0.625rem 0.75rem', borderRadius: '10px', background: '#FAFAF9' }}>
-                    <strong>{t('assessmentsList.coverageCoding')}</strong>: {t('assessmentsList.coverageCodingDesc')}
-                  </div>
-                  <div style={{ padding: '0.625rem 0.75rem', borderRadius: '10px', background: '#FAFAF9' }}>
-                    <strong>{t('assessmentsList.coverageWriting')}</strong>: {t('assessmentsList.coverageWritingDesc')}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </main>
 

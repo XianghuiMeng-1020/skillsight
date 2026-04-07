@@ -1177,6 +1177,10 @@ a:hover {
 .sidebar-close:hover { background: var(--gray-200); color: var(--gray-800); }
 .sidebar-header { position: relative; }
 
+.mobile-bottom-nav {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .sidebar-hamburger { display: flex; }
   .sidebar {
@@ -1192,6 +1196,7 @@ a:hover {
   .main-content {
     margin-left: 0;
     padding-top: 3.5rem;
+    padding-bottom: 4.5rem;
   }
   
   .stats-grid {
@@ -1200,6 +1205,32 @@ a:hover {
   
   .page-content {
     padding: 1rem;
+  }
+
+  .mobile-bottom-nav {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 160;
+    background: var(--white);
+    border-top: 1px solid var(--gray-200);
+    box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.08);
+  }
+  .mobile-bottom-item {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 52px;
+    color: var(--gray-600);
+    text-decoration: none;
+    transition: transform 180ms ease, color 180ms ease;
+  }
+  .mobile-bottom-item.active {
+    color: var(--hku-green);
+    transform: translateY(-1px);
   }
 }
 

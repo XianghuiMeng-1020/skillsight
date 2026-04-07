@@ -1,11 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useRef, DragEvent } from 'react';
+import { useEffect, useState, useRef, DragEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
+import DemoSafeHint from '@/components/DemoSafeHint';
 import { useToast } from '@/components/Toast';
 import { studentBff, getToken } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
+import { isDemoQuery, readDemoMode, withDemoQuery, writeDemoMode } from '@/lib/demoMode';
 
 interface UploadResult {
   doc_id: string;
@@ -32,6 +35,7 @@ const ACCEPTED_FILE_TYPES = [
 
 export default function UploadPage() {
   const { t } = useLanguage();
+  const searchParams = useSearchParams();
   const { addToast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
   const [consent, setConsent] = useState(false);
@@ -40,6 +44,7 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const supportedFormats = [
@@ -89,6 +94,36 @@ export default function UploadPage() {
 
   const handleUpload = async () => {
     if (files.length === 0 || !consent) return;
+
+    if (isDemoMode) {
+      setUploading(true);
+      setError(null);
+      setResults([]);
+      setUploadProgress({ current: 0, total: files.length });
+      try {
+        const uploadResults: UploadResult[] = [];
+        for (let i = 0; i < files.length; i++) {
+          setUploadProgress({ current: i + 1, total: files.length });
+          await new Promise((resolve) => setTimeout(resolve, 350));
+          uploadResults.push({
+            doc_id: `demo-doc-upload-${i + 1}`,
+            filename: files[i].name,
+            chunks_created: Math.max(2, Math.min(8, Math.ceil(files[i].size / 12000))),
+          });
+        }
+        await new Promise((resolve) => setTimeout(resolve, 350));
+        setResults(uploadResults);
+        setFiles([]);
+        setConsent(false);
+        addToast('success', (t('upload.demoUploadDone') as string)?.replace('{n}', String(uploadResults.length)) ?? `Demo uploaded ${uploadResults.length} file(s).`);
+      } catch {
+        setError(t('upload.failed'));
+      } finally {
+        setUploading(false);
+        setUploadProgress({ current: 0, total: 0 });
+      }
+      return;
+    }
 
     const token = getToken();
     if (!token) {
@@ -165,6 +200,14 @@ export default function UploadPage() {
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
   };
 
+  useEffect(() => {
+    const demo = isDemoQuery(searchParams.get('demo')) || readDemoMode();
+    if (demo) {
+      writeDemoMode(true);
+      setIsDemoMode(true);
+    }
+  }, [searchParams]);
+
   return (
     <div className="app-container">
       <Sidebar />
@@ -174,6 +217,21 @@ export default function UploadPage() {
             <h1 className="page-title">{t('dashboard.uploadEvidence')}</h1>
             <p className="page-subtitle">{t('upload.pageSubtitle')}</p>
           </div>
+          <div className="page-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            {isDemoMode && <span className="badge badge-warning">{t('jobs.demoModeOn')}</span>}
+            {isDemoMode && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  writeDemoMode(false);
+                  window.location.href = '/dashboard/upload';
+                }}
+              >
+                {t('jobs.exitDemoMode')}
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="page-content">
@@ -182,6 +240,11 @@ export default function UploadPage() {
             <div className="alert-content">
               <div className="alert-title">{t('upload.demoRouteTitle')}</div>
               <p>{t('upload.demoRouteDesc')}</p>
+              {isDemoMode && (
+                <p style={{ marginTop: '0.4rem', fontSize: '0.875rem', color: 'var(--warning, #a16207)' }}>
+                  {t('upload.demoModeHint')}
+                </p>
+              )}
               <p style={{ marginTop: '0.4rem', fontSize: '0.875rem', color: 'var(--gray-500)' }}>
                 1) {t('dashboard.uploadEvidence')} → 2) {t('dashboard.takeAssessment')} → 3) {t('dashboard.skills')} → 4) {t('dashboard.findJobs')}
               </p>
@@ -204,8 +267,8 @@ export default function UploadPage() {
                   ))}
                 </ul>
                 <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <Link href="/dashboard/skills" className="btn btn-sm btn-ghost">{t('upload.nextViewSkills')}</Link>
-                  <Link href="/dashboard/jobs" className="btn btn-sm btn-ghost">{t('upload.nextViewJobs')}</Link>
+                  <Link href={withDemoQuery('/dashboard/skills', isDemoMode)} className="btn btn-sm btn-ghost">{t('upload.nextViewSkills')}</Link>
+                  <Link href={withDemoQuery('/dashboard/jobs', isDemoMode)} className="btn btn-sm btn-ghost">{t('upload.nextViewJobs')}</Link>
                 </div>
               </div>
             </div>
@@ -404,6 +467,11 @@ export default function UploadPage() {
                     <>{files.length > 0 ? t('upload.uploadNFiles').replace('{n}', String(files.length)) : t('upload.uploadFiles')}</>
                   )}
                 </button>
+                {isDemoMode && (
+                  <p style={{ marginTop: '0.5rem', textAlign: 'center' }}>
+                    <DemoSafeHint severity="warn" display="block" style={{ margin: '0 auto' }} />
+                  </p>
+                )}
               </div>
             </div>
 
