@@ -14,7 +14,7 @@ const AchievementsModal = dynamic(() => import('@/components/Achievements').then
 import { useAchievements } from '@/lib/hooks';
 import { studentBff, getToken, type ProfileResponse } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
-import { fmt2 } from '@/lib/formatNumber';
+import { fmt2, fmtInt } from '@/lib/formatNumber';
 import { DEMO_DASHBOARD_DOCUMENTS, DEMO_DASHBOARD_JOB_MATCHES, DEMO_DASHBOARD_SKILLS } from '@/lib/demoDataset';
 import { isDemoQuery, readDemoMode, writeDemoMode } from '@/lib/demoMode';
 
@@ -347,28 +347,28 @@ export default function StudentDashboard() {
                   <div className="stat-card fade-in" style={{ animationDelay: '0s' }} title={t('dashboard.statDocsTip')}>
                     <div className="stat-icon green">📄</div>
                     <div className="stat-content">
-                      <div className="stat-value">{fmt2(documents.length)}</div>
+                      <div className="stat-value">{fmtInt(documents.length)}</div>
                       <div className="stat-label">{t('dashboard.docsUploaded')}</div>
                     </div>
                   </div>
                   <div className="stat-card fade-in" style={{ animationDelay: '0.07s' }} title={t('dashboard.statVerifiedTip')}>
                     <div className="stat-icon green">✓</div>
                     <div className="stat-content">
-                      <div className="stat-value">{fmt2(skills.filter(s => s.status === 'verified').length)}</div>
+                      <div className="stat-value">{fmtInt(skills.filter(s => s.status === 'verified').length)}</div>
                       <div className="stat-label">{t('dashboard.skillsVerified')}</div>
                     </div>
                   </div>
                   <div className="stat-card fade-in" style={{ animationDelay: '0.14s' }} title={t('dashboard.statProgressTip')}>
                     <div className="stat-icon yellow">○</div>
                     <div className="stat-content">
-                      <div className="stat-value">{fmt2(skills.filter(s => s.status === 'pending').length)}</div>
+                      <div className="stat-value">{fmtInt(skills.filter(s => s.status === 'pending').length)}</div>
                       <div className="stat-label">{t('dashboard.inProgress')}</div>
                     </div>
                   </div>
                   <div className="stat-card fade-in" style={{ animationDelay: '0.21s' }} title={t('dashboard.statJobsTip')}>
                     <div className="stat-icon purple">🎯</div>
                     <div className="stat-content">
-                      <div className="stat-value">{fmt2(jobsMatchedCount)}</div>
+                      <div className="stat-value">{fmtInt(jobsMatchedCount)}</div>
                       <div className="stat-label">{t('dashboard.jobsMatched')}</div>
                     </div>
                   </div>

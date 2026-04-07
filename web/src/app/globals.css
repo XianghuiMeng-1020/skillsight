@@ -393,6 +393,24 @@ a:hover {
   text-align: center;
 }
 
+.nav-item.with-desc {
+  align-items: flex-start;
+}
+
+.nav-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.nav-item-desc {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--gray-500);
+  line-height: 1.35;
+}
+
 .sidebar-footer {
   padding: 1rem 1.5rem;
   border-top: 1px solid var(--gray-100);

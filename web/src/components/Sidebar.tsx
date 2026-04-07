@@ -55,24 +55,45 @@ interface User {
 interface NavItem {
   icon: string;
   labelKey: string;
+  descKey?: string;
   hintKey?: string;
   href: string;
   roles?: ('student' | 'admin')[];
 }
 
-const studentNav: NavItem[] = [
-  { icon: '🏠', labelKey: 'nav.dashboard', hintKey: 'nav.hint.dashboard', href: '/dashboard' },
-  { icon: '📤', labelKey: 'dashboard.uploadEvidence', hintKey: 'nav.hint.upload', href: '/dashboard/upload' },
-  { icon: '🧪', labelKey: 'nav.sampleCases', hintKey: 'nav.hint.sampleCases', href: '/dashboard/sample-cases' },
-  { icon: '📊', labelKey: 'dashboard.skills', hintKey: 'nav.hint.skills', href: '/dashboard/skills' },
-  { icon: '🎯', labelKey: 'dashboard.jobs', hintKey: 'nav.hint.jobs', href: '/dashboard/jobs' },
-  { icon: '📝', labelKey: 'dashboard.assessments', hintKey: 'nav.hint.assessments', href: '/dashboard/assessments' },
-  { icon: '📄', labelKey: 'nav.resume', hintKey: 'nav.hint.resume', href: '/dashboard/resume' },
-  { icon: '📚', labelKey: 'learning.path', hintKey: 'nav.hint.skills', href: '/dashboard/learning' },
-  { icon: '🕒', labelKey: 'nav.timeline', href: '/dashboard/timeline' },
-  { icon: '📈', labelKey: 'nav.marketInsights', href: '/dashboard/market-insights' },
-  { icon: '👥', labelKey: 'nav.peerBenchmark', href: '/dashboard/peer-benchmark' },
-  { icon: '🧭', labelKey: 'nav.jobsLive', href: '/dashboard/jobs-live' },
+interface NavSection {
+  titleKey: string;
+  items: NavItem[];
+}
+
+const studentNavSections: NavSection[] = [
+  {
+    titleKey: 'nav.section.profile',
+    items: [
+      { icon: '🏠', labelKey: 'nav.dashboard', hintKey: 'nav.hint.dashboard', href: '/dashboard' },
+      { icon: '📤', labelKey: 'dashboard.uploadEvidence', hintKey: 'nav.hint.upload', href: '/dashboard/upload' },
+      { icon: '🧪', labelKey: 'nav.sampleCases', hintKey: 'nav.hint.sampleCases', href: '/dashboard/sample-cases' },
+      { icon: '📊', labelKey: 'dashboard.skills', hintKey: 'nav.hint.skills', href: '/dashboard/skills' },
+      { icon: '📝', labelKey: 'dashboard.assessments', hintKey: 'nav.hint.assessments', href: '/dashboard/assessments' },
+      { icon: '📄', labelKey: 'nav.resume', hintKey: 'nav.hint.resume', href: '/dashboard/resume' },
+    ],
+  },
+  {
+    titleKey: 'nav.section.career',
+    items: [
+      { icon: '🎯', labelKey: 'dashboard.jobs', hintKey: 'nav.hint.jobs', href: '/dashboard/jobs' },
+      { icon: '🧭', labelKey: 'nav.jobsLive', href: '/dashboard/jobs-live' },
+    ],
+  },
+  {
+    titleKey: 'nav.section.insights',
+    items: [
+      { icon: '📚', labelKey: 'learning.path', hintKey: 'nav.hint.skills', href: '/dashboard/learning', descKey: 'nav.desc.learning' },
+      { icon: '🕒', labelKey: 'nav.timeline', href: '/dashboard/timeline', descKey: 'nav.desc.timeline' },
+      { icon: '📈', labelKey: 'nav.marketInsights', href: '/dashboard/market-insights', descKey: 'nav.desc.marketInsights' },
+      { icon: '👥', labelKey: 'nav.peerBenchmark', href: '/dashboard/peer-benchmark', descKey: 'nav.desc.peerBenchmark' },
+    ],
+  },
 ];
 
 const adminNav: NavItem[] = [
@@ -148,7 +169,19 @@ export default function Sidebar() {
     if (isMobile) setMobileOpen(false);
   }, [pathname, isMobile]);
 
-  const navItems = isAdmin ? adminNav : studentNav;
+  const navSections: NavSection[] = isAdmin
+    ? [{ titleKey: 'admin.administration', items: adminNav }]
+    : studentNavSections;
+  const studentNavFlat = studentNavSections.flatMap((section) => section.items);
+  const studentMobileNav = [
+    '/dashboard',
+    '/dashboard/upload',
+    '/dashboard/skills',
+    '/dashboard/jobs',
+    '/dashboard/assessments',
+  ]
+    .map((href) => studentNavFlat.find((item) => item.href === href))
+    .filter((item): item is NavItem => Boolean(item));
 
   const handleLogout = () => {
     localStorage.removeItem('user');
@@ -194,26 +227,29 @@ export default function Sidebar() {
       </div>
 
       <nav className="sidebar-nav">
-        <div className="nav-section">
-          <div className="nav-section-title">
-            {isAdmin ? t('admin.administration') : t('nav.mainMenu')}
+        {navSections.map((section) => (
+          <div className="nav-section" key={section.titleKey}>
+            <div className="nav-section-title">{t(section.titleKey)}</div>
+            {section.items.map((item) => {
+              const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') && item.href !== '/dashboard' && item.href !== '/admin');
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`nav-item ${isActive ? 'active' : ''} ${item.descKey ? 'with-desc' : ''}`}
+                  title={item.hintKey ? t(item.hintKey) : ''}
+                  onClick={isMobile ? closeMobile : undefined}
+                >
+                  <span className="nav-item-icon">{item.icon}</span>
+                  <span className="nav-item-text">
+                    <span>{t(item.labelKey)}</span>
+                    {item.descKey ? <span className="nav-item-desc">{t(item.descKey)}</span> : null}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
-          {navItems.map((item) => {
-            const isActive = pathname === item.href || (pathname.startsWith(item.href + '/') && item.href !== '/dashboard' && item.href !== '/admin');
-            return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-item ${isActive ? 'active' : ''}`}
-              title={item.hintKey ? t(item.hintKey) : ''}
-              onClick={isMobile ? closeMobile : undefined}
-            >
-              <span className="nav-item-icon">{item.icon}</span>
-              <span>{t(item.labelKey)}</span>
-            </Link>
-            );
-          })}
-        </div>
+        ))}
 
         <div className="nav-section">
           <div className="nav-section-title">{t('nav.settings')}</div>
@@ -309,7 +345,7 @@ export default function Sidebar() {
     </aside>
       {isMobile && !isAdmin && (
         <nav className="mobile-bottom-nav" aria-label="mobile navigation">
-          {studentNav.slice(0, 5).map((item) => {
+          {studentMobileNav.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link key={`mb-${item.href}`} href={item.href} className={`mobile-bottom-item ${isActive ? 'active' : ''}`}>
