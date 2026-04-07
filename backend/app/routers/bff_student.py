@@ -1855,42 +1855,107 @@ def bff_peer_benchmark(
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    """Anonymous peer percentile by skill using latest proficiency snapshots."""
+    """Anonymous peer percentile by skill.
+
+    Lookup priority for current user's skills:
+    1. skill_proficiency joined via consents (granted) — standard path
+    2. skill_proficiency joined via documents (ownership) — fallback when no consents
+    3. skill_proficiency by subject_id direct column — if schema supports it
+
+    Peer comparison uses all skill_proficiency rows regardless of consent status,
+    so percentile is meaningful even with a small user base.
+    """
+    # --- Try standard path (consents) first ---
     me_rows = db.execute(
         text(
             """
-            SELECT DISTINCT ON (skill_id) skill_id, level
+            SELECT DISTINCT ON (sp.skill_id) sp.skill_id, sp.level
             FROM skill_proficiency sp
             JOIN consents c ON c.doc_id = sp.doc_id::text
             WHERE c.user_id = :uid AND c.status = 'granted'
-            ORDER BY skill_id, created_at DESC
+            ORDER BY sp.skill_id, sp.created_at DESC
             """
         ),
         {"uid": ident.subject_id},
     ).mappings().all()
+
+    # --- Fallback: via documents table ownership ---
+    if not me_rows:
+        me_rows = db.execute(
+            text(
+                """
+                SELECT DISTINCT ON (sp.skill_id) sp.skill_id, sp.level
+                FROM skill_proficiency sp
+                JOIN documents d ON d.doc_id = sp.doc_id::text
+                WHERE d.user_id = :uid
+                ORDER BY sp.skill_id, sp.created_at DESC
+                """
+            ),
+            {"uid": ident.subject_id},
+        ).mappings().all()
+
+    # --- Fallback: skill_assessment_snapshots which has subject_id directly ---
+    use_snapshots = False
+    if not me_rows:
+        snap_rows = db.execute(
+            text(
+                """
+                SELECT DISTINCT ON (skill_id) skill_id, level
+                FROM skill_assessment_snapshots
+                WHERE subject_id = :uid AND level IS NOT NULL
+                ORDER BY skill_id, created_at DESC
+                """
+            ),
+            {"uid": ident.subject_id},
+        ).mappings().all()
+        if snap_rows:
+            me_rows = snap_rows
+            use_snapshots = True
+
     out = []
     for row in me_rows:
         sid = str(row["skill_id"])
         level = int(row["level"] or 0)
-        pct = db.execute(
-            text(
-                """
-                WITH latest AS (
-                  SELECT DISTINCT ON (c.user_id, sp.skill_id) c.user_id, sp.skill_id, sp.level
-                  FROM skill_proficiency sp
-                  JOIN consents c ON c.doc_id = sp.doc_id::text
-                  WHERE c.status = 'granted' AND sp.skill_id = :sid
-                  ORDER BY c.user_id, sp.skill_id, sp.created_at DESC
-                )
-                SELECT COALESCE(
-                  ROUND(100.0 * SUM(CASE WHEN level <= :lvl THEN 1 ELSE 0 END) / NULLIF(COUNT(*),0), 2),
-                  0
-                ) AS pct
-                FROM latest
-                """
-            ),
-            {"sid": sid, "lvl": level},
-        ).scalar() or 0
+
+        if use_snapshots:
+            # Peer percentile via skill_assessment_snapshots (has subject_id)
+            pct = db.execute(
+                text(
+                    """
+                    WITH latest AS (
+                      SELECT DISTINCT ON (subject_id, skill_id) subject_id, skill_id, level
+                      FROM skill_assessment_snapshots
+                      WHERE skill_id = :sid AND level IS NOT NULL
+                      ORDER BY subject_id, skill_id, created_at DESC
+                    )
+                    SELECT COALESCE(
+                      ROUND(100.0 * SUM(CASE WHEN level <= :lvl THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2),
+                      50
+                    ) AS pct FROM latest
+                    """
+                ),
+                {"sid": sid, "lvl": level},
+            ).scalar() or 50
+        else:
+            # Peer percentile via consents path
+            pct = db.execute(
+                text(
+                    """
+                    WITH latest AS (
+                      SELECT DISTINCT ON (c.user_id, sp.skill_id) c.user_id, sp.skill_id, sp.level
+                      FROM skill_proficiency sp
+                      JOIN consents c ON c.doc_id = sp.doc_id::text
+                      WHERE c.status = 'granted' AND sp.skill_id = :sid
+                      ORDER BY c.user_id, sp.skill_id, sp.created_at DESC
+                    )
+                    SELECT COALESCE(
+                      ROUND(100.0 * SUM(CASE WHEN level <= :lvl THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2),
+                      50
+                    ) AS pct FROM latest
+                    """
+                ),
+                {"sid": sid, "lvl": level},
+            ).scalar() or 50
         out.append({"skill_id": sid, "level": level, "percentile": float(pct)})
     return {"count": len(out), "items": out}
 

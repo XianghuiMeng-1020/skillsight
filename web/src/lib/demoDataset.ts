@@ -92,3 +92,21 @@ export const DEMO_RECENT_ASSESSMENT_UPDATES = [
     skill_update: { level: 2, label: 'mentioned', updated_at: '2026-04-06T08:01:00Z' },
   },
 ];
+
+export const DEMO_PEER_BENCHMARK = [
+  { skill_id: 'Data Analysis', level: 2, percentile: 68 },
+  { skill_id: 'SQL', level: 2, percentile: 72 },
+  { skill_id: 'Python Programming', level: 1, percentile: 45 },
+  { skill_id: 'Data Visualization', level: 1, percentile: 38 },
+  { skill_id: 'Statistical Analysis', level: 2, percentile: 61 },
+  { skill_id: 'Machine Learning', level: 0, percentile: 22 },
+  { skill_id: 'Project Management', level: 1, percentile: 50 },
+  { skill_id: 'Communication', level: 2, percentile: 75 },
+];
+
+export const DEMO_JOBS_LIVE = [
+  { posting_id: 'demo-job-1', source_site: 'jobsdb_hk', title: 'Data Analyst', company: 'HSBC', location: 'Hong Kong', salary: 'HKD 28,000 – 38,000/month', source_url: 'https://hk.jobsdb.com/', match_score: 72, matched_skills: ['Data Analysis', 'SQL'] },
+  { posting_id: 'demo-job-2', source_site: 'jobsdb_hk', title: 'Business Analyst', company: 'Deloitte HK', location: 'Hong Kong', salary: 'HKD 32,000 – 45,000/month', source_url: 'https://hk.jobsdb.com/', match_score: 65, matched_skills: ['Data Analysis'] },
+  { posting_id: 'demo-job-3', source_site: 'ctgoodjobs_hk', title: 'Data Scientist', company: 'WeLab', location: 'Hong Kong', salary: 'HKD 40,000 – 60,000/month', source_url: 'https://www.ctgoodjobs.hk/', match_score: 55, matched_skills: ['Python Programming', 'Machine Learning'] },
+  { posting_id: 'demo-job-4', source_site: 'ctgoodjobs_hk', title: 'BI Developer', company: 'HKEX', location: 'Hong Kong', salary: 'HKD 35,000 – 50,000/month', source_url: 'https://www.ctgoodjobs.hk/', match_score: 48, matched_skills: ['SQL', 'Data Visualization'] },
+];
