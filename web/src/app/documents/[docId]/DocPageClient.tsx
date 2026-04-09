@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage, getDateLocale } from "@/lib/contexts";
 import { getToken, studentBff } from "@/lib/bffClient";
@@ -165,8 +165,19 @@ function Card({ title, icon, children, actions }: {
 export default function DocPage() {
   const { t, language } = useLanguage();
   const locale = getDateLocale(language);
-  const params = useParams<{ docId: string }>();
-  const docId = params?.docId;
+  const params = useParams<{ docId?: string }>();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const docId = useMemo(() => {
+    if (params?.docId) return params.docId;
+    const fromQuery = searchParams?.get("docId");
+    if (fromQuery) return fromQuery;
+    if (pathname?.startsWith("/documents/")) {
+      const value = pathname.slice("/documents/".length).split("/")[0];
+      if (value && value !== "_") return decodeURIComponent(value);
+    }
+    return undefined;
+  }, [params?.docId, pathname, searchParams]);
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
   const authHeaders = useMemo(() => {
