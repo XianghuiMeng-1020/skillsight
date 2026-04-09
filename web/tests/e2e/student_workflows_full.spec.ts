@@ -202,11 +202,16 @@ test.describe('Student workflows – all routes and combinations', () => {
     await page.goto(`${FRONTEND}/login`);
     token = await devLogin(page, TEST_USER);
     await page.goto(`${FRONTEND}/dashboard`);
-    await page.click('a[href="/dashboard/upload"]');
+    await page.waitForLoadState('networkidle');
+    const uploadLink = page.locator('a[href="/dashboard/upload"]').first();
+    await uploadLink.waitFor({ state: 'visible', timeout: 15_000 });
+    await uploadLink.click();
     await expect(page).toHaveURL(/\/dashboard\/upload/);
     const tmpFile = path.join(os.tmpdir(), `e2e_flow_d_${Date.now()}.txt`);
     fs.writeFileSync(tmpFile, 'Flow D in-dashboard upload.\n');
     await page.locator('input[type="file"]').setInputFiles(tmpFile);
+    await page.locator('input[name="purpose"][value="skill_assessment"]').check();
+    await page.locator('input[name="scope"][value="full"]').check();
     await page.getByRole('checkbox', { name: /consent|同意/i }).check();
     await expect(uploadButton(page)).toBeEnabled();
     await uploadButton(page).click();
