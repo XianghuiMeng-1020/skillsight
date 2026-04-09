@@ -188,7 +188,7 @@ function ResumePageContent() {
         </header>
 
         <div className={styles.stepContent}>
-          <ResumeStepErrorBoundary retryLabel={t('common.retry')}>
+          <ResumeStepErrorBoundary retryLabel={t('common.retry')} fallbackLabel={t('common.somethingWentWrong')}>
             {step === 1 && (
               <ResumeUploader
                 onStart={handleStartReview}

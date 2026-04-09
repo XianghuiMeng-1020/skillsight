@@ -954,7 +954,7 @@ export default function AssessmentsPage() {
                         resize: 'vertical',
                         lineHeight: '1.8'
                       }}
-                      placeholder="Start typing your essay here..."
+                      placeholder={t('assessmentsList.essayPlaceholder') as string}
                       value={essay}
                       onChange={(e) => setEssay(e.target.value)}
                       onKeyDown={keystrokeTracker.handleKeyDown}
@@ -1009,7 +1009,7 @@ export default function AssessmentsPage() {
                     <textarea
                       className="input"
                       style={{ minHeight: '180px', resize: 'vertical', marginBottom: '0.75rem' }}
-                      placeholder="Your analysis and insights..."
+                      placeholder={t('assessmentsList.dataAnalysisPlaceholder') as string}
                       value={dataAnalysis}
                       onChange={(e) => setDataAnalysis(e.target.value)}
                     />

@@ -33,14 +33,14 @@ export class ResumeStepErrorBoundary extends Component<Props, State> {
       return (
         <div className={styles.stepContent} style={{ padding: '1.5rem' }}>
           <p style={{ color: 'var(--error)', marginBottom: '0.5rem' }}>
-            {(this.state.error && this.state.error.message) || 'Something went wrong'}
+            {(this.state.error && this.state.error.message) || this.props.fallbackLabel || 'Something went wrong'}
           </p>
           <button
             type="button"
             className="btn btn-primary btn-sm"
             onClick={() => this.setState({ hasError: false, error: null })}
           >
-            {this.props.retryLabel ?? 'Retry'}
+            {this.props.retryLabel || 'Retry'}
           </button>
         </div>
       );

@@ -473,3 +473,26 @@
   margin-top: 0.25rem;
   padding-left: 0.25rem;
 }
+
+/* ----- End-session exit button (shown at turn limit) ----- */
+.endSessionBtn {
+  padding: 0.5rem 1.25rem;
+  border-radius: 20px;
+  border: 1.5px solid var(--warning);
+  background: var(--white);
+  color: var(--warning);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.endSessionBtn:hover:not(:disabled) {
+  background: var(--warning-light, #fff8ec);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.endSessionBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
