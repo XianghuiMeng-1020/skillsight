@@ -11,7 +11,13 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
 from backend.app.services.resume_common import contains_cjk, split_contact_parts
-from backend.app.services.resume_template_service import ParsedResume, ResumeSection, parse_resume
+from backend.app.services.resume_template_service import (
+    ParsedResume,
+    ResumeSection,
+    _is_sub_header,
+    _section_wants_auto_bullet,
+    parse_resume,
+)
 
 SectionKind = Literal["summary", "experience", "education", "skills", "projects", "other"]
 
@@ -215,11 +221,19 @@ def html_preview_for_resume(resume_text: str, template_key: str, template_option
     parts: List[str] = []
     for sec in doc.sections:
         title = html.escape(sec.title)
+        auto_bullet = _section_wants_auto_bullet(sec.title)
         parts.append(f'<section class="sec"><h2>{title}</h2><div class="body">')
         for ln in sec.lines:
-            line = html.escape(ln.strip())
-            if ln.strip().startswith(("•", "-", "–", "*")) or re.match(r"^\d{1,2}[\.\)]\s", ln.strip()):
+            s = ln.strip()
+            line = html.escape(s)
+            if not s:
+                continue
+            if s.startswith(("•", "-", "–", "*")) or re.match(r"^\d{1,2}[\.\)]\s", s):
                 parts.append(f'<p class="bullet">{line}</p>')
+            elif _is_sub_header(s):
+                parts.append(f'<p class="sub-header">{line}</p>')
+            elif auto_bullet and len(s) >= 50 and not re.match(r"^[^:]{1,30}:\s", s):
+                parts.append(f'<p class="bullet">&bull; {line}</p>')
             else:
                 parts.append(f"<p>{line}</p>")
         parts.append("</div></section>")
@@ -235,8 +249,9 @@ header {{ text-align:center; padding:16px 0; border-bottom:2px solid {preview_ac
 h1 {{ margin:0; font-size:1.75rem; letter-spacing:0.05em; color:#fff; }}
 .contact {{ font-size:0.85rem; color:#cbd5e1; margin-top:8px; }}
 .sec h2 {{ font-size:0.95rem; color:{preview_accent}; text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:4px; margin:20px 0 8px; }}
-.body p {{ margin:6px 0; font-size:0.9rem; line-height:{line_scale / 100:.2f}; color:#d1d5db; }}
-.bullet {{ padding-left:12px; border-left:2px solid {preview_accent}; }}
+.body p {{ margin:5px 0; font-size:0.9rem; line-height:{line_scale / 100:.2f}; color:#d1d5db; text-align:left; }}
+.bullet {{ padding-left:14px; border-left:2px solid {preview_accent}; margin-left:4px; }}
+.sub-header {{ font-weight:700; color:#e2e8f0; margin-top:12px !important; font-size:0.92rem; }}
 </style></head><body><div class="wrap">
 <header><h1>{name}</h1><div class="contact">{contact}</div></header>
 {body_html}

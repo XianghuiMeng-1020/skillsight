@@ -483,9 +483,17 @@ def _emit_body_lines(
     left_border_on_bullets: bool = False,
     left_border_hex: str = "0a2a4a",
     font_fallback: Optional[str] = None,
+    auto_bullet_plain: bool = False,
 ) -> None:
-    """Shared body rendering: skip blank lines, unified bullets (•), 1.15 line spacing."""
+    """Shared body rendering with unified bullets, explicit alignment, and smart auto-bulleting.
+
+    When *auto_bullet_plain* is True, long plain-text lines (≥50 chars) that are
+    not sub-headers and not ``Label: value`` pairs are rendered as bullet points.
+    This makes achievement descriptions under experience / project sections look
+    professional without requiring the source text to contain bullet markers.
+    """
     from docx.shared import Pt
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
 
     eff_fallback = font_fallback
     if eff_fallback is None:
@@ -501,7 +509,13 @@ def _emit_body_lines(
             re.match(r"^\d{1,2}[\.\)]\s+\S", stripped)
         )
         is_sub = _is_sub_header(stripped) and not is_bullet
+
+        if auto_bullet_plain and not is_bullet and not is_sub:
+            if len(stripped) >= 50 and not re.match(r"^[^:]{1,30}:\s", stripped):
+                is_bullet = True
+
         p = add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
         if is_bullet:
             text = re.sub(r"^\d{1,2}[\.\)]\s*", "", stripped)
             text = text.lstrip("•-–▪►✦* ").strip()
@@ -534,7 +548,7 @@ def _emit_body_lines(
         if is_bullet:
             _set_paragraph_spacing(p, before=1, after=2)
         elif is_sub:
-            _set_paragraph_spacing(p, before=8, after=2)
+            _set_paragraph_spacing(p, before=10, after=2)
         else:
             _set_paragraph_spacing(p, before=1, after=2)
 
@@ -683,6 +697,19 @@ def _is_skills_section(title: str) -> bool:
     return title.strip() in {"技能", "专业技能", "技术技能", "核心技能"}
 
 
+def _section_wants_auto_bullet(title: str) -> bool:
+    """Sections whose plain description lines should render as bullets (experience, projects, etc.)."""
+    t = title.strip().lower()
+    for kw in ("experience", "employment", "work", "project", "volunteer", "activit", "internship"):
+        if kw in t:
+            return True
+    zh = title.strip()
+    for kw_zh in ("经历", "经验", "项目", "实习"):
+        if kw_zh in zh:
+            return True
+    return False
+
+
 def _format_skills_inline(lines: List[str]) -> str:
     """Convert skills lines into readable text; preserve 'Label: a, b' as structured segments."""
     structured, flat = split_skills_lines(lines)
@@ -814,6 +841,7 @@ def _build_professional_classic(parsed: ParsedResume) -> bytes:
             sub_rgb=RGBColor(0x2a, 0x2a, 0x2a),
             bullet_left=Inches(0.3),
             bullet_hang=Inches(-0.15),
+            auto_bullet_plain=_section_wants_auto_bullet(section.title),
         )
 
     _finalize_doc_header_footer(doc, parsed)
@@ -949,11 +977,6 @@ def _build_modern_tech(parsed: ParsedResume) -> bytes:
         _set_paragraph_spacing(p, before=0, after=6)
         p.paragraph_format.left_indent = Inches(0.1)
 
-        def _add_paragraph_main():
-            p2 = right_cell.add_paragraph()
-            p2.paragraph_format.left_indent = Inches(0.1)
-            return p2
-
         _emit_body_lines(
             right_cell.add_paragraph,
             msec.lines,
@@ -965,6 +988,7 @@ def _build_modern_tech(parsed: ParsedResume) -> bytes:
             bullet_left=Inches(0.35),
             bullet_hang=Inches(-0.15),
             body_left_indent=Inches(0.1),
+            auto_bullet_plain=_section_wants_auto_bullet(msec.title),
         )
 
     _finalize_doc_header_footer(doc, parsed)
@@ -1067,6 +1091,7 @@ def _build_creative_portfolio(parsed: ParsedResume) -> bytes:
             bullet_hang=Inches(-0.15),
             body_left_indent=Inches(0.2),
             sub_italic=True,
+            auto_bullet_plain=_section_wants_auto_bullet(section.title),
         )
 
     _finalize_doc_header_footer(doc, parsed)
@@ -1160,6 +1185,7 @@ def _build_academic_research(parsed: ParsedResume) -> bytes:
             body_left_indent=Inches(0.3),
             left_border_on_bullets=True,
             left_border_hex="0a2a4a",
+            auto_bullet_plain=_section_wants_auto_bullet(section.title),
         )
 
     _finalize_doc_header_footer(doc, parsed)
@@ -1254,6 +1280,7 @@ def _build_executive(parsed: ParsedResume) -> bytes:
             bullet_left=Inches(0.4),
             bullet_hang=Inches(-0.2),
             body_left_indent=Inches(0.1),
+            auto_bullet_plain=_section_wants_auto_bullet(section.title),
         )
 
     _finalize_doc_header_footer(doc, parsed)
@@ -1329,6 +1356,7 @@ def _build_minimalist_clean(parsed: ParsedResume) -> bytes:
             sub_rgb=BLACK,
             bullet_left=Inches(0.2),
             bullet_hang=Inches(-0.12),
+            auto_bullet_plain=_section_wants_auto_bullet(section.title),
         )
 
     _finalize_doc_header_footer(doc, parsed)
@@ -1425,6 +1453,7 @@ def _build_corporate_elegance(parsed: ParsedResume) -> bytes:
             sub_rgb=DARK,
             bullet_left=Inches(0.35),
             bullet_hang=Inches(-0.15),
+            auto_bullet_plain=_section_wants_auto_bullet(section.title),
         )
 
     _finalize_doc_header_footer(doc, parsed)
@@ -1542,6 +1571,7 @@ def _build_fresh_graduate(parsed: ParsedResume) -> bytes:
             sub_rgb=DARK,
             bullet_left=Inches(0.3),
             bullet_hang=Inches(-0.15),
+            auto_bullet_plain=_section_wants_auto_bullet(section.title),
         )
 
     _finalize_doc_header_footer(doc, parsed)
