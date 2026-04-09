@@ -42,6 +42,23 @@ function ResumePageContent() {
   const [resumeOverrideText, setResumeOverrideText] = useState('');
   const [templateOptions, setTemplateOptions] = useState<Record<string, unknown>>({});
 
+  // Validate URL params: step > 1 requires review_id
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stepParam = searchParams.get('step');
+    const reviewParam = searchParams.get('review_id');
+    const stepNum = stepParam ? parseInt(stepParam, 10) : 0;
+    // If step > 1 but no review_id, reset to step 1
+    if (stepNum > 1 && !reviewParam) {
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('step');
+      params.delete('review_id');
+      router.replace(params.toString() ? `${pathname}?${params.toString()}` : pathname, { scroll: false });
+      setStep(1);
+      setReviewId(null);
+    }
+  }, [searchParams, pathname, router]);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && !getToken()) {
       window.location.href = '/login';

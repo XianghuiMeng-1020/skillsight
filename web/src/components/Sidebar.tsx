@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, type MouseEvent } from 'react';
 import ApiStatus from './ApiStatus';
 import DemoSafeHint from './DemoSafeHint';
 import { useLanguage, type Language } from '@/lib/contexts';
@@ -137,9 +137,14 @@ export default function Sidebar() {
 
   useEffect(() => {
     if (isAdmin) return;
-    studentBff.getNotifications(20)
+    const controller = new AbortController();
+    studentBff.getNotifications(20, controller.signal)
       .then((r) => setUnreadNotifications(Number(r.unread_count || 0)))
-      .catch(() => setUnreadNotifications(0));
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === 'AbortError') return;
+        setUnreadNotifications(0);
+      });
+    return () => controller.abort();
   }, [isAdmin, pathname]);
 
   useEffect(() => {
@@ -187,6 +192,12 @@ export default function Sidebar() {
     localStorage.removeItem('user');
     clearToken();
     window.location.href = '/login';
+  };
+
+  const handleLogoutClick = (e: MouseEvent<HTMLButtonElement>) => {
+    // Prevent bubbling to parent user-info click handler (/settings).
+    e.stopPropagation();
+    handleLogout();
   };
 
   return (
@@ -240,7 +251,7 @@ export default function Sidebar() {
                   title={item.hintKey ? t(item.hintKey) : ''}
                   onClick={isMobile ? closeMobile : undefined}
                 >
-                  <span className="nav-item-icon">{item.icon}</span>
+                  <span className="nav-item-icon" aria-hidden="true">{item.icon}</span>
                   <span className="nav-item-text">
                     <span>{t(item.labelKey)}</span>
                     {item.descKey ? <span className="nav-item-desc">{t(item.descKey)}</span> : null}
@@ -261,7 +272,7 @@ export default function Sidebar() {
               title={item.hintKey ? t(item.hintKey) : ''}
               onClick={isMobile ? closeMobile : undefined}
             >
-              <span className="nav-item-icon">{item.icon}</span>
+              <span className="nav-item-icon" aria-hidden="true">{item.icon}</span>
               <span>{t(item.labelKey)}</span>
             </Link>
           ))}
@@ -298,6 +309,7 @@ export default function Sidebar() {
             <button
               key={lang}
               onClick={() => setLanguage(lang)}
+              aria-pressed={language === lang}
               style={{
                 flex: 1,
                 padding: '0.25rem 0',
@@ -329,7 +341,7 @@ export default function Sidebar() {
           <button
             className="btn btn-ghost btn-sm"
             style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', padding: '0.375rem 0.5rem' }}
-            onClick={handleLogout}
+            onClick={handleLogoutClick}
             title={t('action.signOut')}
             aria-label={t('action.signOut')}
           >
@@ -350,6 +362,7 @@ export default function Sidebar() {
             return (
               <Link key={`mb-${item.href}`} href={item.href} className={`mobile-bottom-item ${isActive ? 'active' : ''}`}>
                 <span aria-hidden>{item.icon}</span>
+                <span style={{ fontSize: '0.625rem', lineHeight: 1.1 }}>{t(item.labelKey)}</span>
               </Link>
             );
           })}

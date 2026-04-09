@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { translations, type Translations } from './translations';
 
@@ -23,41 +23,73 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('light');
   const [mounted, setMounted] = useState(false);
+  const hasUserThemeRef = useRef(false);
+
+  const applyThemeToDom = useCallback((nextTheme: Theme) => {
+    if (typeof document === 'undefined') return;
+    document.documentElement.setAttribute('data-theme', nextTheme);
+    // Keep native form controls readable in both themes.
+    document.documentElement.style.setProperty('color-scheme', nextTheme);
+  }, []);
 
   useEffect(() => {
     setMounted(true);
     try {
       const savedTheme = localStorage.getItem('skillsight-theme') as Theme;
       if (savedTheme) {
+        hasUserThemeRef.current = true;
         setThemeState(savedTheme);
-        document.documentElement.setAttribute('data-theme', savedTheme);
+        applyThemeToDom(savedTheme);
       } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         setThemeState('dark');
-        document.documentElement.setAttribute('data-theme', 'dark');
+        applyThemeToDom('dark');
+      } else {
+        applyThemeToDom('light');
       }
     } catch (e) {
       console.warn('Failed to read theme from localStorage:', e);
     }
-  }, []);
+  }, [applyThemeToDom]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const onMediaChange = (event: MediaQueryListEvent) => {
+      // Respect explicit user choice; only auto-sync if no saved preference.
+      if (hasUserThemeRef.current) return;
+      const nextTheme: Theme = event.matches ? 'dark' : 'light';
+      setThemeState(nextTheme);
+      applyThemeToDom(nextTheme);
+    };
+    media.addEventListener('change', onMediaChange);
+    return () => media.removeEventListener('change', onMediaChange);
+  }, [applyThemeToDom]);
 
   const setTheme = useCallback((newTheme: Theme) => {
+    hasUserThemeRef.current = true;
     setThemeState(newTheme);
     try {
       localStorage.setItem('skillsight-theme', newTheme);
     } catch (e) {
       console.warn('Failed to save theme to localStorage:', e);
     }
-    document.documentElement.setAttribute('data-theme', newTheme);
-  }, []);
+    applyThemeToDom(newTheme);
+  }, [applyThemeToDom]);
 
   const toggleTheme = useCallback(() => {
     setTheme(theme === 'light' ? 'dark' : 'light');
   }, [theme, setTheme]);
 
   // Always provide context so useTheme() never throws (SSR-safe when !mounted)
-  const value = mounted
-    ? { theme, toggleTheme, setTheme }
-    : { theme: 'light' as Theme, toggleTheme: () => {}, setTheme: () => {} };
+  const fallbackThemeValue = useMemo<ThemeContextType>(() => ({
+    theme: 'light',
+    toggleTheme: () => {},
+    setTheme: () => {},
+  }), []);
+  const value = useMemo<ThemeContextType>(
+    () => (mounted ? { theme, toggleTheme, setTheme } : fallbackThemeValue),
+    [mounted, theme, toggleTheme, setTheme, fallbackThemeValue]
+  );
 
   return (
     <ThemeContext.Provider value={value}>
@@ -140,13 +172,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [language]);
 
   // Always provide context so useLanguage() never throws (SSR-safe when !mounted)
-  const value = mounted
-    ? { language, setLanguage, t }
-    : {
-        language: 'zh' as Language,
-        setLanguage: (() => {}) as (lang: Language) => void,
-        t: ((key: string) => translations[key]?.zh ?? key) as (key: string) => string,
-      };
+  const fallbackLanguageValue = useMemo<LanguageContextType>(() => ({
+    language: 'zh',
+    setLanguage: () => {},
+    t: (key: string) => translations[key]?.zh ?? key,
+  }), []);
+  const value = useMemo<LanguageContextType>(
+    () => (mounted ? { language, setLanguage, t } : fallbackLanguageValue),
+    [mounted, language, setLanguage, t, fallbackLanguageValue]
+  );
 
   return (
     <LanguageContext.Provider value={value}>
@@ -262,20 +296,33 @@ export function TutorialProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const tutorialValue = useMemo<TutorialContextType>(() => ({
+    showTutorial,
+    currentStep,
+    totalSteps,
+    tutorialName,
+    setTutorialName,
+    startTutorial,
+    nextStep,
+    prevStep,
+    skipTutorial,
+    completeTutorial,
+  }), [
+    showTutorial,
+    currentStep,
+    totalSteps,
+    tutorialName,
+    setTutorialName,
+    startTutorial,
+    nextStep,
+    prevStep,
+    skipTutorial,
+    completeTutorial,
+  ]);
+
   return (
     <TutorialContext.Provider
-      value={{
-        showTutorial,
-        currentStep,
-        totalSteps,
-        tutorialName,
-        setTutorialName,
-        startTutorial,
-        nextStep,
-        prevStep,
-        skipTutorial,
-        completeTutorial,
-      }}
+      value={tutorialValue}
     >
       {children}
     </TutorialContext.Provider>

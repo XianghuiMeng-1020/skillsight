@@ -34,6 +34,7 @@ export default function StudentChangeLogPage() {
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loadingMore, setLoadingMore] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(60);
 
   const fetchData = async () => {
     setLoading(true);
@@ -47,6 +48,7 @@ export default function StudentChangeLogPage() {
       }
       const res = await studentBff.getChangeLog(50);
       setData(res as { items: ChangeLogItem[]; next_cursor?: string; refusal?: { code: string; message: string; next_step: string } });
+      setVisibleCount(60);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('changelog.loadFailedGeneric'));
       setData(null);
@@ -68,6 +70,7 @@ export default function StudentChangeLogPage() {
         items: [...prev.items, ...res.items],
         next_cursor: res.next_cursor,
       } : prev);
+      setVisibleCount((v) => v + 50);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('changelog.loadFailedGeneric'));
     } finally {
@@ -137,7 +140,7 @@ export default function StudentChangeLogPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-              {(data.items as ChangeLogItem[]).map(item => {
+              {(data.items as ChangeLogItem[]).slice(0, visibleCount).map(item => {
                 const isExpanded = expanded.has(item.id);
                 const eventLabel = EVENT_LABEL_KEYS[item.event_type] ? t(EVENT_LABEL_KEYS[item.event_type]) : item.event_type;
                 return (

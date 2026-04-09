@@ -85,6 +85,7 @@ interface RequestOptions {
   role?: BffRole;
   purpose?: string;
   headers?: Record<string, string>;
+  signal?: AbortSignal;
 }
 
 async function bffRequest<T = unknown>(
@@ -107,6 +108,7 @@ async function bffRequest<T = unknown>(
       const res = await fetch(`${BFF_BASE}${path}`, {
         method: options.method || 'GET',
         headers,
+        signal: options.signal,
         ...(options.body !== undefined
           ? { body: JSON.stringify(options.body) }
           : {}),
@@ -147,55 +149,6 @@ export class BffError extends Error {
     super(`BFF request failed with status ${status}`);
     this.name = 'BffError';
   }
-}
-
-// ─── Student BFF response types (for type-safe usage in pages) ─────────────────
-
-export interface ProfileSkillEntry {
-  skill_id: string;
-  canonical_name: string;
-  label?: string;
-  level?: number;
-  rationale?: string;
-  evidence_items?: Array<{ chunk_id: string; snippet: string; section_path?: string; page_start?: number; doc_id: string }>;
-}
-
-export interface ProfileResponse {
-  subject_id: string;
-  documents_count?: number;
-  documents?: Array<{ doc_id: string; filename: string; status: string; scope?: string; created_at?: string }>;
-  skills?: ProfileSkillEntry[];
-  generated_at?: string;
-  recent_assessment_events?: unknown[];
-  recent_role_events?: Array<{ role_id?: string; role_title?: string; score?: number; created_at?: string }>;
-  recent_export_events?: Array<{ action?: string; created_at?: string }>;
-  stale_skills?: Array<{ skill_id: string; skill_name: string; level?: number; label?: string; last_updated_at?: string }>;
-}
-
-export interface LeaderboardResponse {
-  my_rank: number | null;
-  my_points: number;
-  top: Array<{ rank: number; points: number }>;
-}
-
-export interface CareerSummaryResponse {
-  summary: string;
-  gap_skills: string[];
-  top_actions: string[];
-  export_statement_url?: string;
-}
-
-export interface ExportStatementResponse {
-  subject_id: string;
-  generated_at: string;
-  verification_token?: string;
-  statement: {
-    total_skills_assessed: number;
-    demonstrated_skills: number;
-    total_evidence_items: number;
-    documents: Array<{ doc_id: string; filename: string; status: string; scope?: string }>;
-    skills: Array<{ skill_id: string; canonical_name: string; label: string; rationale?: string; evidence_items?: Array<{ chunk_id: string; snippet: string; doc_id: string; section_path?: string; page_start?: number }> }>;
-  };
 }
 
 // ─── Auth (shared across roles) ───────────────────────────────────────────────
@@ -427,19 +380,22 @@ export interface AutoAssessResponse {
 // ─── Student BFF client (re-export pattern for consistency) ──────────────────
 
 export const studentBff = {
-  getDocuments: (limit?: number) =>
+  getDocuments: (limit?: number, signal?: AbortSignal) =>
     bffRequest<{ items: unknown[]; count: number }>(
-      `/bff/student/documents${limit ? `?limit=${limit}` : ''}`
+      `/bff/student/documents${limit ? `?limit=${limit}` : ''}`,
+      { signal }
     ),
 
-  getSkills: (limit?: number) =>
+  getSkills: (limit?: number, signal?: AbortSignal) =>
     bffRequest<{ items: unknown[] }>(
-      `/bff/student/skills${limit ? `?limit=${limit}` : ''}`
+      `/bff/student/skills${limit ? `?limit=${limit}` : ''}`,
+      { signal }
     ),
 
-  getRoles: (limit?: number) =>
+  getRoles: (limit?: number, signal?: AbortSignal) =>
     bffRequest<{ items: unknown[] }>(
-      `/bff/student/roles${limit ? `?limit=${limit}` : ''}`
+      `/bff/student/roles${limit ? `?limit=${limit}` : ''}`,
+      { signal }
     ),
 
   getRoleAlignmentBatch: (roleIds: string[], docId: string) =>
@@ -484,12 +440,13 @@ export const studentBff = {
     return res.json();
   },
 
-  getProfile: (userId?: string) =>
+  getProfile: (userId?: string, signal?: AbortSignal) =>
     bffRequest<ProfileResponse>(
-      `/bff/student/profile${userId ? `?user_id=${userId}` : ''}`
+      `/bff/student/profile${userId ? `?user_id=${userId}` : ''}`,
+      { signal }
     ),
 
-  getRecentAssessmentUpdates: (limit = 10) =>
+  getRecentAssessmentUpdates: (limit = 10, signal?: AbortSignal) =>
     bffRequest<{
       user_id: string;
       count: number;
@@ -509,7 +466,24 @@ export const studentBff = {
           updated_at?: string;
         } | null;
       }>;
-    }>(`/bff/student/assessments/recent?limit=${Math.max(1, Math.min(limit, 50))}`),
+    }>(`/bff/student/assessments/recent?limit=${Math.max(1, Math.min(limit, 50))}`, { signal }),
+
+  interactiveStart: <T = unknown>(assessmentType: string, body: Record<string, unknown>) =>
+    bffRequest<T>(`/interactive/${assessmentType}/start`, {
+      method: 'POST',
+      body,
+    }),
+
+  interactiveSubmit: <T = unknown>(
+    assessmentType: string,
+    body: Record<string, unknown>,
+    headers?: Record<string, string>
+  ) =>
+    bffRequest<T>(`/interactive/${assessmentType}/submit`, {
+      method: 'POST',
+      body,
+      headers,
+    }),
 
   getConsents: () =>
     bffRequest<unknown>('/bff/student/consents'),
@@ -548,6 +522,9 @@ export const studentBff = {
       `/bff/student/tutor-session/${sessionId}/message`,
       { method: 'POST', body: { content } }
     ),
+
+  tutorSessionEnd: (sessionId: string) =>
+    bffRequest<{ success: boolean }>(`/bff/student/tutor-session/${sessionId}/end`, { method: 'POST' }),
 
   getCourseRecommendations: (roleId?: string, skillIds?: string[]) =>
     bffRequest<{
@@ -956,7 +933,7 @@ export const studentBff = {
     }>('/actions/share/status'),
 
   getPeerBenchmark: () =>
-    bffRequest<{ count: number; items: Array<{ skill_id: string; level: number; percentile: number }> }>(
+    bffRequest<{ count: number; items: Array<{ skill_id: string; level: number; percentile: number | null }> }>(
       '/bff/student/peer-benchmark'
     ),
 
@@ -972,7 +949,7 @@ export const studentBff = {
       source_postings_count?: number;
     }>('/bff/student/market-insights'),
 
-  getJobsLive: (params?: { q?: string; source_site?: string; limit?: number }) => {
+  getJobsLive: (params?: { q?: string; source_site?: string; limit?: number; signal?: AbortSignal }) => {
     const qs = new URLSearchParams();
     if (params?.q) qs.set('q', params.q);
     if (params?.source_site) qs.set('source_site', params.source_site);
@@ -991,7 +968,7 @@ export const studentBff = {
         match_score?: number;
         matched_skills?: string[];
       }>;
-    }>(`/bff/student/jobs-live${qs.toString() ? `?${qs.toString()}` : ''}`);
+    }>(`/bff/student/jobs-live${qs.toString() ? `?${qs.toString()}` : ''}`, { signal: params?.signal });
   },
 
   importGithubRepo: (repoUrl: string) =>
@@ -1011,9 +988,10 @@ export const studentBff = {
       '/bff/student/timeline/export-report'
     ),
 
-  getNotifications: (limit = 20) =>
+  getNotifications: (limit = 20, signal?: AbortSignal) =>
     bffRequest<{ count: number; unread_count: number; items: Array<{ notification_id: string; title: string; message: string; source_url?: string; is_read: boolean; created_at?: string }> }>(
-      `/bff/student/notifications?limit=${Math.max(1, Math.min(limit, 100))}`
+      `/bff/student/notifications?limit=${Math.max(1, Math.min(limit, 100))}`,
+      { signal }
     ),
 
   markNotificationRead: (notificationId: string) =>

@@ -21,6 +21,9 @@ RATE_LIMIT_SCOPES = {
     "interactive": "/interactive/",
     "roles_import": "/roles/import",
     "skills_import": "/skills/import",
+    "bff_student_upload": "/bff/student/documents/upload",
+    "bff_student_auto_assess": "/bff/student/documents/",
+    "bff_student_interactive": "/bff/student/interactive/",
 }
 
 # In-memory fallback: scope -> (client_key -> (count, window_start))
@@ -87,6 +90,12 @@ def _scope_for_path(path: str) -> Optional[str]:
         return "roles_import"
     if path.startswith("/skills/import"):
         return "skills_import"
+    if path.startswith("/bff/student/documents/upload"):
+        return "bff_student_upload"
+    if path.startswith("/bff/student/documents/") and path.endswith("/auto-assess"):
+        return "bff_student_auto_assess"
+    if path.startswith("/bff/student/interactive/"):
+        return "bff_student_interactive"
     return None
 
 
@@ -101,6 +110,9 @@ def _limit_for_scope(scope: str) -> int:
         "interactive": "RATE_LIMIT_PER_MINUTE_INTERACTIVE",
         "roles_import": "RATE_LIMIT_PER_MINUTE_IMPORT",
         "skills_import": "RATE_LIMIT_PER_MINUTE_IMPORT",
+        "bff_student_upload": "RATE_LIMIT_PER_MINUTE_UPLOAD",
+        "bff_student_auto_assess": "RATE_LIMIT_PER_MINUTE_ASSESS",
+        "bff_student_interactive": "RATE_LIMIT_PER_MINUTE_INTERACTIVE",
     }
     key = env_map.get(scope, "RATE_LIMIT_PER_MINUTE")
     default = 60

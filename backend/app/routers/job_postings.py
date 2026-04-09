@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -38,7 +39,7 @@ class JobPostingIn(BaseModel):
 
 @router.post("/import")
 def import_job_postings(
-    payload: List[JobPostingIn],
+    payload: Annotated[List[JobPostingIn], Field(max_length=500)],
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ) -> Dict[str, Any]:
@@ -122,9 +123,11 @@ def import_job_postings(
             skill_names = [str(r.get("canonical_name") or "").lower() for r in skill_rows if int(r.get("level") or 0) > 0]
             if not skill_names:
                 continue
+            # Compile word-boundary patterns for accurate skill matching (align with jobs-live logic)
+            skill_patterns = [re.compile(rf"(?<!\w){re.escape(s)}(?!\w)") for s in skill_names[:15] if s]
             hit_count = 0
             for txt in posting_texts:
-                if any(s and s in txt for s in skill_names[:15]):
+                if any(p.search(txt) for p in skill_patterns):
                     hit_count += 1
             if hit_count <= 0:
                 continue

@@ -75,9 +75,9 @@ export function ShareButton({ userName, skills, overallScore, onShareSuccess }: 
         style={{
           padding: '0.625rem 1rem',
           borderRadius: '10px',
-          border: '2px solid #E7E5E4',
-          background: 'white',
-          color: '#44403C',
+          border: '2px solid var(--gray-300)',
+          background: 'var(--bg-primary)',
+          color: 'var(--gray-800)',
           fontWeight: 500,
           fontSize: '0.875rem',
           cursor: 'pointer',
@@ -91,8 +91,8 @@ export function ShareButton({ userName, skills, overallScore, onShareSuccess }: 
           e.currentTarget.style.background = 'var(--sage-50)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = '#E7E5E4';
-          e.currentTarget.style.background = 'white';
+          e.currentTarget.style.borderColor = 'var(--gray-300)';
+          e.currentTarget.style.background = 'var(--bg-primary)';
         }}
       >
         📤 {t('share.button')}
@@ -143,7 +143,7 @@ function ShareModal({
     try {
       const { toPng } = await import('html-to-image');
       const dataUrl = await toPng(cardRef.current, {
-        backgroundColor: '#ffffff',
+        backgroundColor: 'var(--bg-primary)',
         pixelRatio: 2,
       });
 
@@ -179,10 +179,10 @@ function ShareModal({
           <div
             ref={cardRef}
             style={{
-              background: 'linear-gradient(135deg, #98B8A8 0%, #C9DDE3 50%, #F9CE9C 100%)',
+              background: 'linear-gradient(135deg, var(--sage) 0%, var(--primary-light) 50%, var(--warning-200) 100%)',
               borderRadius: '16px',
               padding: '1.5rem',
-              color: 'white',
+              color: 'var(--text-on-dark)',
             }}
           >
             {/* Logo */}
@@ -293,7 +293,7 @@ function ShareModal({
               padding: '0.875rem',
               borderRadius: '10px',
               border: '1px solid var(--gray-200)',
-              background: copied ? 'var(--sage-50)' : 'white',
+              background: copied ? 'var(--sage-50)' : 'var(--bg-primary)',
               color: copied ? 'var(--sage-dark)' : 'var(--gray-900)',
               fontWeight: 500,
               fontSize: '0.9375rem',
@@ -319,7 +319,7 @@ function ShareModal({
               padding: '0.875rem',
               borderRadius: '10px',
               border: '1px solid var(--gray-200)',
-              background: 'white',
+              background: 'var(--bg-primary)',
               color: 'var(--gray-900)',
               fontWeight: 500,
               fontSize: '0.9375rem',

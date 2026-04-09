@@ -48,9 +48,16 @@ export default function LoginPage() {
     setError('');
     try {
       const bffRole: BffRole = role === 'admin' ? 'admin' : 'student';
+      let hadUserBeforeLogin = false;
+      try {
+        hadUserBeforeLogin = !!localStorage.getItem('user');
+      } catch {
+        hadUserBeforeLogin = false;
+      }
       await devLogin({ subject_id: subjectId, role: bffRole, ttl_s: 43200 });
       try {
-        localStorage.removeItem('skillsight-tutorial-completed');
+        // Keep tutorial completion for returning users; only reset for first-time login.
+        if (!hadUserBeforeLogin) localStorage.removeItem('skillsight-tutorial-completed');
         localStorage.setItem('user', JSON.stringify({
           id: subjectId,
           name: displayName,
@@ -95,6 +102,7 @@ export default function LoginPage() {
           <button
             key={lang.value}
             onClick={() => setLanguage(lang.value as Language)}
+            aria-pressed={language === lang.value}
             style={{
               padding: '6px 12px', border: 'none', borderRadius: '6px', cursor: 'pointer',
               fontSize: '0.8rem', fontWeight: language === lang.value ? 700 : 400,

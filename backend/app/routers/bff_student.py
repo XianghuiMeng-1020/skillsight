@@ -15,6 +15,7 @@ import io
 import json
 import logging
 import os
+import re
 import uuid
 import base64
 from urllib.parse import urlparse
@@ -305,8 +306,9 @@ async def bff_embed(
     try:
         from backend.app.routers.chunks import embed_document_chunks
         result = embed_document_chunks(doc_id, db, ident)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+    except Exception:
+        _log.exception("Failed to embed chunks for doc_id=%s", doc_id)
+        raise HTTPException(status_code=500, detail="Failed to embed document chunks")
 
     log_audit(
         engine,
@@ -721,9 +723,10 @@ def bff_ai_demonstration(
             },
         )
         db.commit()
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to persist assessment: {e}")
+        _log.exception("Failed to persist assessment for skill_id=%s", payload.skill_id)
+        raise HTTPException(status_code=500, detail="Failed to persist assessment")
 
     # Compare with prev BEFORE writing new snapshot
     prev = get_prev_skill_snapshot(engine, ident.subject_id, payload.skill_id)
@@ -783,8 +786,41 @@ async def bff_student_profile(
     subject = ident.subject_id
 
     skills_rows = db.execute(
-        text("SELECT skill_id, canonical_name, definition FROM skills ORDER BY canonical_name LIMIT 20")
+        text(
+            """
+            WITH user_skills AS (
+                SELECT DISTINCT sp.skill_id
+                FROM skill_proficiency sp
+                JOIN consents c ON c.doc_id = sp.doc_id::text
+                WHERE c.user_id = :sub AND c.status = 'granted'
+
+                UNION
+
+                SELECT DISTINCT sa.skill_id
+                FROM skill_assessments sa
+                JOIN consents c ON c.doc_id = sa.doc_id::text
+                WHERE c.user_id = :sub AND c.status = 'granted'
+
+                UNION
+
+                SELECT DISTINCT s.skill_id
+                FROM skill_assessment_snapshots s
+                WHERE s.subject_id = :sub
+            )
+            SELECT sk.skill_id, sk.canonical_name, sk.definition
+            FROM skills sk
+            JOIN user_skills us ON us.skill_id = sk.skill_id
+            ORDER BY sk.canonical_name
+            LIMIT 50
+            """
+        ),
+        {"sub": subject},
     ).mappings().all()
+    if not skills_rows:
+        # Backward-compatible fallback for brand new users without any assessments.
+        skills_rows = db.execute(
+            text("SELECT skill_id, canonical_name, definition FROM skills ORDER BY canonical_name LIMIT 20")
+        ).mappings().all()
 
     consent_cols = set(_table_columns(db, "consents"))
     scope_select = "c.scope" if "scope" in consent_cols else "NULL::text AS scope"
@@ -1803,8 +1839,8 @@ def bff_career_summary(
             for a in actions[:3]:
                 title = a.get("title") or "Action"
                 top_actions.append(f"- {title}")
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.warning("career summary recommend_actions failed: %s", exc)
     actions_block = "\n".join(top_actions) if top_actions else "(Complete an assessment to see actions.)"
     summary_text = (
         "SkillSight – Summary for HKU Career Centre\n"
@@ -1828,24 +1864,30 @@ def bff_leaderboard(
 ):
     """Anonymous leaderboard: my_rank, my_points, top N by total achievement points."""
     subject_id = ident.subject_id
-    rarity_to_points = RARITY_POINTS
     defn_by_id = {d["id"]: d for d in ACHIEVEMENT_DEFINITIONS}
-    rows = db.execute(
-        text("SELECT user_id, achievement_id FROM user_achievements WHERE unlocked = TRUE"),
-    ).mappings().all()
-    user_points: Dict[str, int] = {}
-    for r in rows:
-        uid = str(r["user_id"])
-        aid = str(r["achievement_id"])
+    case_branches: List[str] = []
+    params: Dict[str, Any] = {}
+    for idx, aid in enumerate(defn_by_id.keys()):
+        params[f"aid_{idx}"] = aid
         rarity = defn_by_id.get(aid, {}).get("rarity", "common")
-        user_points[uid] = user_points.get(uid, 0) + rarity_to_points.get(rarity, 10)
-    sorted_users = sorted(user_points.items(), key=lambda x: -x[1])
-    my_points = user_points.get(subject_id, 0)
-    my_rank = None
-    for i, (uid, _) in enumerate(sorted_users, 1):
-        if uid == subject_id:
-            my_rank = i
-            break
+        points = RARITY_POINTS.get(rarity, 10)
+        case_branches.append(f"WHEN achievement_id = :aid_{idx} THEN {points}")
+    case_expr = "CASE " + " ".join(case_branches) + " ELSE 10 END"
+    rows = db.execute(
+        text(
+            f"""
+            SELECT user_id, SUM({case_expr}) AS points
+            FROM user_achievements
+            WHERE unlocked = TRUE
+            GROUP BY user_id
+            ORDER BY points DESC, user_id ASC
+            """
+        ),
+        params,
+    ).mappings().all()
+    sorted_users = [(str(r["user_id"]), int(r.get("points") or 0)) for r in rows]
+    my_points = next((pts for uid, pts in sorted_users if uid == subject_id), 0)
+    my_rank = next((i for i, (uid, _) in enumerate(sorted_users, 1) if uid == subject_id), None)
     top = [{"rank": i, "points": pts} for i, (_, pts) in enumerate(sorted_users[: max(1, min(top_n, 50))], 1)]
     return {"my_rank": my_rank, "my_points": my_points, "top": top}
 
@@ -1897,61 +1939,88 @@ def bff_peer_benchmark(
             me_rows = snap_rows
             use_snapshots = True
 
-    out = []
-    for row in me_rows:
-        sid = str(row["skill_id"])
-        level = int(row["level"] or 0)
+    # Build a set of user's skill IDs for filtering
+    user_skill_ids = [str(r["skill_id"]) for r in me_rows]
+    if not user_skill_ids:
+        return {"count": 0, "items": []}
 
-        if use_snapshots:
-            # Peer percentile via skill_assessment_snapshots (has subject_id)
-            pct = db.execute(
-                text(
-                    """
-                    WITH latest AS (
-                      SELECT DISTINCT ON (subject_id, skill_id) subject_id, skill_id, level
-                      FROM skill_assessment_snapshots
-                      WHERE skill_id = :sid AND level IS NOT NULL
-                      ORDER BY subject_id, skill_id, created_at DESC
-                    )
-                    SELECT COALESCE(
-                      ROUND(100.0 * SUM(CASE WHEN level <= :lvl THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2),
-                      50
-                    ) AS pct FROM latest
-                    """
-                ),
-                {"sid": sid, "lvl": level},
-            ).scalar() or 50
-        else:
-            # Peer percentile via consents path
-            pct = db.execute(
-                text(
-                    """
-                    WITH latest AS (
-                      SELECT DISTINCT ON (c.user_id, sp.skill_id) c.user_id, sp.skill_id, sp.level
-                      FROM skill_proficiency sp
-                      JOIN consents c ON c.doc_id = sp.doc_id::text
-                      WHERE c.status = 'granted' AND sp.skill_id = :sid
-                      ORDER BY c.user_id, sp.skill_id, sp.created_at DESC
-                    )
-                    SELECT COALESCE(
-                      ROUND(100.0 * SUM(CASE WHEN level <= :lvl THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0), 2),
-                      50
-                    ) AS pct FROM latest
-                    """
-                ),
-                {"sid": sid, "lvl": level},
-            ).scalar() or 50
-        out.append({"skill_id": sid, "level": level, "percentile": float(pct)})
+    # Single query with window function to compute percentiles for all user's skills
+    if use_snapshots:
+        pct_sql = text("""
+            WITH latest AS (
+                SELECT DISTINCT ON (subject_id, skill_id)
+                    subject_id, skill_id, level
+                FROM skill_assessment_snapshots
+                WHERE skill_id = ANY(:sids) AND level IS NOT NULL
+                ORDER BY subject_id, skill_id, created_at DESC
+            ),
+            stats AS (
+                SELECT
+                    skill_id,
+                    level,
+                    COUNT(*) OVER (PARTITION BY skill_id) AS total,
+                    COUNT(*) OVER (PARTITION BY skill_id ORDER BY level) AS cum_count
+                FROM latest
+            )
+            SELECT
+                skill_id,
+                ROUND(100.0 * MAX(cum_count) / NULLIF(MAX(total), 0), 2) AS pct,
+                MAX(level) AS max_level
+            FROM stats
+            GROUP BY skill_id
+        """)
+    else:
+        pct_sql = text("""
+            WITH latest AS (
+                SELECT DISTINCT ON (c.user_id, sp.skill_id)
+                    c.user_id, sp.skill_id, sp.level
+                FROM skill_proficiency sp
+                JOIN consents c ON c.doc_id = sp.doc_id::text
+                WHERE c.status = 'granted' AND sp.skill_id = ANY(:sids)
+                ORDER BY c.user_id, sp.skill_id, sp.created_at DESC
+            ),
+            stats AS (
+                SELECT
+                    skill_id,
+                    level,
+                    COUNT(*) OVER (PARTITION BY skill_id) AS total,
+                    COUNT(*) OVER (PARTITION BY skill_id ORDER BY level) AS cum_count
+                FROM latest
+            )
+            SELECT
+                skill_id,
+                ROUND(100.0 * MAX(cum_count) / NULLIF(MAX(total), 0), 2) AS pct,
+                MAX(level) AS max_level
+            FROM stats
+            GROUP BY skill_id
+        """)
+
+    pct_rows = db.execute(pct_sql, {"sids": user_skill_ids}).mappings().all()
+    pct_by_sid: Dict[str, float] = {str(r["skill_id"]): float(r["pct"]) for r in pct_rows if r["pct"]}
+    level_by_sid: Dict[str, int] = {str(r["skill_id"]): int(r["max_level"]) for r in pct_rows if r["max_level"]}
+
+    # Map user's levels to their skill IDs
+    user_level_by_sid = {str(r["skill_id"]): int(r["level"] or 0) for r in me_rows}
+
+    out = [
+        {
+            "skill_id": sid,
+            "level": user_level_by_sid.get(sid, 0),
+            "percentile": pct_by_sid.get(sid)
+        }
+        for sid in user_skill_ids
+    ]
     return {"count": len(out), "items": out}
 
 
 @router.get("/learning-path")
 def bff_learning_path(
     limit: int = 8,
+    target_role_id: Optional[str] = None,
     db: Session = Depends(get_db),
     ident: Identity = Depends(require_auth),
 ):
-    items = recommend_learning_path(db, ident.subject_id, limit=limit)
+    items = recommend_learning_path(db, ident.subject_id, limit=limit, target_role_id=target_role_id)
     return {"count": len(items), "items": items}
 
 
@@ -2037,12 +2106,21 @@ def bff_jobs_live(
         ).mappings().all()
 
     my_skill_names = [str(r.get("canonical_name") or "") for r in my_rows if int(r.get("level") or 0) > 0]
-    my_skill_names = [s.replace("_", " ").lower() for s in my_skill_names if s]
+    my_skill_names = [s.replace("_", " ").strip().lower() for s in my_skill_names if s]
+    my_skill_patterns = [
+        re.compile(rf"(?<!\w){re.escape(skill)}(?!\w)")
+        for skill in my_skill_names
+        if skill
+    ]
 
     items: List[Dict[str, Any]] = []
     for row in rows:
         desc = f"{row.get('title', '')}\n{row.get('description', '')}".lower()
-        matched = [s for s in my_skill_names if s in desc]
+        matched = [
+            skill
+            for skill, pattern in zip(my_skill_names, my_skill_patterns)
+            if pattern.search(desc)
+        ]
         denom = max(1, min(len(my_skill_names), 10))
         score = round((len(matched) / denom) * 100, 1) if my_skill_names else 0.0
         item = dict(row)
@@ -2724,55 +2802,49 @@ def _get_skill_for_tutor(db: Session, skill_id: str) -> Optional[Dict[str, Any]]
 
 def _build_profile_skills_snapshot(db: Session, subject_id: str, skill_limit: int = 30) -> List[Dict[str, Any]]:
     """
-    Single query surface for skill list + latest assessment label + latest proficiency level.
+    Single CTE query for skill list + latest assessment label + latest proficiency level.
     Returns list of {skill_id, canonical_name, label, level} for use in career-summary, resume_review summary, etc.
     """
-    skills_rows = db.execute(
-        text("SELECT skill_id, canonical_name FROM skills ORDER BY canonical_name LIMIT :lim"),
-        {"lim": skill_limit},
-    ).mappings().all()
-    if not skills_rows:
-        return []
-    # Latest assessment per skill (consented docs only); dedupe by skill_id keeping latest
-    ass_rows = db.execute(
-        text("""
-            SELECT sa.skill_id, sa.decision
+    cte_sql = text("""
+        WITH skills_list AS (
+            SELECT skill_id, canonical_name FROM skills ORDER BY canonical_name LIMIT :lim
+        ),
+        latest_ass AS (
+            SELECT DISTINCT ON (sa.skill_id)
+                sa.skill_id,
+                sa.decision
             FROM skill_assessments sa
             JOIN consents c ON c.doc_id = sa.doc_id::text AND c.user_id = :sub AND c.status = 'granted'
-            ORDER BY sa.created_at DESC
-        """),
-        {"sub": subject_id},
-    ).mappings().all()
-    ass_by_sid: Dict[str, str] = {}
-    for r in ass_rows:
-        sid = str(r["skill_id"])
-        if sid not in ass_by_sid:
-            ass_by_sid[sid] = (r.get("decision") or "not_assessed")
-    # Latest proficiency per skill (consented docs only)
-    prof_rows = db.execute(
-        text("""
-            SELECT sp.skill_id, sp.level
+            ORDER BY sa.skill_id, sa.created_at DESC
+        ),
+        latest_prof AS (
+            SELECT DISTINCT ON (sp.skill_id)
+                sp.skill_id,
+                sp.level
             FROM skill_proficiency sp
             JOIN consents c ON c.doc_id = sp.doc_id::text AND c.user_id = :sub AND c.status = 'granted'
-            ORDER BY sp.created_at DESC
-        """),
-        {"sub": subject_id},
-    ).mappings().all()
-    prof_by_sid: Dict[str, Optional[int]] = {}
-    for r in prof_rows:
-        sid = str(r["skill_id"])
-        if sid not in prof_by_sid:
-            prof_by_sid[sid] = int(r["level"]) if r.get("level") is not None else None
-    out: List[Dict[str, Any]] = []
-    for s in skills_rows:
-        sid = str(s["skill_id"])
-        out.append({
-            "skill_id": sid,
-            "canonical_name": s.get("canonical_name") or sid,
-            "label": ass_by_sid.get(sid) or "not_assessed",
-            "level": prof_by_sid.get(sid),
-        })
-    return out
+            ORDER BY sp.skill_id, sp.created_at DESC
+        )
+        SELECT
+            s.skill_id,
+            s.canonical_name,
+            COALESCE(la.decision, 'not_assessed') AS label,
+            lp.level
+        FROM skills_list s
+        LEFT JOIN latest_ass la ON la.skill_id = s.skill_id
+        LEFT JOIN latest_prof lp ON lp.skill_id = s.skill_id
+        ORDER BY s.canonical_name
+    """)
+    rows = db.execute(cte_sql, {"lim": skill_limit, "sub": subject_id}).mappings().all()
+    return [
+        {
+            "skill_id": str(r["skill_id"]),
+            "canonical_name": r.get("canonical_name") or str(r["skill_id"]),
+            "label": r["label"],
+            "level": int(r["level"]) if r.get("level") is not None else None,
+        }
+        for r in rows
+    ]
 
 
 def _build_student_skill_summary(db: Session, subject_id: str) -> str:
@@ -2971,9 +3043,9 @@ def bff_tutor_session_message(
             temperature=0.3,
             stream=False,
         )
-    except Exception as e:
-        _log.warning("tutor openai_chat failed: %s", e)
-        raise HTTPException(status_code=502, detail=f"LLM request failed: {e}")
+    except Exception:
+        _log.exception("Tutor LLM request failed for session_id=%s", session_id)
+        raise HTTPException(status_code=502, detail="LLM request failed")
 
     reply_text = (reply_text or "").strip()
     chunk_ids_used = [c["chunk_id"] for c in chunks]
@@ -3003,3 +3075,31 @@ def bff_tutor_session_message(
         detail={"concluded": concluded},
     )
     return {"reply": reply_text, "concluded": concluded, "assessment": assessment}
+
+
+@router.post("/tutor-session/{session_id}/end")
+def bff_tutor_session_end(
+    session_id: str,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Allow the client to end a tutor session when turn limit is reached or the user wants to stop."""
+    from backend.app.services import tutor_dialogue as svc
+
+    session = svc.get_session(db, session_id, ident.subject_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.get("status") == "concluded":
+        return {"success": True, "already_concluded": True}
+
+    svc.set_session_concluded(db, session_id)
+    log_audit(
+        engine,
+        subject_id=ident.subject_id,
+        action="bff.student.tutor_session.end",
+        object_type="tutor_session",
+        object_id=session_id,
+        status="ok",
+        detail={"mode": session.get("mode", "assessment")},
+    )
+    return {"success": True, "already_concluded": False}

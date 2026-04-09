@@ -233,8 +233,9 @@ def list_documents(
 
         return {"count": int(total), "items": items}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"/documents failed: {type(e).__name__}: {e}")
+    except Exception:
+        _log.exception("Failed to list documents")
+        raise HTTPException(status_code=500, detail="Failed to list documents")
 
 
 @router.get("/{doc_id}")
@@ -271,8 +272,9 @@ def get_document(
 
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"/documents/{doc_id} failed: {type(e).__name__}: {e}")
+    except Exception:
+        _log.exception("Failed to get document %s", doc_id)
+        raise HTTPException(status_code=500, detail="Failed to get document")
 
 
 @router.get("/{doc_id}/chunks")
@@ -342,8 +344,9 @@ def list_chunks_for_document(
         items = [dict(r) for r in rows]
         return {"count": int(total), "items": items}
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"/documents/{doc_id}/chunks failed: {type(e).__name__}: {e}")
+    except Exception:
+        _log.exception("Failed to list chunks for document %s", doc_id)
+        raise HTTPException(status_code=500, detail="Failed to list document chunks")
 
 
 # -----------------------------
@@ -478,9 +481,10 @@ async def import_document_txt(
 
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"/documents/import failed: {type(e).__name__}: {e}")
+        _log.exception("Failed to import txt document")
+        raise HTTPException(status_code=500, detail="Failed to import document")
 
 
 # -----------------------------
@@ -553,9 +557,10 @@ def reindex_document(
     
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"/documents/{doc_id}/reindex failed: {type(e).__name__}: {e}")
+        _log.exception("Failed to reindex document %s", doc_id)
+        raise HTTPException(status_code=500, detail="Failed to create reindex job")
 
 
 # -----------------------------
@@ -659,8 +664,9 @@ async def upload_multimodal_document(
             filename=filename,
             min_chunk_len=30,
         )
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to parse: {e}")
+    except Exception:
+        _log.exception("Failed to parse uploaded multimodal file")
+        raise HTTPException(status_code=400, detail="Failed to parse uploaded file")
     
     chunks = result.get("chunks", [])
     media_type = result.get("media_type", "unknown")

@@ -6,6 +6,8 @@ import { LanguageToggle, ThemeToggle } from '@/components/ThemeToggle';
 import { useLanguage } from '@/lib/contexts';
 import { clearToken } from '@/lib/bffClient';
 
+const NOTIFICATION_PREFS_KEY = 'skillsight_notifications';
+
 interface User {
   id: string;
   name: string;
@@ -32,7 +34,24 @@ export default function SettingsPage() {
     } catch (e) {
       console.warn('Failed to read user from localStorage:', e);
     }
+    // Load notification preferences from localStorage
+    try {
+      const notifData = localStorage.getItem(NOTIFICATION_PREFS_KEY);
+      if (notifData) {
+        setNotifications(prev => ({ ...prev, ...JSON.parse(notifData) }));
+      }
+    } catch (e) {
+      console.warn('Failed to read notifications from localStorage:', e);
+    }
   }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NOTIFICATION_PREFS_KEY, JSON.stringify(notifications));
+    } catch (e) {
+      console.warn('Failed to save notifications to localStorage:', e);
+    }
+  }, [notifications]);
 
   const handleNotificationChange = (key: string) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key as keyof typeof prev] }));

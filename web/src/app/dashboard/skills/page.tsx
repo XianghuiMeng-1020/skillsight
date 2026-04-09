@@ -1,12 +1,15 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import DemoSafeHint from '@/components/DemoSafeHint';
+import { SkillRadar } from '@/components/SkillRadar';
+import { InlineErrorBlock, PageSkeleton } from '@/components/StateBlocks';
 import { useLanguage, getDateLocale } from '@/lib/contexts';
 import { studentBff, getToken, BffError } from '@/lib/bffClient';
+import { mapBffErrorToMessage } from '@/lib/errorPresentation';
 import SkillAssessmentProgress from '@/components/SkillAssessmentProgress';
 import { DEMO_SKILLS_PROFILE } from '@/lib/demoDataset';
 import { isDemoQuery, readDemoMode, writeDemoMode } from '@/lib/demoMode';
@@ -57,10 +60,10 @@ const LABEL_KEYS: Record<string, string> = {
 };
 
 const LABEL_STYLE: Record<string, { color: string; bg: string; icon: string }> = {
-  demonstrated:            { color: '#15803d', bg: '#dcfce7', icon: '✓' },
-  mentioned:               { color: '#1d4ed8', bg: '#dbeafe', icon: '○' },
-  not_enough_information:  { color: '#b45309', bg: '#fef3c7', icon: '⚠' },
-  not_assessed:            { color: '#6b7280', bg: '#f3f4f6', icon: '—' },
+  demonstrated:            { color: 'var(--success)', bg: 'var(--success-light)', icon: '✓' },
+  mentioned:               { color: 'var(--info)', bg: 'var(--info-light)', icon: '○' },
+  not_enough_information:  { color: 'var(--warning)', bg: 'var(--warning-light)', icon: '⚠' },
+  not_assessed:            { color: 'var(--gray-500)', bg: 'var(--gray-100)', icon: '—' },
 };
 
 export default function SkillsProfilePage() {
@@ -83,7 +86,7 @@ export default function SkillsProfilePage() {
   const highlightedRef = useRef<HTMLDivElement | null>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setError(null);
     try {
@@ -100,14 +103,15 @@ export default function SkillsProfilePage() {
         setLoading(false);
         return;
       }
-      const data = await studentBff.getProfile();
+      const data = await studentBff.getProfile(undefined, signal);
       setProfile(data as ProfileData);
       setIsDemoMode(false);
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       if (e instanceof BffError && e.status === 401) {
         setError((t('skills.sessionExpired') as string) || 'Session expired. Please log in again.');
       } else {
-        const msg = e instanceof Error ? e.message : 'Failed to load profile';
+        const msg = mapBffErrorToMessage(e, 'Failed to load profile');
         const isNetworkError = typeof msg === 'string' && (msg === 'Failed to fetch' || msg.includes('fetch') || msg.includes('Network'));
         setError(isNetworkError ? (t('skills.networkErrorHint') as string) || msg : msg);
       }
@@ -115,7 +119,7 @@ export default function SkillsProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchParams, t]);
 
   // 轮询检查评估进度
   const startPolling = useCallback((tasks: AssessmentTask[]) => {
@@ -179,7 +183,7 @@ export default function SkillsProfilePage() {
         fetchProfile();
       }
     }, 120_000);
-  }, []);
+  }, [fetchProfile]);
 
   // 清理轮询
   useEffect(() => {
@@ -216,14 +220,15 @@ export default function SkillsProfilePage() {
       setAssessmentTasks(tasks);
       setShowProgress(true);
 
-      let ok = 0;
-      for (const doc of docs) {
-        if (!doc.doc_id) continue;
-        try {
-          const r = await studentBff.autoAssessDocument(doc.doc_id);
-          if (r?.status === 'accepted') ok += 1;
-        } catch { /* skip */ }
-      }
+      const assessResults = await Promise.allSettled(
+        docs
+          .filter((doc): doc is { doc_id: string; filename?: string } => !!doc.doc_id)
+          .map((doc) => studentBff.autoAssessDocument(doc.doc_id))
+      );
+      const ok = assessResults.reduce((acc, r) => {
+        if (r.status === 'fulfilled' && r.value?.status === 'accepted') return acc + 1;
+        return acc;
+      }, 0);
 
       if (ok > 0) {
         setReassessMsg((t('skills.reassessQueued') as string)?.replace('{n}', String(ok)) ?? `Queued ${ok} doc(s).`);
@@ -241,7 +246,11 @@ export default function SkillsProfilePage() {
     }
   };
 
-  useEffect(() => { fetchProfile(); }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchProfile(controller.signal);
+    return () => controller.abort();
+  }, [fetchProfile]);
 
   useEffect(() => {
     if (!highlightId || !profile?.skills?.length) return;
@@ -267,20 +276,42 @@ export default function SkillsProfilePage() {
   };
 
   const skills = profile?.skills ?? [];
-  const filtered = skills.filter(s => {
+  const filtered = useMemo(() => skills.filter(s => {
     const matchFilter = filter === 'all' || s.label === filter;
     const matchSearch = !searchQuery || s.canonical_name.toLowerCase().includes(searchQuery.toLowerCase());
     return matchFilter && matchSearch;
-  });
-  const visibleSkills = showAllSkills || searchQuery ? filtered : filtered.slice(0, 5);
+  }), [skills, filter, searchQuery]);
+  const visibleSkills = useMemo(
+    () => (showAllSkills || searchQuery ? filtered : filtered.slice(0, 5)),
+    [filtered, showAllSkills, searchQuery]
+  );
 
-  const counts = {
-    all: skills.length,
-    demonstrated: skills.filter(s => s.label === 'demonstrated').length,
-    mentioned: skills.filter(s => s.label === 'mentioned').length,
-    not_enough_information: skills.filter(s => s.label === 'not_enough_information').length,
-    not_assessed: skills.filter(s => s.label === 'not_assessed').length,
-  };
+  const counts = useMemo(() => {
+    const next = {
+      all: skills.length,
+      demonstrated: 0,
+      mentioned: 0,
+      not_enough_information: 0,
+      not_assessed: 0,
+    };
+    skills.forEach((s) => {
+      if (s.label === 'demonstrated') next.demonstrated += 1;
+      else if (s.label === 'mentioned') next.mentioned += 1;
+      else if (s.label === 'not_enough_information') next.not_enough_information += 1;
+      else if (s.label === 'not_assessed') next.not_assessed += 1;
+    });
+    return next;
+  }, [skills]);
+  const radarSkills = useMemo(
+    () =>
+      skills
+        .slice(0, 8)
+        .map((s) => ({
+          name: s.canonical_name,
+          value: s.label === 'demonstrated' ? 100 : s.label === 'mentioned' ? 66 : s.label === 'not_enough_information' ? 33 : 10,
+        })),
+    [skills]
+  );
 
   return (
     <div className="app-container">
@@ -307,7 +338,7 @@ export default function SkillsProfilePage() {
             <Link href="/export" className="btn btn-secondary btn-sm">
               📄 {t('skills.exportStatement')}
             </Link>
-            <button className="btn btn-ghost btn-sm" onClick={fetchProfile}>
+            <button className="btn btn-ghost btn-sm" onClick={() => void fetchProfile()}>
               ↻ {t('skills.refresh')}
             </button>
             {isDemoMode && (
@@ -367,6 +398,16 @@ export default function SkillsProfilePage() {
               </div>
             </div>
           )}
+          {skills.length > 0 && (
+            <div className="card" style={{ marginBottom: '1.25rem' }}>
+              <div className="card-header">
+                <h3 className="card-title">{t('skills.radarTitle')}</h3>
+              </div>
+              <div className="card-content" style={{ display: 'flex', justifyContent: 'center' }}>
+                <SkillRadar skills={radarSkills} size={280} showLegend showComparison={false} />
+              </div>
+            </div>
+          )}
 
           {/* Filter bar */}
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -409,28 +450,21 @@ export default function SkillsProfilePage() {
             />
             {!searchQuery && filtered.length > 5 && (
               <button type="button" className="btn btn-ghost btn-sm" onClick={() => setShowAllSkills((v) => !v)}>
-                {showAllSkills ? 'Show top 5' : `Show all (${filtered.length})`}
+                {showAllSkills ? t('skills.showTop5') : (t('skills.showAllN') as string).replace('{n}', String(filtered.length))}
               </button>
             )}
           </div>
 
           {/* Skills list */}
           {loading ? (
-            <div className="loading" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
-              <span><span className="spinner"></span> {t('skills.loading')}</span>
-              <span style={{ fontSize: '0.8125rem', color: 'var(--gray-500)' }}>{t('skills.loadingSlowHint')}</span>
-            </div>
+            <PageSkeleton rows={4} />
           ) : error ? (
-            <div className="alert alert-error">
-              <span>⚠</span>
-              <div style={{ flex: 1 }}>
-                <strong>{t('skills.loadFailed')}</strong>
-                <p style={{ marginTop: '0.25rem', fontSize: '0.875rem' }}>{error}</p>
-                <p style={{ marginTop: '0.5rem', fontSize: '0.813rem' }}>
-                  {t('skills.loadFailedMsg')}
-                </p>
+            <InlineErrorBlock
+              title={t('skills.loadFailed') as string}
+              message={`${error} ${(t('skills.loadFailedMsg') as string)}`}
+              action={
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-                  <button type="button" className="btn btn-secondary btn-sm" onClick={fetchProfile}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => void fetchProfile()}>
                     {t('skills.retry')}
                   </button>
                   {!getToken() && (
@@ -439,16 +473,22 @@ export default function SkillsProfilePage() {
                     </Link>
                   )}
                 </div>
-              </div>
-            </div>
+              }
+            />
           ) : filtered.length === 0 ? (
             <div className="card">
               <div className="empty-state">
                 <div className="empty-icon">🔍</div>
-                <div className="empty-title">{t('skills.noMatch')}</div>
+                <div className="empty-title">{skills.length === 0 ? t('skills.noDataTitle') : t('skills.noMatch')}</div>
                 <div className="empty-desc">
-                  {t('skills.uploadFirst')}<Link href="/dashboard/upload" style={{ color: 'var(--primary)' }}>{t('skills.uploadDoc')}</Link>
-                  {t('skills.andRunAssess')}
+                  {skills.length === 0 ? (
+                    <>
+                      {t('skills.uploadFirst')}<Link href="/dashboard/upload" style={{ color: 'var(--primary)' }}>{t('skills.uploadDoc')}</Link>
+                      {t('skills.andRunAssess')}
+                    </>
+                  ) : (
+                    t('skills.noFilterResultHint')
+                  )}
                 </div>
               </div>
             </div>
@@ -595,17 +635,17 @@ export default function SkillsProfilePage() {
                           /* Refusal UX */
                           <div style={{
                             padding: '0.875rem 1rem',
-                            background: '#fff8e6',
+                            background: 'var(--warning-light)',
                             borderRadius: '8px',
-                            border: '1px solid #f5d66e',
+                            border: '1px solid var(--warning)',
                           }}>
-                            <div style={{ fontWeight: 600, color: '#8a6d00', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                            <div style={{ fontWeight: 600, color: 'var(--warning)', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
                               ⚠️ {skill.refusal?.code === 'not_enough_information' ? t('skills.insufficient') : t('skills.needMoreInfo')}
                             </div>
-                            <p style={{ fontSize: '0.813rem', color: '#5a4900', margin: '0 0 0.375rem' }}>
+                            <p style={{ fontSize: '0.813rem', color: 'var(--color-text)', margin: '0 0 0.375rem' }}>
                               {skill.refusal?.message}
                             </p>
-                            <p style={{ fontSize: '0.8rem', color: '#6b5700', fontWeight: 500, margin: 0 }}>
+                            <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', fontWeight: 500, margin: 0 }}>
                               {t('skills.nextStep')}{skill.refusal?.next_step}
                             </p>
                             <Link

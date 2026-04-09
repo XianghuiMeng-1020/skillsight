@@ -5,6 +5,8 @@ import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/bffClient';
 import { logger } from '@/lib/logger';
 
+let pyodideLoadPromise: Promise<PyodideInterface> | null = null;
+
 // ==========================================
 // 1. 音频录制 Hook (Web Audio API)
 // ==========================================
@@ -39,9 +41,11 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const isPausedRef = useRef(false);
 
   // 清理函数
   const cleanup = useCallback(() => {
@@ -53,6 +57,10 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
     }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
+    }
+    if (audioContextRef.current) {
+      void audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
     }
   }, []);
 
@@ -93,6 +101,7 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
 
       // 创建音频分析器
       const audioContext = new AudioContext();
+      audioContextRef.current = audioContext;
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
       const source = audioContext.createMediaStreamSource(stream);
@@ -121,11 +130,12 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
       mediaRecorder.start(100); // 每100ms收集一次数据
       setIsRecording(true);
       setIsPaused(false);
+      isPausedRef.current = false;
       startTimeRef.current = Date.now();
 
       // 开始计时
       timerRef.current = setInterval(() => {
-        if (!isPaused) {
+        if (!isPausedRef.current) {
           setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000));
         }
       }, 100);
@@ -166,6 +176,7 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
       mediaRecorderRef.current.pause();
       setIsPaused(true);
+      isPausedRef.current = true;
     }
   };
 
@@ -173,6 +184,7 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'paused') {
       mediaRecorderRef.current.resume();
       setIsPaused(false);
+      isPausedRef.current = false;
       analyzeAudioLevel();
     }
   };
@@ -181,6 +193,7 @@ export function useAudioRecorder(): AudioRecorderState & AudioRecorderActions {
     cleanup();
     setIsRecording(false);
     setIsPaused(false);
+    isPausedRef.current = false;
     setAudioBlob(null);
     if (audioUrl) {
       URL.revokeObjectURL(audioUrl);
@@ -267,31 +280,41 @@ export function useCodeExecutor(): CodeExecutorState & CodeExecutorActions {
     if (pyodideRef.current || pyodideLoaded) return;
 
     try {
-      // 动态加载 Pyodide
-      const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
-      script.async = true;
-      
-      document.head.appendChild(script);
+      if (!pyodideLoadPromise) {
+        pyodideLoadPromise = new Promise<PyodideInterface>((resolve, reject) => {
+          const existing = document.querySelector('script[data-skillsight-pyodide="1"]') as HTMLScriptElement | null;
+          const script = existing ?? document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+          script.async = true;
+          script.dataset.skillsightPyodide = '1';
 
-      await new Promise<void>((resolve, reject) => {
-        script.onload = async () => {
-          try {
-            if (window.loadPyodide) {
-              const pyodide = await window.loadPyodide({
-                indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/',
-              });
-              pyodideRef.current = pyodide;
-              window.pyodide = pyodide;
-              setPyodideLoaded(true);
-              resolve();
+          const loadInstance = async () => {
+            if (!window.loadPyodide) {
+              reject(new Error('loadPyodide is unavailable'));
+              return;
             }
-          } catch (err) {
-            reject(err);
+            const pyodide = await window.loadPyodide({
+              indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/',
+            });
+            window.pyodide = pyodide;
+            resolve(pyodide);
+          };
+
+          script.onload = () => {
+            void loadInstance().catch(reject);
+          };
+          script.onerror = reject;
+
+          if (!existing) {
+            document.head.appendChild(script);
+          } else if (window.loadPyodide) {
+            void loadInstance().catch(reject);
           }
-        };
-        script.onerror = reject;
-      });
+        });
+      }
+      const pyodide = await pyodideLoadPromise;
+      pyodideRef.current = pyodide;
+      setPyodideLoaded(true);
     } catch (err) {
       logger.error('Failed to load Pyodide', err);
     }
@@ -624,6 +647,14 @@ export function useWritingAnalyzer() {
       setIsAnalyzing(false);
     }, 300);
   }, [analyzeText]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+    };
+  }, []);
 
   return {
     analysis,
@@ -996,7 +1027,7 @@ const DEFAULT_ACHIEVEMENTS: Achievement[] = [
   { id: 'perfectionist', name: '完美主义者', nameEn: 'Perfectionist', nameZhTW: '完美主義者', description: '任意评估获得100分', descriptionEn: 'Score 100 on any assessment', descriptionZhTW: '任意評估獲得100分', icon: '💯', category: 'milestone', progress: 0, target: 100, unlocked: false, rarity: 'legendary' },
 
   // 特殊成就
-  { id: 'early_bird', name: '早起鸟', nameEn: 'Early Bird', nameZhTW: '早起鳥', description: '在早上6点前完成评估', descriptionEn: 'Complete assessment before 6 AM', descriptionZhTW: '在早上6點前完成評估', icon: '🌅', category: 'special', progress: 0, target: 1, unlocked: false, rarity: 'epic' },
+  { id: 'early_bird', name: '早起鸟', nameEn: 'Early Bird', nameZhTW: '早起鳥', description: '在早上5-8点间完成评估', descriptionEn: 'Complete assessment between 5-8 AM', descriptionZhTW: '在早上5-8點間完成評估', icon: '🌅', category: 'special', progress: 0, target: 1, unlocked: false, rarity: 'epic' },
   { id: 'night_owl', name: '夜猫子', nameEn: 'Night Owl', nameZhTW: '夜貓子', description: '在凌晨12点后完成评估', descriptionEn: 'Complete assessment after midnight', descriptionZhTW: '在凌晨12點後完成評估', icon: '🦉', category: 'special', progress: 0, target: 1, unlocked: false, rarity: 'epic' },
 
   // 社交分享成就 (P3)
@@ -1103,10 +1134,10 @@ export function useAchievements() {
     }
     
     const hour = new Date().getHours();
-    if (hour < 6) {
+    if (hour >= 5 && hour < 8) {
       updateProgress('early_bird', 1);
     }
-    if (hour >= 0 && hour < 5) {
+    if (hour >= 22 || hour < 5) {
       updateProgress('night_owl', 1);
     }
   }, [updateProgress]);
@@ -1207,6 +1238,8 @@ export function useLearningPath() {
     _targetRole?: string
   ) => {
     if (!skills || skills.length === 0) {
+      setRecommendations([]);
+      setSkillGaps([]);
       setLoading(false);
       return;
     }
@@ -1226,44 +1259,31 @@ export function useLearningPath() {
 
       setSkillGaps(gaps);
 
-      const token = typeof window !== 'undefined' ? localStorage.getItem('skillsight_token') : null;
       let courseRecs: LearningRecommendation[] = [];
 
-      if (token) {
+      if (typeof window !== 'undefined' && getToken()) {
         try {
-          const res = await fetch(
-            `${API_BASE_URL}/bff/student/courses/for-gaps`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ skill_ids: gaps.map(g => g.skill) }),
-            }
-          );
-          if (res.ok) {
-            const data = await res.json();
-            const courses = (data.items || []) as Array<{
-              course_id: string;
-              course_name: string;
-              credits: number;
-              programme: string;
-              skills: Array<{ skill_id: string; skill_name: string }>;
-            }>;
-            courseRecs = courses.slice(0, 8).map((c, i) => ({
-              id: `course-${c.course_id}`,
-              title: `${c.course_id} — ${c.course_name}`,
-              titleEn: `${c.course_id} — ${c.course_name}`,
-              description: `${c.programme} · ${c.credits} credits · Develops: ${c.skills.map(s => s.skill_name).join(', ')}`,
-              descriptionEn: `${c.programme} · ${c.credits} credits · Develops: ${c.skills.map(s => s.skill_name).join(', ')}`,
-              type: 'course' as const,
-              skill: c.skills[0]?.skill_name || '',
-              priority: i < 3 ? 'high' as const : i < 6 ? 'medium' as const : 'low' as const,
-              estimatedHours: c.credits * 4,
-              icon: '📚',
-            }));
-          }
+          const { studentBff } = await import('@/lib/bffClient');
+          const data = await studentBff.getCourseRecommendations(undefined, gaps.map((g) => g.skill));
+          const courses = (data.items || []) as Array<{
+            course_id: string;
+            course_name: string;
+            credits: number;
+            programme: string;
+            skills: Array<{ skill_id: string; skill_name: string }>;
+          }>;
+          courseRecs = courses.slice(0, 8).map((c, i) => ({
+            id: `course-${c.course_id}`,
+            title: `${c.course_id} — ${c.course_name}`,
+            titleEn: `${c.course_id} — ${c.course_name}`,
+            description: `${c.programme} · ${c.credits} credits · Develops: ${c.skills.map(s => s.skill_name).join(', ')}`,
+            descriptionEn: `${c.programme} · ${c.credits} credits · Develops: ${c.skills.map(s => s.skill_name).join(', ')}`,
+            type: 'course' as const,
+            skill: c.skills[0]?.skill_name || '',
+            priority: i < 3 ? 'high' as const : i < 6 ? 'medium' as const : 'low' as const,
+            estimatedHours: c.credits * 4,
+            icon: '📚',
+          }));
         } catch {
           // fall through to local recs
         }

@@ -57,7 +57,7 @@ export default function ExportPage() {
         display: 'flex',
         alignItems: 'center',
         gap: '1rem',
-        background: 'white',
+        background: 'var(--bg-primary)',
       }}>
         <Link href="/dashboard/skills" style={{ color: 'var(--gray-500)', fontSize: '0.875rem', textDecoration: 'none' }}>
           {t('export.back')}
@@ -69,7 +69,7 @@ export default function ExportPage() {
           style={{
             padding: '0.5rem 1.25rem',
             background: 'var(--primary)',
-            color: 'white',
+            color: 'var(--text-on-primary)',
             border: 'none',
             borderRadius: '8px',
             cursor: loading || !!error ? 'not-allowed' : 'pointer',
@@ -110,10 +110,10 @@ export default function ExportPage() {
       )}
 
       {error && (
-        <div style={{ maxWidth: '600px', margin: '2rem auto', padding: '1rem 1.25rem', background: '#ffecec', borderRadius: '12px', border: '1px solid #f5c2c2' }}>
-          <strong style={{ color: '#b42318' }}>{t('export.loadFailed')}</strong>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: '#7f1d1d' }}>{error}</p>
-          <p style={{ margin: '0.5rem 0 0', fontSize: '0.813rem', color: '#7f1d1d' }}>
+        <div style={{ maxWidth: '600px', margin: '2rem auto', padding: '1rem 1.25rem', background: 'var(--error-50)', borderRadius: '12px', border: '1px solid var(--error-200)' }}>
+          <strong style={{ color: 'var(--error-700)' }}>{t('export.loadFailed')}</strong>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.875rem', color: 'var(--error-700)' }}>{error}</p>
+          <p style={{ margin: '0.5rem 0 0', fontSize: '0.813rem', color: 'var(--error-600)' }}>
             {t('export.loadFailedMsg')}
           </p>
         </div>
@@ -125,23 +125,23 @@ export default function ExportPage() {
           maxWidth: '800px',
           margin: '2rem auto',
           padding: '2.5rem',
-          background: 'white',
+          background: 'var(--bg-primary)',
           fontFamily: 'Georgia, serif',
         }}>
           {/* Header */}
           <div style={{
-            borderBottom: '3px solid var(--primary, #E18182)',
+            borderBottom: '3px solid var(--primary)',
             paddingBottom: '1.5rem',
             marginBottom: '2rem',
           }}>
-            <div style={{ fontSize: '0.75rem', color: '#888', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
               SkillSight · HKU Skills-to-Jobs Transparency System
             </div>
-            <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.25rem', color: '#1a1a1a' }}>
+            <h1 style={{ fontSize: '2rem', fontWeight: 700, margin: '0 0 0.25rem', color: 'var(--gray-900)' }}>
               {t('export.skillsStatement')}
             </h1>
-            <div style={{ fontSize: '0.8rem', color: '#666', marginBottom: '0.5rem' }}>{t('share.certificate')}</div>
-            <div style={{ fontSize: '0.9rem', color: '#555' }}>
+            <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginBottom: '0.5rem' }}>{t('share.certificate')}</div>
+            <div style={{ fontSize: '0.9rem', color: 'var(--gray-600)' }}>
               <span>{t('export.studentId')}<strong>{data.subject_id}</strong></span>
               <span style={{ margin: '0 1rem' }}>·</span>
               <span>{t('export.generated')}<strong>{new Date(data.generated_at).toLocaleString(locale)}</strong></span>
@@ -159,12 +159,12 @@ export default function ExportPage() {
               { labelKey: 'export.evidenceItems', value: data.statement.total_evidence_items },
             ].map(stat => (
               <div key={stat.labelKey} style={{
-                padding: '1rem', border: '1px solid #e8e8e8', borderRadius: '8px', textAlign: 'center',
+                padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '8px', textAlign: 'center',
               }}>
-                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary, #E18182)' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--primary)' }}>
                   {stat.value}
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#777' }}>{t(stat.labelKey)}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)' }}>{t(stat.labelKey)}</div>
               </div>
             ))}
           </div>
@@ -172,27 +172,27 @@ export default function ExportPage() {
           {/* Evidence Sources */}
           {data.statement.documents.length > 0 && (
             <div style={{ marginBottom: '2rem' }}>
-              <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.75rem', color: '#1a1a1a' }}>
+              <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--gray-900)' }}>
                 {t('export.evidenceSources')}
               </h2>
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                 <thead>
-                  <tr style={{ background: '#f8f8f8' }}>
-                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid #e8e8e8' }}>{t('export.filename')}</th>
-                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid #e8e8e8' }}>{t('export.consent')}</th>
-                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid #e8e8e8' }}>{t('export.scope')}</th>
+                  <tr style={{ background: 'var(--gray-50)' }}>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border-light)' }}>{t('export.filename')}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border-light)' }}>{t('export.consent')}</th>
+                    <th style={{ padding: '0.5rem 0.75rem', textAlign: 'left', borderBottom: '1px solid var(--border-light)' }}>{t('export.scope')}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.statement.documents.map((doc, i) => (
-                    <tr key={doc.doc_id} style={{ background: i % 2 === 0 ? 'white' : '#fafafa' }}>
-                      <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #f0f0f0', fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                    <tr key={doc.doc_id} style={{ background: i % 2 === 0 ? 'var(--bg-primary)' : 'var(--gray-50)' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-lighter)', fontFamily: 'monospace', fontSize: '0.8rem' }}>
                         {doc.filename}
                       </td>
-                      <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #f0f0f0', color: doc.status === 'granted' ? '#15803d' : '#b45309' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-lighter)', color: doc.status === 'granted' ? 'var(--success-600)' : 'var(--warning-600)' }}>
                         {doc.status === 'granted' ? t('export.granted') : doc.status}
                       </td>
-                      <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid #f0f0f0', color: '#555' }}>
+                      <td style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--border-lighter)', color: 'var(--gray-600)' }}>
                         {doc.scope || '—'}
                       </td>
                     </tr>
@@ -204,11 +204,11 @@ export default function ExportPage() {
 
           {/* Demonstrated Skills */}
           <div style={{ marginBottom: '2rem' }}>
-            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.75rem', color: '#1a1a1a' }}>
+            <h2 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--gray-900)' }}>
               {t('export.demonstratedSkills')}
             </h2>
             {demonstratedSkills.length === 0 ? (
-              <p style={{ color: '#888', fontSize: '0.875rem', fontStyle: 'italic' }}>
+              <p style={{ color: 'var(--gray-500)', fontSize: '0.875rem', fontStyle: 'italic' }}>
                 {t('export.noSkillsDemonstrated')}. {t('export.noSkillsDemonstratedDesc')}
               </p>
             ) : (
@@ -216,18 +216,18 @@ export default function ExportPage() {
                 {demonstratedSkills.map((skill, idx) => (
                   <div key={skill.skill_id} style={{
                     padding: '1rem 1.25rem',
-                    border: '1px solid #e8e8e8',
+                    border: '1px solid var(--border-light)',
                     borderRadius: '8px',
-                    borderLeft: '4px solid var(--primary, #E18182)',
+                    borderLeft: '4px solid var(--primary)',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.5rem' }}>
-                      <span style={{ fontWeight: 700, color: '#1a1a1a', fontSize: '0.9375rem' }}>
+                      <span style={{ fontWeight: 700, color: 'var(--gray-900)', fontSize: '0.9375rem' }}>
                         {idx + 1}. {skill.canonical_name}
                       </span>
                       <span style={{
                         padding: '0.125rem 0.5rem', borderRadius: '12px',
-                        background: skill.label === 'demonstrated' ? '#dcfce7' : '#dbeafe',
-                        color: skill.label === 'demonstrated' ? '#15803d' : '#1d4ed8',
+                        background: skill.label === 'demonstrated' ? 'var(--success-100)' : 'var(--primary-100)',
+                        color: skill.label === 'demonstrated' ? 'var(--success-700)' : 'var(--primary-700)',
                         fontSize: '0.75rem', fontWeight: 600,
                       }}>
                         {skill.label === 'demonstrated' ? t('export.demonstrated') : t('export.mentioned')}
@@ -235,27 +235,27 @@ export default function ExportPage() {
                     </div>
 
                     {skill.rationale && (
-                      <p style={{ fontSize: '0.875rem', color: '#444', margin: '0 0 0.75rem', fontStyle: 'italic' }}>
+                      <p style={{ fontSize: '0.875rem', color: 'var(--gray-600)', margin: '0 0 0.75rem', fontStyle: 'italic' }}>
                         {skill.rationale}
                       </p>
                     )}
 
                     {(skill.evidence_items?.length ?? 0) > 0 && (
                       <div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.375rem' }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--gray-500)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.375rem' }}>
                           {t('export.evidence')}
                         </div>
                         {(skill.evidence_items ?? []).slice(0, 2).map((ev, i) => (
                           <div key={ev.chunk_id} style={{
                             marginBottom: '0.5rem',
                             padding: '0.5rem 0.75rem',
-                            background: '#f8f8f8',
+                            background: 'var(--gray-50)',
                             borderRadius: '4px',
                             fontSize: '0.8125rem',
-                            color: '#333',
+                            color: 'var(--gray-700)',
                             fontFamily: 'Georgia, serif',
                           }}>
-                            <span style={{ color: '#888', fontSize: '0.7rem', display: 'block', marginBottom: '0.25rem' }}>
+                            <span style={{ color: 'var(--gray-500)', fontSize: '0.7rem', display: 'block', marginBottom: '0.25rem' }}>
                               [{i + 1}] chunk:{ev.chunk_id.slice(0, 8)}
                               {ev.page_start != null && ` · p.${ev.page_start}`}
                               {ev.section_path && ` · §${ev.section_path}`}
@@ -273,10 +273,10 @@ export default function ExportPage() {
 
           {/* Footer / Attestation */}
           <div style={{
-            borderTop: '1px solid #e8e8e8',
+            borderTop: '1px solid var(--border-light)',
             paddingTop: '1.5rem',
             fontSize: '0.75rem',
-            color: '#888',
+            color: 'var(--gray-500)',
             lineHeight: 1.6,
           }}>
             <p>

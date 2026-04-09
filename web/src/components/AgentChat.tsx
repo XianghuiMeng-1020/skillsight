@@ -251,6 +251,33 @@ export function AgentChat({
                 {t('skills.tutorTurnLimit') as string}
               </p>
             )}
+            {turnLimitReached && (
+              <div style={{ marginBottom: '0.5rem', textAlign: 'center' }}>
+                <button
+                  type="button"
+                  className={styles.endSessionBtn}
+                  onClick={async () => {
+                    if (!sessionId) return;
+                    setLoading(true);
+                    try {
+                      await studentBff.tutorSessionEnd(sessionId);
+                      setConcluded(true);
+                      onComplete?.({ level: 0, evidence_chunk_ids: [], why: 'Session ended by user at turn limit' });
+                    } catch {
+                      setTurns((prev) => [
+                        ...prev,
+                        { role: 'assistant', content: (t('agent.endSessionFailed') as string) || 'Failed to end session. Please close and restart.', ts: Date.now() },
+                      ]);
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading}
+                >
+                  {t('agent.endSession') as string}
+                </button>
+              </div>
+            )}
             <div className={styles.inputRow}>
               <input
                 type="text"

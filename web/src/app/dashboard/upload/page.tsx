@@ -16,6 +16,17 @@ interface UploadResult {
   chunks_created: number;
 }
 
+const SUPPORTED_FORMATS = [
+  { ext: 'Docs', icon: '📄', desc: 'PDF, DOCX, PPTX, MD, RTF, ODT, LaTeX, EPUB' },
+  { ext: 'Spreadsheets', icon: '📊', desc: 'XLSX, XLS, CSV' },
+  { ext: 'Images', icon: '🖼️', desc: 'JPG, PNG, WEBP, SVG, HEIC' },
+  { ext: 'Media', icon: '🎬', desc: 'MP4, WEBM, MP3, WAV, AAC' },
+  { ext: 'Notebook', icon: '📓', desc: 'IPYNB' },
+  { ext: 'Code', icon: '💻', desc: 'Python, JS/TS, Java, C/C++, Go, Rust, PHP...' },
+  { ext: 'Config', icon: '⚙️', desc: 'JSON, YAML, TOML, XML, ENV, SQL' },
+  { ext: 'Archive', icon: '📦', desc: 'ZIP (auto-extracts and parses contents)' },
+];
+
 const ACCEPTED_FILE_TYPES = [
   '.txt', '.doc', '.docx', '.pdf', '.pptx', '.ppt', '.rtf', '.odt', '.md', '.markdown', '.mdx',
   '.tex', '.latex', '.epub',
@@ -47,18 +58,9 @@ export default function UploadPage() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [repoUrl, setRepoUrl] = useState('');
   const [importingRepo, setImportingRepo] = useState(false);
+  const [isNarrow, setIsNarrow] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const supportedFormats = [
-    { ext: 'Docs', icon: '📄', desc: 'PDF, DOCX, PPTX, MD, RTF, ODT, LaTeX, EPUB' },
-    { ext: 'Spreadsheets', icon: '📊', desc: 'XLSX, XLS, CSV' },
-    { ext: 'Images', icon: '🖼️', desc: 'JPG, PNG, WEBP, SVG, HEIC' },
-    { ext: 'Media', icon: '🎬', desc: 'MP4, WEBM, MP3, WAV, AAC' },
-    { ext: 'Notebook', icon: '📓', desc: 'IPYNB' },
-    { ext: 'Code', icon: '💻', desc: 'Python, JS/TS, Java, C/C++, Go, Rust, PHP...' },
-    { ext: 'Config', icon: '⚙️', desc: 'JSON, YAML, TOML, XML, ENV, SQL' },
-    { ext: 'Archive', icon: '📦', desc: 'ZIP (auto-extracts and parses contents)' },
-  ];
+  const autoAssessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();
@@ -140,11 +142,20 @@ export default function UploadPage() {
 
     try {
       const uploadResults: UploadResult[] = [];
-
-      for (let i = 0; i < files.length; i++) {
-        setUploadProgress({ current: i + 1, total: files.length });
-        const data = await studentBff.upload(files[i], 'skill_assessment', 'full', token);
-        uploadResults.push(data);
+      let completed = 0;
+      const settled = await Promise.allSettled(
+        files.map(async (file) => {
+          const data = await studentBff.upload(file, 'skill_assessment', 'full', token);
+          completed += 1;
+          setUploadProgress({ current: completed, total: files.length });
+          return data as UploadResult;
+        })
+      );
+      settled.forEach((item) => {
+        if (item.status === 'fulfilled') uploadResults.push(item.value);
+      });
+      if (uploadResults.length === 0) {
+        throw new Error(t('upload.failed'));
       }
 
       setResults(uploadResults);
@@ -154,18 +165,16 @@ export default function UploadPage() {
       // Trigger auto-assess for each uploaded document
       const docIds = uploadResults.map((r) => r.doc_id).filter(Boolean);
       if (docIds.length > 0) {
-        setTimeout(async () => {
+        autoAssessTimerRef.current = setTimeout(async () => {
+          const assessResults = await Promise.allSettled(
+            docIds.map((docId) => studentBff.autoAssessDocument(docId))
+          );
           let ok = 0;
           let fail = 0;
-          for (const docId of docIds) {
-            try {
-              const r = await studentBff.autoAssessDocument(docId);
-              if (r?.status === 'accepted') ok += 1;
-              else fail += 1;
-            } catch {
-              fail += 1;
-            }
-          }
+          assessResults.forEach((r) => {
+            if (r.status === 'fulfilled' && r.value?.status === 'accepted') ok += 1;
+            else fail += 1;
+          });
           if (ok === docIds.length) {
             addToast('success', (t('upload.autoAssessDone') as string)?.replace('{n}', String(ok)) ?? `Queued assessment for ${ok} document(s).`);
           } else if (ok > 0) {
@@ -231,6 +240,16 @@ export default function UploadPage() {
       writeDemoMode(true);
       setIsDemoMode(true);
     }
+    const mq = window.matchMedia('(max-width: 960px)');
+    const sync = () => setIsNarrow(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => {
+      if (autoAssessTimerRef.current) {
+        clearTimeout(autoAssessTimerRef.current);
+      }
+      mq.removeEventListener('change', sync);
+    };
   }, [searchParams]);
 
   return (
@@ -277,18 +296,18 @@ export default function UploadPage() {
           </div>
           <div className="card" style={{ marginBottom: '1rem' }}>
             <div className="card-header">
-              <h3 className="card-title">Import from GitHub</h3>
+              <h3 className="card-title">{t('upload.importGithubTitle')}</h3>
             </div>
             <div className="card-content" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <input
                 className="input"
                 value={repoUrl}
                 onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder="https://github.com/owner/repo"
+                placeholder={t('upload.importGithubPlaceholder')}
                 style={{ minWidth: '280px', flex: 1 }}
               />
               <button className="btn btn-secondary btn-sm" onClick={handleImportGithub} disabled={!repoUrl.trim() || importingRepo || isDemoMode}>
-                {importingRepo ? 'Importing...' : 'Import Repo'}
+                {importingRepo ? t('upload.importing') : t('upload.importRepo')}
               </button>
             </div>
           </div>
@@ -374,7 +393,7 @@ export default function UploadPage() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isNarrow ? '1fr' : '2fr 1fr', gap: '1.5rem' }}>
             {/* Main Upload Area */}
             <div className="card">
               <div className="card-header">
@@ -414,7 +433,7 @@ export default function UploadPage() {
                     {t('upload.supportedFormats')}
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                    {supportedFormats.map((format) => (
+                    {SUPPORTED_FORMATS.map((format) => (
                       <span 
                         key={format.ext}
                         className="badge badge-neutral"
@@ -458,6 +477,7 @@ export default function UploadPage() {
                           <button 
                             className="btn btn-ghost btn-sm"
                             onClick={() => removeFile(index)}
+                            aria-label={t('common.remove') || 'Remove file'}
                           >
                             ✕
                           </button>

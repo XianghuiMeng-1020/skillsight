@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, createContext, useContext, ReactNode, useCallback } from 'react';
+import { useEffect, useState, useRef, createContext, useContext, ReactNode, useCallback } from 'react';
 
 interface Toast {
   id: string;
@@ -25,13 +25,16 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const addToast = useCallback((type: Toast['type'], message: string, duration = 4000) => {
-    const id = Math.random().toString(36).slice(2);
-    setToasts(prev => [...prev, { id, type, message, duration }]);
-    
-    if (duration > 0) {
-      setTimeout(() => removeToast(id), duration);
-    }
-  }, [removeToast]);
+    const id =
+      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+        ? crypto.randomUUID()
+        : Math.random().toString(36).slice(2);
+    setToasts(prev => {
+      const next = [...prev, { id, type, message, duration }];
+      // Keep toast stack bounded so the viewport does not get flooded.
+      return next.length > 5 ? next.slice(next.length - 5) : next;
+    });
+  }, []);
 
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
@@ -62,7 +65,10 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast:
       flexDirection: 'column',
       gap: '0.75rem',
       maxWidth: '400px',
-    }}>
+    }}
+    role="status"
+    aria-live="polite"
+    >
       {toasts.map(toast => (
         <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
       ))}
@@ -72,22 +78,28 @@ function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast:
 
 function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
   const [isLeaving, setIsLeaving] = useState(false);
+  const closeOnceRef = useRef(false);
+
+  const closeWithAnimation = useCallback(() => {
+    if (closeOnceRef.current) return;
+    closeOnceRef.current = true;
+    setIsLeaving(true);
+    window.setTimeout(onClose, 200);
+  }, [onClose]);
 
   useEffect(() => {
     if (toast.duration && toast.duration > 0) {
-      const timer = setTimeout(() => {
-        setIsLeaving(true);
-        setTimeout(onClose, 200);
-      }, toast.duration - 200);
+      const delay = Math.max(0, toast.duration - 200);
+      const timer = window.setTimeout(closeWithAnimation, delay);
       return () => clearTimeout(timer);
     }
-  }, [toast.duration, onClose]);
+  }, [toast.duration, closeWithAnimation]);
 
   const colors = {
-    success: { bg: '#dcfce7', border: '#86efac', icon: '✓', color: '#166534' },
-    error: { bg: '#fee2e2', border: '#fca5a5', icon: '✕', color: '#991b1b' },
-    warning: { bg: '#fef3c7', border: '#fcd34d', icon: '⚠', color: '#92400e' },
-    info: { bg: '#dbeafe', border: '#93c5fd', icon: 'ℹ', color: '#1e40af' },
+    success: { bg: 'var(--success-light)', border: 'var(--success)', icon: '✓', color: 'var(--gray-900)' },
+    error: { bg: 'var(--error-light)', border: 'var(--error)', icon: '✕', color: 'var(--gray-900)' },
+    warning: { bg: 'var(--warning-light)', border: 'var(--warning)', icon: '⚠', color: 'var(--gray-900)' },
+    info: { bg: 'var(--info-light)', border: 'var(--info)', icon: 'ℹ', color: 'var(--gray-900)' },
   };
 
   const style = colors[toast.type];
@@ -110,7 +122,7 @@ function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
       <span style={{ fontSize: '1.25rem', flexShrink: 0 }}>{style.icon}</span>
       <span style={{ flex: 1, fontSize: '0.875rem', fontWeight: 500 }}>{toast.message}</span>
       <button
-        onClick={() => { setIsLeaving(true); setTimeout(onClose, 200); }}
+        onClick={closeWithAnimation}
         aria-label="Close notification"
         style={{
           background: 'transparent',

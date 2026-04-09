@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useLanguage } from '@/lib/contexts';
 
 interface SkillData {
@@ -25,6 +25,14 @@ export function SkillRadar({
 }: SkillRadarProps) {
   const { t } = useLanguage();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const chartSummary = useMemo(
+    () =>
+      skills
+        .slice(0, 6)
+        .map((s) => `${s.name}: ${Math.round(s.value)}`)
+        .join(', '),
+    [skills]
+  );
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -176,6 +184,8 @@ export function SkillRadar({
       <canvas 
         ref={canvasRef} 
         style={{ width: size, height: size }}
+        role="img"
+        aria-label={`${t('skills.radarTitle')}: ${chartSummary}`}
       />
       
       {showLegend && (

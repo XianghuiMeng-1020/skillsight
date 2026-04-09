@@ -84,7 +84,14 @@ export default function AdminDashboard() {
           <span style={{ color: 'var(--gray-400)' }}>|</span>
           <span style={{ color: 'var(--gray-600)' }}>Admin Portal</span>
         </div>
-        <button onClick={() => { localStorage.clear(); setLoggedIn(false); setHealth(null); }}
+        <button
+          onClick={() => {
+            localStorage.removeItem('skillsight_token');
+            localStorage.removeItem('skillsight_role');
+            localStorage.removeItem('user');
+            setLoggedIn(false);
+            setHealth(null);
+          }}
           style={{ padding: '6px 16px', borderRadius: 6, background: isDark ? '#334155' : '#f5f5f4', color: 'var(--gray-600)', border: '1px solid var(--border, #e7e5e4)', cursor: 'pointer' }}>
           Sign Out
         </button>
@@ -95,7 +102,7 @@ export default function AdminDashboard() {
         <p style={{ color: 'var(--gray-600)', marginBottom: 32 }}>Full administrative control. All actions are audited.</p>
 
         {stats && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 40 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 40 }}>
             {[
               { label: 'Documents', value: stats.documents, color: '#E18182' },
               { label: 'Chunks', value: stats.chunks, color: '#98B8A8' },

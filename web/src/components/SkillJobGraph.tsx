@@ -128,8 +128,10 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
   }, [jobSkillMap]);
 
   const handleJobHover = useCallback((roleId: string) => {
-    setHoveredJob(roleId);
-    calculateLines(roleId);
+    requestAnimationFrame(() => {
+      setHoveredJob(roleId);
+      calculateLines(roleId);
+    });
   }, [calculateLines]);
 
   const handleJobLeave = useCallback(() => {
@@ -268,7 +270,10 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
               return (
                 <div
                   key={skill.skill_id}
-                  ref={(el) => { if (el) skillRefs.current.set(skill.skill_id, el); }}
+                  ref={(el) => {
+                    if (el) skillRefs.current.set(skill.skill_id, el);
+                    else skillRefs.current.delete(skill.skill_id);
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -324,12 +329,16 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
               return (
                 <div
                   key={job.role_id}
-                  ref={(el) => { if (el) jobRefs.current.set(job.role_id, el); }}
+                  ref={(el) => {
+                    if (el) jobRefs.current.set(job.role_id, el);
+                    else jobRefs.current.delete(job.role_id);
+                  }}
                   tabIndex={0}
                   onMouseEnter={() => handleJobHover(job.role_id)}
                   onMouseLeave={handleJobLeave}
                   onFocus={() => handleJobHover(job.role_id)}
                   onBlur={handleJobRowBlur}
+                  onClick={() => (hoveredJob === job.role_id ? handleJobLeave() : handleJobHover(job.role_id))}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

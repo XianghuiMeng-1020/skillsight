@@ -2,14 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
+import { InlineErrorBlock, PageSkeleton } from '@/components/StateBlocks';
 import { studentBff } from '@/lib/bffClient';
 import { DEMO_PEER_BENCHMARK } from '@/lib/demoDataset';
+import { useLanguage } from '@/lib/contexts';
 
-type Item = { skill_id: string; level: number; percentile: number };
+type Item = { skill_id: string; level: number; percentile: number | null };
 
 const LEVEL_LABELS: Record<number, string> = { 0: 'Not demonstrated', 1: 'Mentioned', 2: 'Applied', 3: 'Demonstrated', 4: 'Proficient', 5: 'Expert' };
 
 export default function PeerBenchmarkPage() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDemo, setIsDemo] = useState(false);
@@ -36,7 +39,7 @@ export default function PeerBenchmarkPage() {
           setItems(DEMO_PEER_BENCHMARK);
           setIsDemo(true);
           if (e instanceof Error && !e.message.includes('401')) {
-            setError('Could not load live data — showing demo benchmark.');
+            setError(t('peerBenchmark.loadFallback'));
           }
         }
       } finally {
@@ -51,8 +54,8 @@ export default function PeerBenchmarkPage() {
 
   const barColor = (pct: number) => {
     if (pct >= 70) return 'var(--hku-green)';
-    if (pct >= 40) return '#f59e0b';
-    return '#ef4444';
+    if (pct >= 40) return 'var(--warning)';
+    return 'var(--error)';
   };
 
   return (
@@ -61,43 +64,38 @@ export default function PeerBenchmarkPage() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <h1>Peer Benchmarking</h1>
+            <h1>{t('peerBenchmark.title')}</h1>
             <p style={{ margin: 0, color: 'var(--gray-500)' }}>
-              Compare your verified skill levels against anonymous peers.
+              {t('peerBenchmark.subtitle')}
               {isDemo && (
-                <span style={{ marginLeft: 8, fontSize: 12, background: 'var(--warning-bg, #fef3c7)', color: '#92400e', padding: '2px 8px', borderRadius: 4 }}>
-                  Sample data — upload a document and complete assessments to see your real ranking
+                <span style={{ marginLeft: 8, fontSize: 12, background: 'var(--warning-light)', color: 'var(--warning)', padding: '2px 8px', borderRadius: 4 }}>
+                  {t('peerBenchmark.demoHint')}
                 </span>
               )}
             </p>
           </div>
         </div>
 
-        {error && (
-          <div className="card" style={{ marginBottom: '1rem', borderLeft: '4px solid var(--warning-color, #f59e0b)' }}>
-            <div className="card-content" style={{ padding: '0.75rem 1rem', color: 'var(--gray-600)' }}>{error}</div>
-          </div>
-        )}
+        {error && <InlineErrorBlock title={t('common.error')} message={error} />}
 
         <div className="card">
           <div className="card-content">
             {loading ? (
-              [1, 2, 3, 4].map((i) => (
-                <div key={i} className="skeleton" style={{ height: 44, marginBottom: 14, borderRadius: 8 }} />
-              ))
+              <PageSkeleton rows={4} />
             ) : items.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--gray-500)' }}>
                 <p style={{ fontSize: 32, margin: 0 }}>📊</p>
-                <p style={{ margin: '0.5rem 0 0' }}>No benchmark data yet.</p>
-                <p style={{ fontSize: 13, margin: '0.25rem 0 0' }}>Upload a document and run skill assessment to compare with peers.</p>
+                <p style={{ margin: '0.5rem 0 0' }}>{t('peerBenchmark.emptyTitle')}</p>
+                <p style={{ fontSize: 13, margin: '0.25rem 0 0' }}>{t('peerBenchmark.emptyDesc')}</p>
               </div>
             ) : (
               <>
                 <p style={{ margin: '0 0 1rem', fontSize: 13, color: 'var(--gray-500)' }}>
-                  {items.length} skills assessed · Percentile shows your standing among all peers
+                  {t('peerBenchmark.countPrefix')} {items.length} {t('peerBenchmark.countSuffix')}
                 </p>
                 {items.map((it) => {
-                  const topPct = Math.max(0, 100 - Math.round(it.percentile));
+                  const percentile = typeof it.percentile === 'number' ? it.percentile : null;
+                  const topPct = percentile === null ? null : Math.max(0, 100 - Math.round(percentile));
                   const levelLabel = LEVEL_LABELS[it.level] ?? `Level ${it.level}`;
                   return (
                     <div key={it.skill_id} style={{ marginBottom: 16 }}>
@@ -105,16 +103,18 @@ export default function PeerBenchmarkPage() {
                         <span style={{ textTransform: 'capitalize', fontWeight: 500 }}>{normalizeSkill(it.skill_id)}</span>
                         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                           <span style={{ fontSize: 12, color: 'var(--gray-500)' }}>{levelLabel}</span>
-                          <strong style={{ color: barColor(it.percentile) }}>Top {topPct}%</strong>
+                          <strong style={{ color: percentile === null ? 'var(--gray-500)' : barColor(percentile) }}>
+                            {topPct === null ? t('peerBenchmark.na') : `${t('peerBenchmark.topPrefix')} ${topPct}%`}
+                          </strong>
                         </div>
                       </div>
                       <div style={{ height: 10, borderRadius: 999, background: 'var(--gray-200)' }}>
                         <div
                           style={{
                             height: '100%',
-                            width: `${Math.max(3, Math.min(100, it.percentile))}%`,
+                            width: `${Math.max(3, Math.min(100, percentile ?? 3))}%`,
                             borderRadius: 999,
-                            background: barColor(it.percentile),
+                            background: percentile === null ? 'var(--gray-300)' : barColor(percentile),
                             transition: 'width 0.6s ease',
                           }}
                         />

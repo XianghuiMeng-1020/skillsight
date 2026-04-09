@@ -262,7 +262,7 @@ def bff_programme_trend(
     ctx = AccessContext(purpose=x_purpose or _PROG_PURPOSE, programme_id=programme_id)
     require_access(ident, "bff.programme.trend", ctx, db)
 
-    # Simpler aggregation: skill assessments by skill + period (programme_id filter via courses not available without document-course linkage)
+    # Aggregation: skill assessments by skill + period, filtered by programme via role/course linkage
     simple_sql = """
         SELECT sa.skill_id, s.canonical_name AS skill_name,
                sa.label AS assessment_label,
@@ -270,10 +270,13 @@ def bff_programme_trend(
                DATE_TRUNC('month', sa.created_at) AS period
         FROM skill_assessments sa
         JOIN skills s ON s.skill_id = sa.skill_id
+        JOIN role_skill_requirements rsr ON rsr.skill_id = sa.skill_id
+        JOIN vetted_roles vr ON vr.role_id = rsr.role_id
+        WHERE vr.programme_id = :programme_id
     """
-    params: Dict[str, Any] = {}
+    params: Dict[str, Any] = {"programme_id": programme_id}
     if skill_id:
-        simple_sql += " WHERE sa.skill_id = :sid"
+        simple_sql += " AND sa.skill_id = :sid"
         params["sid"] = skill_id
     simple_sql += " GROUP BY sa.skill_id, s.canonical_name, sa.label, period ORDER BY period DESC, s.canonical_name LIMIT 100"
 

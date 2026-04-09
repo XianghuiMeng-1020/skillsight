@@ -5,6 +5,7 @@ import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
 import { studentBff } from '@/lib/bffClient';
 import styles from './resume.module.css';
+import { DiffInsightsPanel } from './DiffInsightsPanel';
 
 interface ResumeWorkbenchProps {
   reviewId: string;
@@ -209,6 +210,7 @@ export function ResumeWorkbench({
   const [compareSection, setCompareSection] = useState<string>('all');
   const [diffInsights, setDiffInsights] = useState<DiffInsights | null>(null);
   const [exportingReport, setExportingReport] = useState<'docx' | 'pdf' | null>(null);
+  const [compareDiffRows, setCompareDiffRows] = useState<DiffRow[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -327,6 +329,7 @@ export function ResumeWorkbench({
       setCompareSourceText('');
       setCompareSection('all');
       setDiffInsights(null);
+      setCompareDiffRows([]);
     } finally {
       setCompareLoading(false);
     }
@@ -437,10 +440,37 @@ export function ResumeWorkbench({
     return (currentSections.blocks[compareSection] || []).join('\n');
   }, [compareSection, compareCurrentText, currentSections]);
 
-  const compareDiffRows = useMemo(
-    () => buildSideBySideDiff(selectedCurrentText, selectedBaselineText),
-    [selectedCurrentText, selectedBaselineText]
-  );
+  useEffect(() => {
+    if (!selectedCurrentText && !selectedBaselineText) {
+      setCompareDiffRows([]);
+      return;
+    }
+    let cancelled = false;
+    try {
+      const worker = new Worker(new URL('./diffWorker.ts', import.meta.url));
+      worker.onmessage = (event: MessageEvent<DiffRow[]>) => {
+        if (!cancelled) setCompareDiffRows(event.data || []);
+      };
+      worker.onerror = () => {
+        if (!cancelled) {
+          setCompareDiffRows(buildSideBySideDiff(selectedCurrentText, selectedBaselineText));
+        }
+      };
+      worker.postMessage({
+        currentText: selectedCurrentText,
+        baselineText: selectedBaselineText,
+      });
+      return () => {
+        cancelled = true;
+        worker.terminate();
+      };
+    } catch {
+      setCompareDiffRows(buildSideBySideDiff(selectedCurrentText, selectedBaselineText));
+      return () => {
+        cancelled = true;
+      };
+    }
+  }, [selectedCurrentText, selectedBaselineText]);
 
   const baselineWordSet = useMemo(() => new Set(extractWords(selectedBaselineText)), [selectedBaselineText]);
   const currentWordSet = useMemo(() => new Set(extractWords(selectedCurrentText)), [selectedCurrentText]);
@@ -565,33 +595,37 @@ export function ResumeWorkbench({
           </div>
 
           <div className={styles.controlBlock}>
-            <h4>{t('resume.compareVersionsTitle') || 'Version Compare'}</h4>
-            <label className={styles.selectLabel}>
-              {t('resume.compareTarget') || 'Compare with'}
-              <select value={compareReviewId} onChange={(e) => setCompareReviewId(e.target.value)}>
-                <option value="">{t('resume.optional') || '—'}</option>
-                {reviews.map((r) => (
-                  <option key={r.review_id} value={r.review_id}>
-                    {r.review_id.slice(0, 8)}… {r.status ? `(${r.status})` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {!!compareSourceText && (
+            <details>
+              <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '0.5rem' }}>
+                {t('resume.compareVersionsTitle') || 'Version Compare'}
+              </summary>
               <label className={styles.selectLabel}>
-                {t('resume.compareSection') || 'Section'}
-                <select value={compareSection} onChange={(e) => setCompareSection(e.target.value)}>
-                  {sectionOptions.map((sec) => (
-                    <option key={sec} value={sec}>
-                      {sectionLabel(sec)}
+                {t('resume.compareTarget') || 'Compare with'}
+                <select value={compareReviewId} onChange={(e) => setCompareReviewId(e.target.value)}>
+                  <option value="">{t('resume.optional') || '—'}</option>
+                  {reviews.map((r) => (
+                    <option key={r.review_id} value={r.review_id}>
+                      {r.review_id.slice(0, 8)}… {r.status ? `(${r.status})` : ''}
                     </option>
                   ))}
                 </select>
               </label>
-            )}
-            <button type="button" className="btn btn-secondary btn-sm" onClick={handleCompare} disabled={!compareReviewId || compareLoading}>
-              {compareLoading ? t('common.loading') : (t('resume.runCompare') || 'Compare')}
-            </button>
+              {!!compareSourceText && (
+                <label className={styles.selectLabel}>
+                  {t('resume.compareSection') || 'Section'}
+                  <select value={compareSection} onChange={(e) => setCompareSection(e.target.value)}>
+                    {sectionOptions.map((sec) => (
+                      <option key={sec} value={sec}>
+                        {sectionLabel(sec)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <button type="button" className="btn btn-secondary btn-sm" onClick={handleCompare} disabled={!compareReviewId || compareLoading}>
+                {compareLoading ? t('common.loading') : (t('resume.runCompare') || 'Compare')}
+              </button>
+            </details>
             {compareStats && (
               <div className={styles.compareStats}>
                 <span>{(t('resume.compareAdded') || 'Added').replace('{n}', String(compareStats.added))}</span>
@@ -602,73 +636,7 @@ export function ResumeWorkbench({
             {compareDiffRows.length > 0 && (
               <>
                 {diffInsights && (
-                  <div className={styles.semanticPanel}>
-                    <div className={styles.semanticTitle}>{t('resume.semanticInsightsTitle') || 'Semantic Change Insights'}</div>
-                    {!!diffInsights.role_keywords?.length && (
-                      <div className={styles.semanticKeywords}>
-                        {(t('resume.roleKeywords') || 'Role keywords')}: {diffInsights.role_keywords.join(', ')}
-                      </div>
-                    )}
-                    <div className={styles.impactGrid}>
-                      {Object.entries(diffInsights.dimension_impact).map(([k, v]) => (
-                        <span key={k} className={`${styles.impactChip} ${v.signal === 'positive' ? styles.impactPos : v.signal === 'negative' ? styles.impactNeg : styles.impactNeu}`}>
-                          {k}: {v.delta > 0 ? `+${v.delta}` : v.delta}
-                        </span>
-                      ))}
-                    </div>
-                    <div className={styles.semanticSummaryRow}>
-                      <span>{(t('resume.semanticAvgSimilarity') || 'Avg similarity')}: {Math.round((diffInsights.semantic_alignment?.avg_similarity || 0) * 100)}%</span>
-                      <span>{(t('resume.semanticMatched') || 'Matched')}: {diffInsights.semantic_alignment?.matched_sentences || 0}</span>
-                      <span>{(t('resume.semanticAddedSentences') || 'Added')}: {diffInsights.semantic_alignment?.added_sentences || 0}</span>
-                      <span>{(t('resume.semanticRemovedSentences') || 'Removed')}: {diffInsights.semantic_alignment?.removed_sentences || 0}</span>
-                    </div>
-                    <div className={styles.semanticRiskBadgeRow}>
-                      <span className={`${styles.riskBadge} ${
-                        diffInsights.risk_validator?.risk_level === 'high'
-                          ? styles.riskHigh
-                          : (diffInsights.risk_validator?.risk_level === 'medium' ? styles.riskMedium : styles.riskLow)
-                      }`}>
-                        {(t('resume.riskLevel') || 'Risk level')}: {diffInsights.risk_validator?.risk_level || 'low'}
-                      </span>
-                    </div>
-                    {!!diffInsights.attribution?.by_dimension?.length && (
-                      <div className={styles.attrList}>
-                        {diffInsights.attribution.by_dimension.map((it, idx) => (
-                          <div key={`attr-${idx}`} className={styles.attrItem}>
-                            <span className={styles.attrLabel}>{it.dimension}</span>
-                            <span className={`${styles.attrDelta} ${it.score_delta > 0 ? styles.attrPos : (it.score_delta < 0 ? styles.attrNeg : styles.attrNeu)}`}>
-                              {it.score_delta > 0 ? `+${it.score_delta}` : it.score_delta}
-                            </span>
-                          </div>
-                        ))}
-                        {typeof diffInsights.attribution.total_delta === 'number' && (
-                          <div className={styles.attrTotal}>
-                            {(t('resume.totalDelta') || 'Total delta')}: {diffInsights.attribution.total_delta > 0 ? '+' : ''}{diffInsights.attribution.total_delta}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    {!!diffInsights.highlights?.length && (
-                      <ul className={styles.semanticList}>
-                        {diffInsights.highlights.map((h, idx) => <li key={`hl-${idx}`}>{h}</li>)}
-                      </ul>
-                    )}
-                    {!!diffInsights.risks?.length && (
-                      <ul className={styles.semanticRiskList}>
-                        {diffInsights.risks.map((r, idx) => <li key={`rk-${idx}`}>{r.message}</li>)}
-                      </ul>
-                    )}
-                    {!!diffInsights.risk_validator?.issues?.length && (
-                      <ul className={styles.semanticRiskList}>
-                        {diffInsights.risk_validator.issues.map((r, idx) => <li key={`rv-${idx}`}>{r.message}</li>)}
-                      </ul>
-                    )}
-                    {!!diffInsights.next_actions?.length && (
-                      <ul className={styles.semanticList}>
-                        {diffInsights.next_actions.map((a, idx) => <li key={`na-${idx}`}>{a}</li>)}
-                      </ul>
-                    )}
-                  </div>
+                  <DiffInsightsPanel diffInsights={diffInsights} t={t} />
                 )}
                 <div className={styles.compareActions}>
                   <button type="button" className="btn btn-secondary btn-sm" onClick={handleLoadComparedVersion}>

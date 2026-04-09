@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, DragEvent } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/lib/contexts';
 import { API_BASE_URL } from '@/lib/api';
 import { getToken } from '@/lib/bffClient';
@@ -43,6 +44,7 @@ function isAllowedFile(name: string): boolean {
 }
 
 export default function UploadPage() {
+  const router = useRouter();
   const { t, language } = useLanguage();
   const { addToast } = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -106,6 +108,11 @@ export default function UploadPage() {
     { icon: '🎬', categoryKey: 'upload.typeMedia', formats: 'MP4, WEBM, MOV, AVI, MKV, MP3, WAV, M4A, OGG, FLAC, AAC' },
     { icon: '💻', categoryKey: 'upload.typeCode', formats: 'PY, JS, TS, IPYNB, JAVA, GO, RS, RB, HTML, CSS, JSON...' },
   ];
+
+  useEffect(() => {
+    // Unified upload entry: keep this page as compatibility redirect.
+    router.replace('/dashboard/upload');
+  }, [router]);
 
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();

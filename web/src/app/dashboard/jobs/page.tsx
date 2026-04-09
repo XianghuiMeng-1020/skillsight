@@ -9,6 +9,7 @@ import { studentBff, getToken } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
 import { isDemoQuery, readDemoMode, withDemoQuery, writeDemoMode } from '@/lib/demoMode';
+import { useAuthGuard } from '@/lib/useAuthGuard';
 
 /** Clamp readiness to [0,100] for progress bar width (API may return decimals). */
 function rwPct(n: number): number {
@@ -135,6 +136,7 @@ const DEMO_COURSES_BY_ROLE: Record<string, RecommendedCourse[]> = {
 
 export default function JobsPage() {
   const { t } = useLanguage();
+  const { isAuthenticated } = useAuthGuard();
   const searchParams = useSearchParams();
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
@@ -246,16 +248,16 @@ export default function JobsPage() {
       loadDemoDataset();
       return;
     }
-    const token = getToken();
-    if (!token) {
+    if (!isAuthenticated) {
       setLoading(false);
       return;
     }
+    const controller = new AbortController();
     const load = async () => {
       try {
         const [rolesData, docsData] = await Promise.all([
-          studentBff.getRoles(20),
-          studentBff.getDocuments(1).catch(() => ({ items: [] })),
+          studentBff.getRoles(20, controller.signal),
+          studentBff.getDocuments(1, controller.signal).catch(() => ({ items: [] })),
         ]);
         const latestDocId = ((docsData as { items?: Array<{ doc_id?: string }> }).items || [])[0]?.doc_id;
         const items = (rolesData.items || []) as Array<Record<string, unknown>>;
@@ -303,7 +305,8 @@ export default function JobsPage() {
       }
     };
     load();
-  }, [searchParams]);
+    return () => controller.abort();
+  }, [searchParams, isAuthenticated]);
 
   const handleSelectRole = async (role: Role) => {
     setSelectedRole(role);
@@ -442,6 +445,12 @@ export default function JobsPage() {
                   <span className="spinner"></span>
                   {t('jobs.analyzing')}
                 </div>
+              ) : !isAuthenticated ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--gray-500)' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔐</div>
+                  <p style={{ fontWeight: 500, marginBottom: '0.5rem' }}>{t('upload.loginRequired')}</p>
+                  <a href="/login" className="btn btn-primary btn-sm">{t('common.login')}</a>
+                </div>
               ) : roles.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--gray-500)' }}>
                   <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎯</div>
@@ -456,7 +465,7 @@ export default function JobsPage() {
                 </div>
               ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '1rem' }}>
-                  {roles.slice(0, 3).sort((a, b) => b.readiness - a.readiness).map((role, i) => (
+                  {roles.slice(0, 3).map((role, i) => (
                     <div 
                       key={role.role_id}
                       style={{

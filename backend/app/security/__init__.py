@@ -7,7 +7,10 @@ import os
 import time
 from dataclasses import dataclass
 from hashlib import sha256
+import logging
 from typing import Any, Callable, Dict, Optional, Set
+_log = logging.getLogger(__name__)
+
 
 from fastapi import Depends, Header, HTTPException
 
@@ -100,8 +103,9 @@ def verify_token(token: str) -> Dict[str, Any]:
         if exp and int(time.time()) > exp:
             raise ValueError("expired")
         return payload
-    except Exception as e:
-        raise HTTPException(status_code=401, detail=f"invalid token: {type(e).__name__}")
+    except Exception:
+        _log.warning("Token verification failed")
+        raise HTTPException(status_code=401, detail="invalid token")
 
 
 def parse_token_optional(authorization: Optional[str]) -> Optional[Dict[str, Any]]:

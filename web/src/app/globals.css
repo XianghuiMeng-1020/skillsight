@@ -79,6 +79,13 @@
   --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.05);
   --shadow-lg: 0 12px 24px -4px rgb(0 0 0 / 0.12), 0 4px 8px -2px rgb(0 0 0 / 0.06);
   --shadow-glow: 0 0 40px -10px var(--peach);
+
+  /* Semantic aliases for inline styles and component overrides */
+  --color-bg: var(--gray-50);
+  --color-surface: var(--white);
+  --color-text: var(--gray-900);
+  --color-text-muted: var(--gray-600);
+  --color-border: var(--gray-200);
 }
 
 /* ===== Dark Mode ===== */
@@ -153,6 +160,63 @@
   --shadow-md: 0 4px 12px -2px rgb(0 0 0 / 0.4), 0 2px 4px -2px rgb(0 0 0 / 0.3);
   --shadow-lg: 0 12px 24px -4px rgb(0 0 0 / 0.5), 0 4px 8px -2px rgb(0 0 0 / 0.4);
   --shadow-glow: 0 0 40px -10px var(--coral);
+
+  --color-bg: var(--gray-50);
+  --color-surface: var(--white);
+  --color-text: var(--gray-900);
+  --color-text-muted: var(--gray-600);
+  --color-border: var(--gray-200);
+}
+
+/* Respect system dark mode before app theme is initialized */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --peach: #D4A574;
+    --peach-dark: #B8935F;
+    --peach-light: #E8C098;
+    --peach-50: #2A2520;
+    --coral: #C96A6B;
+    --coral-dark: #A85556;
+    --coral-light: #D98384;
+    --coral-50: #2A2020;
+    --teal: #7AAFBB;
+    --teal-dark: #5A9AAA;
+    --teal-light: #9BC5CE;
+    --teal-50: #1A2528;
+    --sage: #8AAF9B;
+    --sage-dark: #6B9A80;
+    --sage-light: #A8C8B6;
+    --sage-50: #1A2520;
+    --primary: #C96A6B;
+    --primary-dark: #A85556;
+    --primary-light: #D98384;
+    --primary-50: #2A2020;
+    --hku-green: #6B9A80;
+    --hku-green-dark: #4F8066;
+    --hku-green-light: #8AAF9B;
+    --hku-green-50: #1A2520;
+    --hku-green-100: #253530;
+    --accent: #D4A574;
+    --accent-light: #E8C098;
+    --accent-dark: #B8935F;
+    --white: #1C1917;
+    --gray-50: #1C1917;
+    --gray-100: #292524;
+    --gray-200: #44403C;
+    --gray-300: #57534E;
+    --gray-400: #78716C;
+    --gray-500: #A8A29E;
+    --gray-600: #D6D3D1;
+    --gray-700: #E7E5E4;
+    --gray-800: #F5F5F4;
+    --gray-900: #FAFAF9;
+    --color-bg: var(--gray-50);
+    --color-surface: var(--white);
+    --color-text: var(--gray-900);
+    --color-text-muted: var(--gray-600);
+    --color-border: var(--gray-200);
+    color-scheme: dark;
+  }
 }
 
 [data-theme="dark"] body {

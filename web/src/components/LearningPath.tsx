@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLearningPath, LearningRecommendation } from '@/lib/hooks';
 import { useLanguage } from '@/lib/contexts';
 
@@ -19,9 +19,9 @@ const typeLabelKeys: Record<LearningRecommendation['type'], string> = {
 };
 
 const priorityStyleMap: Record<LearningRecommendation['priority'], { bg: string; color: string; labelKey: string }> = {
-  high: { bg: '#fef2f2', color: '#dc2626', labelKey: 'learning.priorityHigh' },
-  medium: { bg: '#fefce8', color: '#ca8a04', labelKey: 'learning.priorityMedium' },
-  low: { bg: '#f0fdf4', color: '#16a34a', labelKey: 'learning.priorityLow' },
+  high: { bg: 'var(--error-light)', color: 'var(--error)', labelKey: 'learning.priorityHigh' },
+  medium: { bg: 'var(--warning-light)', color: 'var(--warning)', labelKey: 'learning.priorityMedium' },
+  low: { bg: 'var(--success-light)', color: 'var(--success)', labelKey: 'learning.priorityLow' },
 };
 
 interface RecommendationItemProps {
@@ -165,13 +165,16 @@ interface LearningPathCardProps {
 export function LearningPathCard({ skills, targetRole, maxItems = 5 }: LearningPathCardProps) {
   const { t } = useLanguage();
   const { recommendations, skillGaps, loading, generateRecommendations } = useLearningPath();
+  const skillsKey = useMemo(
+    () => skills.map((s) => `${s.name}:${s.level}`).join('|'),
+    [skills]
+  );
 
   useEffect(() => {
     if (skills.length > 0) {
       generateRecommendations(skills, targetRole);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(skills), targetRole]);
+  }, [skills, skillsKey, targetRole, generateRecommendations]);
 
   if (loading) {
     return (
@@ -229,8 +232,8 @@ export function LearningPathCard({ skills, targetRole, maxItems = 5 }: LearningP
                 padding: '0.375rem 0.625rem',
                 borderRadius: '6px',
                 background:
-                  gap.gap >= 2 ? '#fef2f2' : gap.gap === 1 ? '#fefce8' : '#f0fdf4',
-                color: gap.gap >= 2 ? '#dc2626' : gap.gap === 1 ? '#ca8a04' : '#16a34a',
+                  gap.gap >= 2 ? 'var(--error-light)' : gap.gap === 1 ? 'var(--warning-light)' : 'var(--success-light)',
+                color: gap.gap >= 2 ? 'var(--error)' : gap.gap === 1 ? 'var(--warning)' : 'var(--success)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.25rem',
@@ -256,6 +259,9 @@ export function LearningPathCard({ skills, targetRole, maxItems = 5 }: LearningP
           <button
             className="btn btn-ghost btn-sm"
             style={{ color: 'var(--sage-dark)' }}
+            onClick={() => {
+              window.location.href = '/dashboard/learning';
+            }}
           >
             {t('learning.viewAll')} {recommendations.length} {t('learning.suggestions')} →
           </button>
@@ -273,11 +279,19 @@ interface FullLearningPathProps {
 export function FullLearningPath({ skills, targetRole }: FullLearningPathProps) {
   const { t } = useLanguage();
   const { recommendations, skillGaps, loading, generateRecommendations } = useLearningPath();
+  const [visibleCount, setVisibleCount] = useState(40);
+  const skillsKey = useMemo(
+    () => skills.map((s) => `${s.name}:${s.level}`).join('|'),
+    [skills]
+  );
 
   useEffect(() => {
     generateRecommendations(skills, targetRole);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(skills), targetRole]);
+  }, [skills, skillsKey, targetRole, generateRecommendations]);
+
+  useEffect(() => {
+    setVisibleCount(40);
+  }, [recommendations.length]);
 
   if (loading) {
     return (
@@ -379,10 +393,17 @@ export function FullLearningPath({ skills, targetRole }: FullLearningPathProps) 
         </div>
         <div className="card-content">
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {recommendations.map((rec, index) => (
+            {recommendations.slice(0, visibleCount).map((rec, index) => (
               <RecommendationItem key={rec.id} recommendation={rec} index={index} />
             ))}
           </div>
+          {recommendations.length > visibleCount && (
+            <div style={{ textAlign: 'center', marginTop: '1rem' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setVisibleCount((n) => n + 40)}>
+                {t('changelog.loadMore')}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

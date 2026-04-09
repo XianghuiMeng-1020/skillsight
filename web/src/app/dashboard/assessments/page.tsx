@@ -9,10 +9,11 @@ import { useLanguage } from '@/lib/contexts';
 import { useToast } from '@/components/Toast';
 import { getToken, studentBff } from '@/lib/bffClient';
 import { useAssessmentWidget } from '@/lib/AssessmentWidgetContext';
-import { useAudioRecorder, useWhisperTranscriber, useAchievements } from '@/lib/hooks';
+import { useAudioRecorder, useWhisperTranscriber, useAchievements, useKeystrokeTracker } from '@/lib/hooks';
 import { fmt2 } from '@/lib/formatNumber';
 import { DEMO_RECENT_ASSESSMENT_UPDATES } from '@/lib/demoDataset';
 import { isDemoQuery, readDemoMode, writeDemoMode } from '@/lib/demoMode';
+import { AssessmentTypeGrid } from './AssessmentTypeGrid';
 
 type AssessmentType =
   | 'communication'
@@ -84,6 +85,8 @@ export default function AssessmentsPage() {
   const [prepLoading, setPrepLoading] = useState(false);
   const lastActionAtRef = useRef(0);
   const idempotencyKeyRef = useRef<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   
   const [code, setCode] = useState('');
   const [essay, setEssay] = useState('');
@@ -100,6 +103,7 @@ export default function AssessmentsPage() {
   const audioRecorder = useAudioRecorder();
   const whisperTranscriber = useWhisperTranscriber();
   const { checkAssessmentAchievements } = useAchievements();
+  const keystrokeTracker = useKeystrokeTracker();
 
   const getCurrentUserId = () => {
     if (typeof window === 'undefined') return 'demo_user';
@@ -184,6 +188,12 @@ export default function AssessmentsPage() {
     return () => assessmentWidget.setOnAssessmentComplete(undefined);
   }, [assessmentWidget, isDemoMode]);
 
+  useEffect(() => {
+    if (activeTab === 'writing' && session?.session_id) {
+      keystrokeTracker.reset();
+    }
+  }, [activeTab, session?.session_id, keystrokeTracker]);
+
   const formatAssessmentType = (type: string) => {
     if (type === 'communication') return t('assessmentsList.typeCommunication');
     if (type === 'programming') return t('assessmentsList.typeProgramming');
@@ -258,28 +268,9 @@ export default function AssessmentsPage() {
           throw new Error('Coming soon');
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-        },
-        body: JSON.stringify(body),
-      });
-      
-      if (!response.ok) {
-        let errMsg = '';
-        try {
-          const errBody = await response.json().catch(() => ({}));
-          errMsg = (errBody as { detail?: string })?.detail ?? response.statusText ?? 'Failed to start';
-        } catch {
-          errMsg = 'Failed to start';
-        }
-        throw new Error(errMsg);
-      }
-      
-      const data = await response.json();
-      setSession(data);
+      const assessmentType = endpoint.split('/')[2];
+      const data = await studentBff.interactiveStart(assessmentType, body as Record<string, unknown>);
+      setSession(data as Session);
       idempotencyKeyRef.current = null;
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
@@ -341,7 +332,10 @@ export default function AssessmentsPage() {
             session_id: session.session_id,
             content: essay,
             anti_copy_token: session.anti_copy_token || 'demo_token',
-            keystroke_data: { chars_per_minute: 180, paste_count: 0 },
+            keystroke_data: {
+              chars_per_minute: keystrokeTracker.keystrokeData.charsPerMinute,
+              paste_count: keystrokeTracker.keystrokeData.pasteCount,
+            },
           };
           break;
         case 'data_analysis':
@@ -375,31 +369,32 @@ export default function AssessmentsPage() {
           throw new Error('Coming soon');
       }
       
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001'}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(getToken() ? { Authorization: `Bearer ${getToken()}` } : {}),
-          'Idempotency-Key': idempotencyKeyRef.current,
+      const assessmentType = endpoint.split('/')[2];
+      const data = await studentBff.interactiveSubmit(
+        assessmentType,
+        body as Record<string, unknown>,
+        {
+          'Idempotency-Key': idempotencyKeyRef.current || '',
           'X-Model-Version': 'ui-default-v1',
           'X-Rubric-Version': 'rubric-v1',
-        },
-        body: JSON.stringify(body),
-      });
-      
-      if (!response.ok) throw new Error('Submit failed');
-      
-      const data = await response.json();
-      setResult(data);
+        }
+      );
+      const submitData = data as {
+        score?: number;
+        evaluation?: { score?: number };
+        idempotent_replay?: boolean;
+        skill_update?: { queued?: boolean };
+      } & Record<string, unknown>;
+      setResult(submitData);
       setSession(null);
       idempotencyKeyRef.current = null;
-      const score = typeof data?.score === 'number' ? data.score : (data?.evaluation as { score?: number })?.score ?? 0;
+      const score = typeof submitData.score === 'number' ? submitData.score : submitData.evaluation?.score ?? 0;
       if (['communication', 'programming', 'writing', 'data_analysis', 'problem_solving', 'presentation'].includes(activeTab)) {
         checkAssessmentAchievements(activeTab, score);
       }
-      if (data?.idempotent_replay) {
+      if (submitData.idempotent_replay) {
         setUiHint(t('assessmentsList.idempotentReplayHint'));
-      } else if (data?.skill_update?.queued) {
+      } else if (submitData.skill_update?.queued) {
         setUiHint(t('assessmentsList.skillSyncQueuedHint'));
       } else {
         setUiHint(null);
@@ -429,7 +424,49 @@ export default function AssessmentsPage() {
     setRecording(false);
     setTranscriptResult(null);
     setTranscribing(false);
+    setTimeLeft(0);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
   };
+
+  // Countdown timer for communication and presentation assessments
+  useEffect(() => {
+    if (!session || (activeTab !== 'communication' && activeTab !== 'presentation')) {
+      return;
+    }
+    const duration = session.duration_seconds || 60;
+    setTimeLeft(duration);
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          // Time up: auto-stop recording and submit
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          if (recording && audioRecorder.isRecording) {
+            void (async () => {
+              await audioRecorder.stopRecording();
+              setRecording(false);
+              void submitAssessment();
+            })();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [session?.session_id, activeTab, recording, audioRecorder.isRecording]);
 
   const getEvaluation = () => {
     const eval_ = result?.evaluation as Record<string, unknown> | undefined;
@@ -564,11 +601,11 @@ export default function AssessmentsPage() {
               </div>
               <div className="card" style={{ marginBottom: '1rem' }}>
                 <div className="card-header">
-                  <h3 className="card-title">Interview Prep Mode</h3>
+                  <h3 className="card-title">{t('assessmentsList.interviewPrepTitle')}</h3>
                 </div>
                 <div className="card-content">
                   <p style={{ color: 'var(--gray-600)', marginBottom: '0.75rem' }}>
-                    Generate AI interview questions based on your target role skill gaps.
+                    {t('assessmentsList.interviewPrepDesc')}
                   </p>
                   <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
                     <select className="input" value={prepRoleId} onChange={(e) => setPrepRoleId(e.target.value)} style={{ minWidth: 260 }}>
@@ -577,7 +614,7 @@ export default function AssessmentsPage() {
                       ))}
                     </select>
                     <button className="btn btn-secondary btn-sm" onClick={runInterviewPrep} disabled={!prepRoleId || prepLoading || isDemoMode}>
-                      {prepLoading ? 'Generating...' : 'Generate Questions'}
+                      {prepLoading ? t('common.loading') : t('assessmentsList.generateQuestions')}
                     </button>
                   </div>
                   {prepQuestions.length > 0 && (
@@ -593,56 +630,14 @@ export default function AssessmentsPage() {
               </div>
 
               <h2 style={{ marginBottom: '1rem' }}>{t('assessmentsList.chooseType')}</h2>
-              <div className="assessment-grid" style={{ marginBottom: '2rem' }}>
-                {assessments.map((assessment) => (
-                  <div 
-                    key={assessment.id}
-                    className={`assessment-card ${activeTab === assessment.id ? 'selected' : ''}`}
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setActiveTab(assessment.id)}
-                  >
-                    <div className="assessment-header">
-                      <div className="assessment-icon">{assessment.icon}</div>
-                      <div className="assessment-title">{t(assessment.titleKey)}</div>
-                      <div className="assessment-subtitle">{t(assessment.descKey)}</div>
-                      {getCoverageDesc(assessment.id) && (
-                        <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: 'var(--gray-600)' }}>
-                          {getCoverageDesc(assessment.id)}
-                        </div>
-                      )}
-                    </div>
-                    <div className="assessment-content">
-                      <div style={{ fontSize: '0.875rem', color: 'var(--gray-500)', marginBottom: '0.75rem' }}>
-                        ⏱️ {t(assessment.timeKey)}
-                      </div>
-                      <ul className="assessment-features">
-                        {assessment.featuresKeys.map((fk, i) => (
-                          <li key={i}>{t(fk)}</li>
-                        ))}
-                      </ul>
-                    </div>
-                    <div className="assessment-footer">
-                      <div style={{ display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                        {activeTab === assessment.id ? (
-                          <span className="badge badge-primary">{t('assessmentsList.selected')}</span>
-                        ) : (
-                          <span style={{ fontSize: '0.875rem', color: 'var(--gray-500)' }}>{t('assessmentsList.clickToSelect')}</span>
-                        )}
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setPreviewType(assessment.id);
-                          }}
-                        >
-                          {t('assessmentsList.previewButton')}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <AssessmentTypeGrid
+                assessments={assessments}
+                activeTab={activeTab}
+                onSelect={setActiveTab}
+                onPreview={setPreviewType}
+                getCoverageDesc={getCoverageDesc}
+                t={t}
+              />
 
               {/* Start Section: Traditional vs AI Agent */}
               <div className="card">
@@ -800,9 +795,19 @@ export default function AssessmentsPage() {
                         ) : '🎙️'}
                       </div>
                       
-                      <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>
-                        {t('assess.timeLimit')}: {session.duration_seconds} s
-                      </p>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                        <span style={{ color: 'var(--gray-600)' }}>
+                          {t('assess.timeLimit')}: {session.duration_seconds} s
+                        </span>
+                        <span style={{
+                          fontSize: '1.25rem',
+                          fontWeight: 600,
+                          color: timeLeft <= 10 ? 'var(--error-600)' : 'var(--primary)',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          {timeLeft}s
+                        </span>
+                      </div>
                       
                       <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
                         <button 
@@ -923,7 +928,7 @@ export default function AssessmentsPage() {
                         color: 'var(--gray-500)',
                         marginTop: '0.75rem'
                       }}>
-                        ⏱️ Time limit: {session.time_limit_minutes} minutes · Word count: 300-500 words
+                        ⏱️ {t('assessmentsList.timeLimitPrefix')} {session.time_limit_minutes} {t('assessmentsList.minutes')} · {t('assessmentsList.wordCountHint')}
                       </div>
                     </div>
                     
@@ -936,9 +941,9 @@ export default function AssessmentsPage() {
                       <label className="label" style={{ margin: 0 }}>{t('assessmentsList.yourEssay')}</label>
                       <span style={{ 
                         fontSize: '0.875rem', 
-                        color: essay.split(/\s+/).filter(Boolean).length >= 300 ? 'var(--success)' : 'var(--gray-500)' 
+                        color: (essay.trim().length >= 300 && essay.trim().length <= 1200) ? 'var(--success)' : 'var(--gray-500)'
                       }}>
-                        {essay.split(/\s+/).filter(Boolean).length} words
+                        {essay.trim().length} {t('assess.characters')}
                       </span>
                     </div>
                     
@@ -952,13 +957,15 @@ export default function AssessmentsPage() {
                       placeholder="Start typing your essay here..."
                       value={essay}
                       onChange={(e) => setEssay(e.target.value)}
+                      onKeyDown={keystrokeTracker.handleKeyDown}
+                      onPaste={keystrokeTracker.handlePaste}
                     />
                     
                     <button 
                       className="btn btn-primary"
                       style={{ marginTop: '1rem', width: '100%' }}
                       onClick={submitAssessment}
-                      disabled={essay.split(/\s+/).filter(Boolean).length < 50 || submitting || isDemoMode}
+                      disabled={essay.trim().length < 50 || submitting || isDemoMode}
                     >
                       {submitting ? t('assessmentsList.evaluating') : t('assessmentsList.submitEssay')}
                     </button>
@@ -1006,19 +1013,19 @@ export default function AssessmentsPage() {
                       value={dataAnalysis}
                       onChange={(e) => setDataAnalysis(e.target.value)}
                     />
-                    <label className="label" style={{ marginBottom: '0.25rem' }}>Visualization recommendation</label>
+                    <label className="label" style={{ marginBottom: '0.25rem' }}>{t('assessmentsList.visualizationRecommendation')}</label>
                     <select
                       className="input"
                       style={{ marginBottom: '1rem' }}
                       value={dataVisualization}
                       onChange={(e) => setDataVisualization(e.target.value)}
                     >
-                      <option value="">— Select —</option>
-                      <option value="bar">Bar chart</option>
-                      <option value="line">Line chart</option>
-                      <option value="scatter">Scatter plot</option>
-                      <option value="pie">Pie chart</option>
-                      <option value="table">Table</option>
+                      <option value="">— {t('common.select')} —</option>
+                      <option value="bar">{t('assessmentsList.chartBar')}</option>
+                      <option value="line">{t('assessmentsList.chartLine')}</option>
+                      <option value="scatter">{t('assessmentsList.chartScatter')}</option>
+                      <option value="pie">{t('assessmentsList.chartPie')}</option>
+                      <option value="table">{t('assessmentsList.chartTable')}</option>
                     </select>
                     <button
                       className="btn btn-primary"
@@ -1064,7 +1071,17 @@ export default function AssessmentsPage() {
                     <div style={{ background: 'var(--primary-50)', padding: '1.5rem', borderRadius: 'var(--radius-lg)', marginBottom: '1rem' }}>
                       <div style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>🎤 {session.topic.title}</div>
                       <p style={{ fontSize: '0.9375rem', color: 'var(--gray-700)' }}>{session.topic.topic}</p>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: '0.5rem' }}>⏱️ {session.time_limit_minutes} min</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginTop: '0.5rem' }}>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)' }}>⏱️ {session.time_limit_minutes} min</span>
+                        <span style={{
+                          fontSize: '1rem',
+                          fontWeight: 600,
+                          color: timeLeft <= 10 ? 'var(--error-600)' : 'var(--primary)',
+                          fontVariantNumeric: 'tabular-nums',
+                        }}>
+                          {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                        </span>
+                      </div>
                     </div>
                     <label className="label">Outline (intro, main points, conclusion)</label>
                     <textarea

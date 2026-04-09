@@ -45,6 +45,7 @@ interface JobMatch {
 
 export default function StudentDashboard() {
   const { t } = useLanguage();
+  const INSIGHTS_PREF_KEY = 'skillsight-dashboard-insights-expanded-v1';
   const searchParams = useSearchParams();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -57,7 +58,7 @@ export default function StudentDashboard() {
   const [showResumeReviewAgent, setShowResumeReviewAgent] = useState(false);
   const [showUpdateCard, setShowUpdateCard] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
-  const [showMoreInsights, setShowMoreInsights] = useState(false);
+  const [showMoreInsights, setShowMoreInsights] = useState(true);
   const [staleSkills, setStaleSkills] = useState<Array<{ skill_id: string; skill_name: string; last_updated_at?: string }>>([]);
 
   const { totalPoints, recentUnlock, dismissRecentUnlock, unlockShareAchievement, checkSkillAchievements, checkDocumentAchievements } = useAchievements();
@@ -139,6 +140,9 @@ export default function StudentDashboard() {
 
       const dismissedUpdateCard = localStorage.getItem('skillsight-student-update-card-dismissed-v1');
       setShowUpdateCard(!dismissedUpdateCard);
+      const savedInsightsPref = localStorage.getItem(INSIGHTS_PREF_KEY);
+      if (savedInsightsPref === '0') setShowMoreInsights(false);
+      if (savedInsightsPref === '1') setShowMoreInsights(true);
     } catch (e) {
       console.warn('Failed to read user data from localStorage:', e);
     }
@@ -290,21 +294,34 @@ export default function StudentDashboard() {
             <div className="alert" style={{ marginBottom: '1rem', border: '1px solid var(--warning, #f59e0b)', background: 'var(--warning-light, #fef3c7)' }}>
               <span className="alert-icon">⏳</span>
               <div className="alert-content">
-                <div className="alert-title">Skills need refresh</div>
+                <div className="alert-title">{t('dashboard.skillsNeedRefresh')}</div>
                 <p>
                   {staleSkills.slice(0, 4).map((s) => s.skill_name).join(', ')}
-                  {staleSkills.length > 4 ? ` +${staleSkills.length - 4} more` : ''} have not been updated in 90+ days.
+                  {staleSkills.length > 4 ? ` +${staleSkills.length - 4} ${t('dashboard.moreSuffix')}` : ''} {t('dashboard.staleSkillsHint')}
                 </p>
               </div>
               <Link href="/dashboard/assessments" className="btn btn-secondary btn-sm">
-                Re-assess now
+                {t('dashboard.reassessNow')}
               </Link>
             </div>
           )}
 
           <div style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'flex-end' }}>
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowMoreInsights((v) => !v)}>
-              {showMoreInsights ? 'Hide extra details' : t('dashboard.learnMore')}
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                setShowMoreInsights((v) => {
+                  const next = !v;
+                  try {
+                    localStorage.setItem(INSIGHTS_PREF_KEY, next ? '1' : '0');
+                  } catch {
+                    // noop
+                  }
+                  return next;
+                });
+              }}
+            >
+              {showMoreInsights ? t('dashboard.hideExtraDetails') : t('dashboard.learnMore')}
             </button>
           </div>
 

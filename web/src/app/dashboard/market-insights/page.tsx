@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { studentBff } from '@/lib/bffClient';
+import { useLanguage } from '@/lib/contexts';
 
 type Trend = { skill_id: string; skill_name: string; demand_count: number };
 
 export default function MarketInsightsPage() {
+  const { t } = useLanguage();
   const [trends, setTrends] = useState<Trend[]>([]);
   const [salaryBands, setSalaryBands] = useState<Array<{ role: string; range: string }>>([]);
   const [sourceCount, setSourceCount] = useState(0);
@@ -26,7 +28,7 @@ export default function MarketInsightsPage() {
         setSourceCount(Number(data.source_postings_count || 0));
       } catch {
         if (cancelled) return;
-        setError('Failed to load market insights.');
+        setError(t('marketInsights.loadFailed'));
         setTrends([]);
         setSalaryBands([]);
         setSourceCount(0);
@@ -37,7 +39,7 @@ export default function MarketInsightsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const parseRangeMid = (range: string) => {
     const [a, b] = String(range).split('-').map((v) => Number(v.replace(/[^\d]/g, '')));
@@ -45,7 +47,8 @@ export default function MarketInsightsPage() {
     if (!b) return a || 0;
     return Math.round((a + b) / 2);
   };
-  const maxSalary = Math.max(1, ...salaryBands.map((b) => parseRangeMid(b.range)));
+  const maxSalary = useMemo(() => Math.max(1, ...salaryBands.map((b) => parseRangeMid(b.range))), [salaryBands]);
+  const maxDemand = useMemo(() => Math.max(1, ...trends.map((t) => t.demand_count)), [trends]);
 
   return (
     <div className="app-container">
@@ -53,10 +56,10 @@ export default function MarketInsightsPage() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <h1>HK Job Market Insights</h1>
-            <p style={{ margin: 0, color: 'var(--gray-500)' }}>Live demand signals from role requirements and public job snapshots.</p>
+            <h1>{t('marketInsights.title')}</h1>
+            <p style={{ margin: 0, color: 'var(--gray-500)' }}>{t('marketInsights.subtitle')}</p>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: 13, color: 'var(--gray-500)' }}>
-              Data source: {sourceCount} job postings
+              {t('marketInsights.dataSource')} {sourceCount} {t('marketInsights.postings')}
             </p>
           </div>
         </div>
@@ -64,14 +67,14 @@ export default function MarketInsightsPage() {
           <div className="alert alert-error" style={{ marginBottom: '1rem' }}>
             <span className="alert-icon">⚠</span>
             <div className="alert-content">
-              <div className="alert-title">Market insights unavailable</div>
+              <div className="alert-title">{t('marketInsights.unavailable')}</div>
               <p>{error}</p>
             </div>
           </div>
         ) : null}
         <div className="grid grid-2">
           <div className="card">
-            <div className="card-header"><h3 className="card-title">Skill Demand Trends</h3></div>
+            <div className="card-header"><h3 className="card-title">{t('marketInsights.trends')}</h3></div>
             <div className="card-content">
               {loading ? [1, 2, 3, 4].map((i) => (
                 <div key={i} className="skeleton" style={{ height: 24, marginBottom: 10 }} />
@@ -82,14 +85,14 @@ export default function MarketInsightsPage() {
                     <strong>{t.demand_count}</strong>
                   </div>
                   <div style={{ height: 6, borderRadius: 999, background: 'var(--gray-200)' }}>
-                    <div style={{ width: `${Math.min(100, t.demand_count * 8)}%`, height: '100%', borderRadius: 999, background: 'var(--hku-green)' }} />
+                    <div style={{ width: `${Math.max(3, Math.round((t.demand_count / maxDemand) * 100))}%`, height: '100%', borderRadius: 999, background: 'var(--hku-green)' }} />
                   </div>
                 </div>
               ))}
             </div>
           </div>
           <div className="card">
-            <div className="card-header"><h3 className="card-title">Salary Reference (HKD)</h3></div>
+            <div className="card-header"><h3 className="card-title">{t('marketInsights.salaryReference')}</h3></div>
             <div className="card-content">
               {loading ? [1, 2, 3].map((i) => (
                 <div key={i} className="skeleton" style={{ height: 20, marginBottom: 10 }} />

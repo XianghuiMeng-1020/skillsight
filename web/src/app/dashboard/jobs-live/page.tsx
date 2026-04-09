@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { studentBff } from '@/lib/bffClient';
 import { DEMO_JOBS_LIVE } from '@/lib/demoDataset';
+import { useLanguage } from '@/lib/contexts';
 
 type Job = {
   posting_id: string;
@@ -26,6 +27,7 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 export default function JobsLivePage() {
+  const { t } = useLanguage();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [q, setQ] = useState('');
   const [source, setSource] = useState('');
@@ -34,8 +36,16 @@ export default function JobsLivePage() {
   const [isDemo, setIsDemo] = useState(false);
   const qRef = useRef(q);
   const srcRef = useRef(source);
+  const abortRef = useRef<AbortController | null>(null);
 
   const load = async (keyword = q, src = source) => {
+    // Cancel previous in-flight request to prevent race conditions
+    if (abortRef.current) {
+      abortRef.current.abort();
+    }
+    const abort = new AbortController();
+    abortRef.current = abort;
+
     qRef.current = keyword;
     srcRef.current = src;
     setLoading(true);
@@ -44,6 +54,7 @@ export default function JobsLivePage() {
         q: keyword || undefined,
         source_site: src || undefined,
         limit: 60,
+        signal: abort.signal,
       });
       const items = data.items || [];
       if (items.length === 0 && !keyword && !src) {
@@ -55,7 +66,9 @@ export default function JobsLivePage() {
         setTotal(data.count || items.length);
         setIsDemo(false);
       }
-    } catch {
+    } catch (e: unknown) {
+      // Don't update state if this request was aborted (race condition avoided)
+      if (e instanceof Error && e.name === 'AbortError') return;
       setJobs(DEMO_JOBS_LIVE);
       setTotal(DEMO_JOBS_LIVE.length);
       setIsDemo(true);
@@ -66,6 +79,12 @@ export default function JobsLivePage() {
 
   useEffect(() => {
     void load();
+    // Cleanup abort on unmount
+    return () => {
+      if (abortRef.current) {
+        abortRef.current.abort();
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -78,11 +97,11 @@ export default function JobsLivePage() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <h1>Live Jobs · Hong Kong</h1>
+            <h1>{t('jobsLive.title')}</h1>
             <p style={{ margin: 0, color: 'var(--gray-500)' }}>
               {isDemo
-                ? 'Sample postings — real job data is being loaded'
-                : `${total} real Hong Kong job postings · your skill match shown per listing`}
+                ? t('jobsLive.demoSubtitle')
+                : `${total} ${t('jobsLive.subtitleCount')}`}
             </p>
           </div>
         </div>
@@ -92,7 +111,7 @@ export default function JobsLivePage() {
           <div className="card-content" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
             <input
               className="input"
-              placeholder="Search title, company, skill…"
+              placeholder={t('jobsLive.searchPlaceholder')}
               value={q}
               onChange={(e) => setQ(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
@@ -104,14 +123,15 @@ export default function JobsLivePage() {
               onChange={(e) => setSource(e.target.value)}
               style={{ maxWidth: 180 }}
             >
-              <option value="">All sources</option>
+              <option value="">{t('jobsLive.allSources')}</option>
               <option value="jobsdb_hk">JobsDB HK</option>
               <option value="ctgoodjobs_hk">CTgoodjobs HK</option>
               <option value="linkedin">LinkedIn</option>
+              <option value="hk_indeed">Indeed HK</option>
             </select>
-            <button className="btn btn-primary btn-sm" onClick={handleFilter}>Search</button>
+            <button className="btn btn-primary btn-sm" onClick={handleFilter}>{t('jobsLive.search')}</button>
             {(q || source) && (
-              <button className="btn btn-ghost btn-sm" onClick={handleClear}>Clear</button>
+              <button className="btn btn-ghost btn-sm" onClick={handleClear}>{t('jobsLive.clear')}</button>
             )}
           </div>
         </div>
@@ -133,15 +153,15 @@ export default function JobsLivePage() {
           <div className="card">
             <div className="card-content" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--gray-500)' }}>
               <p style={{ fontSize: 36, margin: 0 }}>🔍</p>
-              <p style={{ margin: '0.5rem 0 0', fontWeight: 500 }}>No jobs found</p>
-              <p style={{ fontSize: 13, margin: '0.25rem 0 0' }}>Try different keywords or clear the filters.</p>
+              <p style={{ margin: '0.5rem 0 0', fontWeight: 500 }}>{t('jobsLive.noJobs')}</p>
+              <p style={{ fontSize: 13, margin: '0.25rem 0 0' }}>{t('jobsLive.noJobsHint')}</p>
             </div>
           </div>
         ) : (
           <div className="grid">
             {jobs.map((job) => {
               const matchScore = Math.round(Number(job.match_score || 0));
-              const matchColor = matchScore >= 60 ? 'var(--hku-green)' : matchScore >= 30 ? '#f59e0b' : 'var(--gray-400)';
+              const matchColor = matchScore >= 60 ? 'var(--hku-green)' : matchScore >= 30 ? 'var(--warning)' : 'var(--gray-400)';
               const sourceLabel = SOURCE_LABELS[job.source_site] || job.source_site;
               return (
                 <div key={job.posting_id} className="card">
@@ -152,11 +172,11 @@ export default function JobsLivePage() {
                         className="badge"
                         style={{ background: matchColor, color: '#fff', whiteSpace: 'nowrap', flexShrink: 0 }}
                       >
-                        {matchScore}% match
+                        {matchScore}% {t('jobsLive.match')}
                       </span>
                     </div>
                     <p style={{ margin: '0.35rem 0 0', color: 'var(--gray-600)', fontSize: 14 }}>
-                      <strong>{job.company || 'Unknown company'}</strong>
+                      <strong>{job.company || t('jobsLive.unknownCompany')}</strong>
                       {job.location ? ` · ${job.location}` : ''}
                     </p>
                     {job.salary && (
@@ -177,7 +197,7 @@ export default function JobsLivePage() {
                       </div>
                     )}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.6rem' }}>
-                      <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>via {sourceLabel}</span>
+                      <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>{t('jobsLive.via')} {sourceLabel}</span>
                       <a
                         className="btn btn-ghost btn-sm"
                         href={job.source_url}
@@ -185,7 +205,7 @@ export default function JobsLivePage() {
                         rel="noreferrer"
                         style={{ fontSize: 12 }}
                       >
-                        View posting →
+                        {t('jobsLive.viewPosting')} →
                       </a>
                     </div>
                   </div>

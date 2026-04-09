@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import { studentBff } from '@/lib/bffClient';
+import { useLanguage, getDateLocale } from '@/lib/contexts';
+import { useToast } from '@/components/Toast';
 
 type TimelineEvent = { date: string; title: string; detail?: string };
 type RecentAssessmentEvent = {
@@ -24,6 +26,9 @@ function toRecentAssessmentEvent(value: unknown): RecentAssessmentEvent | null {
 }
 
 export default function TimelinePage() {
+  const { t, language } = useLanguage();
+  const { addToast } = useToast();
+  const locale = getDateLocale(language);
   const [events, setEvents] = useState<TimelineEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -36,15 +41,15 @@ export default function TimelinePage() {
         if (cancelled) return;
         const timeline: TimelineEvent[] = [];
         for (const doc of profile.documents || []) {
-          if (doc.created_at) timeline.push({ date: doc.created_at, title: 'Uploaded evidence document', detail: doc.filename });
+          if (doc.created_at) timeline.push({ date: doc.created_at, title: t('timeline.eventUploadedDoc'), detail: doc.filename });
         }
         for (const evt of profile.recent_assessment_events || []) {
           const parsed = toRecentAssessmentEvent(evt);
           if (!parsed) continue;
           timeline.push({
             date: parsed.created_at || parsed.completed_at || new Date().toISOString(),
-            title: `Completed ${parsed.assessment_type || 'skill'} assessment`,
-            detail: `Score ${Math.round(Number(parsed.score || 0))}`,
+            title: `${t('timeline.eventCompletedAssessment')} ${parsed.assessment_type || t('timeline.skillFallback')}`,
+            detail: `${t('timeline.scorePrefix')} ${Math.round(Number(parsed.score || 0))}`,
           });
         }
         const roleEvents = profile.recent_role_events || [];
@@ -52,8 +57,8 @@ export default function TimelinePage() {
           const roleTitle = String(evt.role_title || evt.role_id || 'role');
           timeline.push({
             date: String(evt.created_at || new Date().toISOString()),
-            title: `Updated readiness for ${roleTitle}`,
-            detail: `Readiness ${Math.round(Number(evt.score || 0) * 100)}%`,
+            title: `${t('timeline.eventUpdatedReadiness')} ${roleTitle}`,
+            detail: `${t('timeline.readinessPrefix')} ${Math.round(Number(evt.score || 0) * 100)}%`,
           });
         }
         const exportEvents = profile.recent_export_events || [];
@@ -61,13 +66,14 @@ export default function TimelinePage() {
           const action = String(evt.action || '').replace('bff.export.', '');
           timeline.push({
             date: String(evt.created_at || new Date().toISOString()),
-            title: `Exported ${action || 'statement'}`,
+            title: `${t('timeline.eventExported')} ${action || t('timeline.statementFallback')}`,
           });
         }
         timeline.sort((a, b) => (a.date < b.date ? 1 : -1));
         setEvents(timeline);
       } catch {
         setEvents([]);
+        addToast('error', t('timeline.loadFailed'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -75,7 +81,7 @@ export default function TimelinePage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [addToast, t]);
 
   const exportReport = async () => {
     try {
@@ -91,7 +97,7 @@ export default function TimelinePage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      // noop
+      addToast('error', t('timeline.exportFailed'));
     }
   };
 
@@ -101,11 +107,11 @@ export default function TimelinePage() {
       <main className="main-content">
         <div className="page-header">
           <div>
-            <h1>Skill Timeline</h1>
-            <p style={{ margin: 0, color: 'var(--gray-500)' }}>Track how your verified skills evolve over time.</p>
+            <h1>{t('timeline.title')}</h1>
+            <p style={{ margin: 0, color: 'var(--gray-500)' }}>{t('timeline.subtitle')}</p>
           </div>
           <div>
-            <button className="btn btn-secondary btn-sm" onClick={exportReport}>Export Growth Report</button>
+            <button className="btn btn-secondary btn-sm" onClick={exportReport}>{t('timeline.exportReport')}</button>
           </div>
         </div>
         <div className="card">
@@ -113,12 +119,12 @@ export default function TimelinePage() {
             {loading ? (
               [1, 2, 3, 4].map((i) => <div key={i} className="skeleton" style={{ height: 20, marginBottom: 10 }} />)
             ) : events.length === 0 ? (
-              <p>No timeline events yet.</p>
+              <p>{t('timeline.noEvents')}</p>
             ) : (
               <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
                 {events.map((e, idx) => (
                   <li key={`${e.date}-${idx}`} style={{ borderLeft: '2px solid var(--sage)', padding: '0.25rem 0 0.75rem 0.75rem', marginLeft: '0.5rem' }}>
-                    <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{new Date(e.date).toLocaleString()}</div>
+                    <div style={{ fontSize: 12, color: 'var(--gray-500)' }}>{new Date(e.date).toLocaleString(locale)}</div>
                     <div style={{ fontWeight: 600 }}>{e.title}</div>
                     {e.detail ? <div style={{ color: 'var(--gray-600)' }}>{e.detail}</div> : null}
                   </li>
