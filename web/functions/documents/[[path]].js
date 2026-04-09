@@ -4,7 +4,9 @@ export async function onRequestGet(context) {
   const docId = pathParts.length >= 2 ? pathParts[1] : "";
 
   const assetUrl = new URL(context.request.url);
-  assetUrl.pathname = "/document-view.html";
+  // Cloudflare Pages canonicalizes URLs by removing .html extensions (308 → /document-view).
+  // Use the extension-free path so ASSETS.fetch resolves without redirect.
+  assetUrl.pathname = "/document-view";
   assetUrl.search = "";
   if (docId) {
     assetUrl.searchParams.set("docId", docId);

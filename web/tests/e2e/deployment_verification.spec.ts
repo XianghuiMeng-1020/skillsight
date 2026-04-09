@@ -174,8 +174,17 @@ test.describe('部署验证 - SkillSight Production Deployment', () => {
     await page.goto(`${APP_URL}/dashboard/resume?review_id=rid-current&step=5`);
     await expect(page.locator('text=/导出工作台|Export Workbench/')).toBeVisible({ timeout: 15000 });
 
+    // Ensure the "Version Compare" details panel is expanded before interacting.
+    const compareDetails = page.locator('details').filter({ has: page.locator('select') }).first();
+    const isClosed = await compareDetails.evaluate((el) => !(el as HTMLDetailsElement).open);
+    if (isClosed) {
+      await compareDetails.locator('summary').click();
+    }
+
     const compareSelect = page.locator('select').filter({ has: page.locator('option[value="rid-compare"]') }).first();
+    await expect(compareSelect).toBeVisible({ timeout: 5000 });
     await compareSelect.selectOption('rid-compare');
+
     await page.locator('button:has-text("开始对比"), button:has-text("Compare")').first().click();
     await expect(page.locator('text=/语义改动洞察|Semantic Change Insights/')).toBeVisible({ timeout: 10000 });
 

@@ -595,7 +595,7 @@ export function ResumeWorkbench({
           </div>
 
           <div className={styles.controlBlock}>
-            <details>
+            <details open={reviews.length > 0}>
               <summary style={{ cursor: 'pointer', fontWeight: 600, marginBottom: '0.5rem' }}>
                 {t('resume.compareVersionsTitle') || 'Version Compare'}
               </summary>
