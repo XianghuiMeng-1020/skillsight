@@ -16,6 +16,18 @@ interface UploadResult {
   chunks_created: number;
 }
 
+const PURPOSE_KEYS = [
+  { value: 'skill_assessment', labelKey: 'upload.purposeSkillAssess', descKey: 'upload.purposeSkillAssessDesc' },
+  { value: 'role_alignment', labelKey: 'upload.purposeRoleAlign', descKey: 'upload.purposeRoleAlignDesc' },
+  { value: 'portfolio', labelKey: 'upload.purposePortfolio', descKey: 'upload.purposePortfolioDesc' },
+] as const;
+
+const SCOPE_KEYS = [
+  { value: 'full', labelKey: 'upload.scopeFull', descKey: 'upload.scopeFullDesc' },
+  { value: 'excerpt', labelKey: 'upload.scopeExcerpt', descKey: 'upload.scopeExcerptDesc' },
+  { value: 'summary', labelKey: 'upload.scopeSummary', descKey: 'upload.scopeSummaryDesc' },
+] as const;
+
 const SUPPORTED_FORMATS = [
   { ext: 'Docs', icon: '📄', desc: 'PDF, DOCX, PPTX, MD, RTF, ODT, LaTeX, EPUB' },
   { ext: 'Spreadsheets', icon: '📊', desc: 'XLSX, XLS, CSV' },
@@ -49,6 +61,8 @@ export default function UploadPage() {
   const searchParams = useSearchParams();
   const { addToast } = useToast();
   const [files, setFiles] = useState<File[]>([]);
+  const [purpose, setPurpose] = useState('');
+  const [scope, setScope] = useState('');
   const [consent, setConsent] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [results, setResults] = useState<UploadResult[]>([]);
@@ -61,6 +75,7 @@ export default function UploadPage() {
   const [isNarrow, setIsNarrow] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoAssessTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const consentComplete = consent && Boolean(purpose) && Boolean(scope);
 
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();
@@ -118,6 +133,8 @@ export default function UploadPage() {
         await new Promise((resolve) => setTimeout(resolve, 350));
         setResults(uploadResults);
         setFiles([]);
+        setPurpose('');
+        setScope('');
         setConsent(false);
         addToast('success', (t('upload.demoUploadDone') as string)?.replace('{n}', String(uploadResults.length)) ?? `Demo uploaded ${uploadResults.length} file(s).`);
       } catch {
@@ -145,7 +162,7 @@ export default function UploadPage() {
       let completed = 0;
       const settled = await Promise.allSettled(
         files.map(async (file) => {
-          const data = await studentBff.upload(file, 'skill_assessment', 'full', token);
+          const data = await studentBff.upload(file, purpose, scope, token);
           completed += 1;
           setUploadProgress({ current: completed, total: files.length });
           return data as UploadResult;
@@ -160,6 +177,8 @@ export default function UploadPage() {
 
       setResults(uploadResults);
       setFiles([]);
+      setPurpose('');
+      setScope('');
       setConsent(false);
 
       // Trigger auto-assess for each uploaded document
@@ -324,7 +343,13 @@ export default function UploadPage() {
                 </p>
                 <ul style={{ marginTop: '0.5rem', fontSize: '0.875rem' }}>
                   {results.map((r, i) => (
-                    <li key={i}>&quot;{r.filename}&quot; - {r.chunks_created} {t('upload.sectionsExtracted')}</li>
+                    <li key={r.doc_id}>
+                      &quot;{r.filename}&quot; - {r.chunks_created} {t('upload.sectionsExtracted')}
+                      {' '}
+                      <Link href={`/documents/${r.doc_id}`} style={{ marginLeft: '0.5rem' }}>
+                        {t('dashboard.documents')}
+                      </Link>
+                    </li>
                   ))}
                 </ul>
                 <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -487,6 +512,86 @@ export default function UploadPage() {
                   </div>
                 )}
 
+                {/* Compatibility consent metadata: keep purpose/scope radios for legacy flow + explicit consent */}
+                <div style={{
+                  borderTop: '1px solid var(--gray-200)',
+                  marginTop: '1.5rem',
+                  paddingTop: '1.5rem',
+                }}>
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--gray-700)', display: 'block', marginBottom: '0.375rem' }}>
+                      {t('upload.purpose')}
+                    </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {PURPOSE_KEYS.map((item) => (
+                        <label
+                          key={item.value}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '0.625rem',
+                            padding: '0.625rem 0.875rem',
+                            borderRadius: '8px',
+                            border: `1.5px solid ${purpose === item.value ? 'var(--primary)' : 'var(--gray-200)'}`,
+                            background: purpose === item.value ? 'var(--primary-light, #fef0f0)' : 'var(--bg-primary)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="purpose"
+                            value={item.value}
+                            checked={purpose === item.value}
+                            onChange={() => setPurpose(item.value)}
+                            style={{ marginTop: '2px', accentColor: 'var(--primary)' }}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 500, fontSize: '0.875rem', color: 'var(--gray-900)' }}>{t(item.labelKey)}</div>
+                            <div style={{ fontSize: '0.775rem', color: 'var(--gray-500)' }}>{t(item.descKey)}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ marginBottom: '1rem' }}>
+                    <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--gray-700)', display: 'block', marginBottom: '0.375rem' }}>
+                      {t('upload.scope')}
+                    </label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {SCOPE_KEYS.map((item) => (
+                        <label
+                          key={item.value}
+                          style={{
+                            flex: '1 1 180px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            padding: '0.625rem 0.875rem',
+                            borderRadius: '8px',
+                            border: `1.5px solid ${scope === item.value ? 'var(--primary)' : 'var(--gray-200)'}`,
+                            background: scope === item.value ? 'var(--primary-light, #fef0f0)' : 'var(--bg-primary)',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <input
+                            type="radio"
+                            name="scope"
+                            value={item.value}
+                            checked={scope === item.value}
+                            onChange={() => setScope(item.value)}
+                            style={{ accentColor: 'var(--primary)' }}
+                          />
+                          <div style={{ fontWeight: 500, fontSize: '0.8rem', color: 'var(--gray-900)' }}>{t(item.labelKey)}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--gray-500)' }}>{t(item.descKey)}</div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
                 {/* Consent Checkbox */}
                 <div style={{ 
                   borderTop: '1px solid var(--gray-200)', 
@@ -516,7 +621,7 @@ export default function UploadPage() {
                   className="btn btn-primary btn-lg"
                   style={{ width: '100%', marginTop: '1.5rem' }}
                   onClick={handleUpload}
-                  disabled={files.length === 0 || !consent || uploading}
+                  disabled={files.length === 0 || !consentComplete || uploading}
                 >
                   {uploading ? (
                     <>

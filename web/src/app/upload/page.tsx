@@ -2,10 +2,9 @@
 
 import { useState, useRef, useEffect, DragEvent } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/lib/contexts';
 import { API_BASE_URL } from '@/lib/api';
-import { getToken } from '@/lib/bffClient';
+import { getToken, studentBff } from '@/lib/bffClient';
 import { useToast } from '@/components/Toast';
 
 interface UploadResult {
@@ -44,7 +43,6 @@ function isAllowedFile(name: string): boolean {
 }
 
 export default function UploadPage() {
-  const router = useRouter();
   const { t, language } = useLanguage();
   const { addToast } = useToast();
   const [file, setFile] = useState<File | null>(null);
@@ -109,11 +107,6 @@ export default function UploadPage() {
     { icon: '💻', categoryKey: 'upload.typeCode', formats: 'PY, JS, TS, IPYNB, JAVA, GO, RS, RB, HTML, CSS, JSON...' },
   ];
 
-  useEffect(() => {
-    // Unified upload entry: keep this page as compatibility redirect.
-    router.replace('/dashboard/upload');
-  }, [router]);
-
   const handleDrag = (e: DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -174,87 +167,27 @@ export default function UploadPage() {
 
     try {
       const token = typeof window !== 'undefined' ? getToken() : null;
-      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
-      // Step 1: Upload
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('purpose', purpose);
-      formData.append('scope', scope);
-
-      const response = await fetch(`${API_BASE_URL}/bff/student/documents/upload`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        const detail = err.detail;
-        const isAuthError = response.status === 401 || (typeof detail === 'string' && /登入|login|unauthorized/i.test(detail));
-        if (isAuthError) {
-          setError(t('upload.loginRequired'));
-          setNeedLogin(true);
-          addToast('error', t('upload.loginRequired'));
-          return;
-        }
-        const refusalPayload =
-          detail && typeof detail === 'object' && detail.refusal
-            ? detail.refusal
-            : detail && typeof detail === 'object' && detail.code
-              ? { code: detail.code, message: detail.message ?? '', next_step: detail.next_step ?? '' }
-              : null;
-        if (refusalPayload && refusalPayload.code) {
-          setRefusal(refusalPayload as { code: string; message: string; next_step: string });
-        } else {
-          throw new Error(typeof detail === 'string' ? detail : t('upload.failed'));
-        }
+      if (!token) {
+        setError(t('upload.loginRequired'));
+        setNeedLogin(true);
+        addToast('error', t('upload.loginRequired'));
         return;
       }
 
-      const data = await response.json();
+      // Step 1: Upload through the stable BFF client.
+      const data = await studentBff.upload(file, purpose, scope, token);
       setResult(data);
       const docId = data.doc_id;
 
-      // Step 2: Embed chunks (generate vector embeddings)
+      // Step 2: Queue auto-assess through the backend worker.
       setStage('embedding');
       try {
-        await fetch(`${API_BASE_URL}/bff/student/chunks/embed/${docId}`, {
-          method: 'POST',
-          headers: { ...authHeaders, 'Content-Type': 'application/json' },
-        });
+        setStage('assessing');
+        setAssessProgress({ done: 0, total: 1 });
+        await studentBff.autoAssessDocument(docId);
+        setAssessProgress({ done: 1, total: 1 });
       } catch {
-        // non-fatal: embedding may fail if sentence-transformers not available
-      }
-
-      // Step 3: Run AI skill assessment for all skills
-      setStage('assessing');
-      try {
-        const skillsResp = await fetch(`${API_BASE_URL}/bff/student/skills?limit=50`, {
-          headers: authHeaders,
-        });
-        if (skillsResp.ok) {
-          const skillsData = await skillsResp.json();
-          const skillsList = skillsData.items || [];
-          setAssessProgress({ done: 0, total: skillsList.length });
-
-          const BATCH = 3;
-          for (let i = 0; i < skillsList.length; i += BATCH) {
-            const batch = skillsList.slice(i, i + BATCH);
-            await Promise.allSettled(
-              batch.map((skill: { skill_id: string }) =>
-                fetch(`${API_BASE_URL}/bff/student/ai/demonstration`, {
-                  method: 'POST',
-                  headers: { ...authHeaders, 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ skill_id: skill.skill_id, doc_id: docId, k: 5 }),
-                })
-              )
-            );
-            setAssessProgress(prev => ({ ...prev, done: Math.min(i + BATCH, skillsList.length) }));
-          }
-        }
-      } catch {
-        // non-fatal: assessment errors don't block upload success
+        // non-fatal: upload succeeded even if background assessment queue fails
       }
 
       setStage('done');

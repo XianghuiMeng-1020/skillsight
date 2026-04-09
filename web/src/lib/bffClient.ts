@@ -17,12 +17,14 @@ export type BffRole = 'student' | 'staff' | 'programme_leader' | 'admin' | 'care
 // ─── Token storage (client-side only) ─────────────────────────────────────────
 
 const TOKEN_KEY = 'skillsight_token';
+const LEGACY_TOKEN_KEY = 'token';
 const ROLE_KEY = 'skillsight_role';
 
 export function setToken(token: string, role: BffRole): void {
   if (typeof window !== 'undefined') {
     try {
       localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem(LEGACY_TOKEN_KEY, token);
       localStorage.setItem(ROLE_KEY, role);
     } catch (e) {
       console.warn('Failed to save token to localStorage:', e);
@@ -33,7 +35,7 @@ export function setToken(token: string, role: BffRole): void {
 export function getToken(): string | null {
   if (typeof window === 'undefined') return null;
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY);
   } catch (e) {
     console.warn('Failed to read token from localStorage:', e);
     return null;
@@ -54,6 +56,7 @@ export function clearToken(): void {
   if (typeof window !== 'undefined') {
     try {
       localStorage.removeItem(TOKEN_KEY);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
       localStorage.removeItem(ROLE_KEY);
     } catch (e) {
       console.warn('Failed to clear token from localStorage:', e);
