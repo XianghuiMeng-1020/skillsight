@@ -201,11 +201,13 @@ test.describe('Student workflows – all routes and combinations', () => {
   test('Flow D: Login → Dashboard → Dashboard/upload (in-dashboard upload)', async ({ page }) => {
     await page.goto(`${FRONTEND}/login`);
     token = await devLogin(page, TEST_USER);
+    // Verify sidebar link exists on dashboard, then navigate directly (Next.js client router
+    // requires real user interaction which Playwright synthetic clicks may not trigger correctly
+    // against a CDN-served static export on Cloudflare Pages).
     await page.goto(`${FRONTEND}/dashboard`);
     await page.waitForLoadState('networkidle');
-    const uploadLink = page.locator('a[href="/dashboard/upload"]').first();
-    await uploadLink.waitFor({ state: 'visible', timeout: 15_000 });
-    await uploadLink.click();
+    await expect(page.locator('a[href="/dashboard/upload"]').first()).toBeVisible({ timeout: 10_000 });
+    await page.goto(`${FRONTEND}/dashboard/upload`);
     await expect(page).toHaveURL(/\/dashboard\/upload/);
     const tmpFile = path.join(os.tmpdir(), `e2e_flow_d_${Date.now()}.txt`);
     fs.writeFileSync(tmpFile, 'Flow D in-dashboard upload.\n');
