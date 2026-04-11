@@ -326,6 +326,13 @@ export const adminBff = {
 
 // ─── Student BFF types (explicit return types) ─────────────────────────────────
 
+export interface EvidenceSource {
+  chunk_id: string;
+  snippet: string;
+  doc_id: string;
+  filename: string;
+}
+
 export interface ProfileSkillEntry {
   skill_id: string;
   canonical_name: string;
@@ -333,6 +340,8 @@ export interface ProfileSkillEntry {
   level?: number;
   rationale?: string;
   evidence_items?: Array<{ chunk_id: string; snippet: string; doc_id: string; section_path?: string; page_start?: number }>;
+  frequency?: number;
+  evidence_sources?: EvidenceSource[];
 }
 
 export interface ProfileResponse {

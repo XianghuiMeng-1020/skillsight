@@ -26,11 +26,20 @@ interface Document {
   doc_type?: string;
 }
 
+interface EvidenceSource {
+  chunk_id: string;
+  snippet: string;
+  doc_id: string;
+  filename: string;
+}
+
 interface Skill {
   skill_id: string;
   canonical_name: string;
   level: number;
   status: 'verified' | 'pending' | 'missing';
+  frequency?: number;
+  evidence_sources?: EvidenceSource[];
 }
 
 interface JobMatch {
@@ -161,6 +170,13 @@ export default function StudentDashboard() {
           canonical_name: s.canonical_name || 'Unknown Skill',
           level,
           status,
+          frequency: s.frequency ?? (s.evidence_items?.length || 0),
+          evidence_sources: (s.evidence_sources || []).map((es) => ({
+            chunk_id: es.chunk_id,
+            snippet: es.snippet,
+            doc_id: es.doc_id,
+            filename: es.filename || 'unknown',
+          })),
         };
       });
       setSkills(skillsWithStatus);

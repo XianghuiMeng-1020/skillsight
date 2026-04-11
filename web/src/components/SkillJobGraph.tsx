@@ -5,11 +5,20 @@ import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
 
+interface EvidenceSource {
+  chunk_id: string;
+  snippet: string;
+  doc_id: string;
+  filename: string;
+}
+
 interface Skill {
   skill_id: string;
   canonical_name: string;
   level: number;
   status: 'verified' | 'pending' | 'missing';
+  frequency?: number;
+  evidence_sources?: EvidenceSource[];
 }
 
 interface JobMatch {
@@ -115,14 +124,108 @@ interface SkillJobGraphProps {
   onOpenAssessmentAssistant?: (job: PotentialJobCandidate) => void;
 }
 
-const LEVEL_TO_PERCENT: Record<number, number> = { 0: 0, 1: 30, 2: 60, 3: 90 };
-
 interface Line {
   x1: number;
   y1: number;
   x2: number;
   y2: number;
   isGap: boolean;
+}
+
+function EvidencePopover({ sources, onClose }: { sources: EvidenceSource[]; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [onClose]);
+
+  if (sources.length === 0) {
+    return (
+      <div
+        ref={ref}
+        style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          zIndex: 100,
+          background: 'white',
+          border: '1px solid var(--gray-200)',
+          borderRadius: '10px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+          padding: '0.75rem 1rem',
+          minWidth: '280px',
+          maxWidth: '420px',
+          marginTop: '4px',
+          animation: 'fadeIn 150ms ease-out',
+        }}
+      >
+        <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--gray-500)' }}>
+          No evidence found in uploaded materials.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        zIndex: 100,
+        background: 'white',
+        border: '1px solid var(--gray-200)',
+        borderRadius: '10px',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+        padding: '0.75rem',
+        minWidth: '300px',
+        maxWidth: '460px',
+        maxHeight: '320px',
+        overflowY: 'auto',
+        marginTop: '4px',
+        animation: 'fadeIn 150ms ease-out',
+      }}
+    >
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {sources.map((src, i) => (
+          <div
+            key={src.chunk_id + i}
+            style={{
+              padding: '0.5rem 0.625rem',
+              background: 'var(--gray-50, #fafafa)',
+              borderRadius: '8px',
+              border: '1px solid var(--gray-100, #f0f0f0)',
+            }}
+          >
+            <p style={{
+              margin: '0 0 0.35rem',
+              fontSize: '0.8125rem',
+              lineHeight: 1.5,
+              color: 'var(--gray-700)',
+            }}>
+              &ldquo;...{src.snippet.trim()}...&rdquo;
+            </p>
+            <span style={{
+              display: 'inline-block',
+              fontSize: '0.6875rem',
+              fontWeight: 500,
+              color: 'var(--gray-500)',
+              background: 'var(--gray-100, #f0f0f0)',
+              padding: '0.15rem 0.45rem',
+              borderRadius: '4px',
+            }}>
+              {src.filename}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 export default function SkillJobGraph({
@@ -136,10 +239,12 @@ export default function SkillJobGraph({
   const skillRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const jobRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [hoveredJob, setHoveredJob] = useState<string | null>(null);
+  const [selectedJob, setSelectedJob] = useState<string | null>(null);
   const [lines, setLines] = useState<Line[]>([]);
   const [connectedSkills, setConnectedSkills] = useState<Set<string>>(new Set());
   const [lineFilter, setLineFilter] = useState<'all' | 'gap' | 'met'>('all');
   const [isNarrow, setIsNarrow] = useState(false);
+  const [evidencePopoverSkillId, setEvidencePopoverSkillId] = useState<string | null>(null);
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 900px)');
@@ -150,7 +255,7 @@ export default function SkillJobGraph({
   }, []);
 
   const sortedSkills = useMemo(
-    () => [...skills].sort((a, b) => b.level - a.level),
+    () => [...skills].sort((a, b) => (b.frequency ?? b.level) - (a.frequency ?? a.level)),
     [skills]
   );
 
@@ -193,8 +298,6 @@ export default function SkillJobGraph({
     onPotentialJobsChange?.(potentialJobs);
   }, [onPotentialJobsChange, potentialJobs]);
 
-  // Build a map: only connect skills explicitly required by each role.
-  // Among required skills: dotted = gap, solid = met (level > 0).
   const jobSkillMap = useMemo(() => {
     const map = new Map<string, { skillId: string; isGap: boolean }[]>();
     for (const job of visibleJobs) {
@@ -203,49 +306,116 @@ export default function SkillJobGraph({
     return map;
   }, [visibleJobs, skills]);
 
+  // activeJobId: for SVG lines (hover or click), selectedJobId: for skill list filtering (click only)
+  const activeJobId = selectedJob || hoveredJob;
+
+  const selectedJobData = useMemo(
+    () => (selectedJob ? visibleJobs.find(j => j.role_id === selectedJob) ?? null : null),
+    [visibleJobs, selectedJob]
+  );
+
+  const filteredSkillsForJob = useMemo(() => {
+    if (!selectedJobData) return null;
+    const allRequired = selectedJobData.required_skills_all || selectedJobData.required_skills || [];
+    const gapNamesLower = new Set((selectedJobData.gaps_all || selectedJobData.gaps || []).map(g => g.toLowerCase()));
+    const studentSkillMap = new Map(skills.map(s => [normalizedName(s.canonical_name), s]));
+
+    return allRequired.map((reqName) => {
+      const nameLower = normalizedName(reqName);
+      const existing = studentSkillMap.get(nameLower);
+      if (existing) {
+        return { ...existing, isGap: gapNamesLower.has(nameLower) };
+      }
+      return {
+        skill_id: `missing-${reqName}`,
+        canonical_name: reqName,
+        level: 0,
+        status: 'missing' as const,
+        frequency: 0,
+        evidence_sources: [],
+        isGap: true,
+      };
+    }).sort((a, b) => (b.frequency ?? b.level) - (a.frequency ?? a.level));
+  }, [selectedJobData, skills]);
+
+  const displaySkills = filteredSkillsForJob ?? sortedSkills;
+
   const calculateLines = useCallback((roleId: string) => {
     const container = containerRef.current;
     const jobEl = jobRefs.current.get(roleId);
     if (!container || !jobEl) return;
 
-    const connections = jobSkillMap.get(roleId) || [];
     const containerRect = container.getBoundingClientRect();
     const jobRect = jobEl.getBoundingClientRect();
-
     const newLines: Line[] = [];
     const matched = new Set<string>();
 
-    for (const conn of connections) {
-      const skillEl = skillRefs.current.get(conn.skillId);
-      if (!skillEl) continue;
-      matched.add(conn.skillId);
-      const skillRect = skillEl.getBoundingClientRect();
-      newLines.push({
-        x1: skillRect.right - containerRect.left,
-        y1: skillRect.top + skillRect.height / 2 - containerRect.top,
-        x2: jobRect.left - containerRect.left,
-        y2: jobRect.top + jobRect.height / 2 - containerRect.top,
-        isGap: conn.isGap,
-      });
+    if (selectedJob === roleId && filteredSkillsForJob) {
+      // When a job is selected, draw lines from ALL display skills to the job
+      for (const skill of filteredSkillsForJob) {
+        const skillEl = skillRefs.current.get(skill.skill_id);
+        if (!skillEl) continue;
+        matched.add(skill.skill_id);
+        const skillRect = skillEl.getBoundingClientRect();
+        const isGap = 'isGap' in skill && !!(skill as { isGap?: boolean }).isGap;
+        newLines.push({
+          x1: skillRect.right - containerRect.left,
+          y1: skillRect.top + skillRect.height / 2 - containerRect.top,
+          x2: jobRect.left - containerRect.left,
+          y2: jobRect.top + jobRect.height / 2 - containerRect.top,
+          isGap,
+        });
+      }
+    } else {
+      const connections = jobSkillMap.get(roleId) || [];
+      for (const conn of connections) {
+        const skillEl = skillRefs.current.get(conn.skillId);
+        if (!skillEl) continue;
+        matched.add(conn.skillId);
+        const skillRect = skillEl.getBoundingClientRect();
+        newLines.push({
+          x1: skillRect.right - containerRect.left,
+          y1: skillRect.top + skillRect.height / 2 - containerRect.top,
+          x2: jobRect.left - containerRect.left,
+          y2: jobRect.top + jobRect.height / 2 - containerRect.top,
+          isGap: conn.isGap,
+        });
+      }
     }
 
     setLines(newLines);
     setConnectedSkills(matched);
-  }, [jobSkillMap]);
+  }, [jobSkillMap, selectedJob, filteredSkillsForJob]);
 
   const handleJobHover = useCallback((roleId: string) => {
     requestAnimationFrame(() => {
       setHoveredJob(roleId);
-      calculateLines(roleId);
+      if (!selectedJob) {
+        calculateLines(roleId);
+      }
     });
-  }, [calculateLines]);
+  }, [calculateLines, selectedJob]);
 
   const handleJobLeave = useCallback(() => {
     setHoveredJob(null);
-    setLines([]);
-    setConnectedSkills(new Set());
-    setLineFilter('all');
-  }, []);
+    if (!selectedJob) {
+      setLines([]);
+      setConnectedSkills(new Set());
+      setLineFilter('all');
+    }
+  }, [selectedJob]);
+
+  const handleJobClick = useCallback((roleId: string) => {
+    if (selectedJob === roleId) {
+      setSelectedJob(null);
+      setLines([]);
+      setConnectedSkills(new Set());
+      setLineFilter('all');
+    } else {
+      setSelectedJob(roleId);
+      setEvidencePopoverSkillId(null);
+    }
+  }, [selectedJob]);
 
   const handleJobRowBlur = useCallback(
     (e: FocusEvent<HTMLDivElement>) => {
@@ -255,13 +425,6 @@ export default function SkillJobGraph({
     },
     [handleJobLeave],
   );
-
-  const getBarColor = (level: number) => {
-    if (level >= 3) return 'var(--success, #16a34a)';
-    if (level >= 2) return 'var(--sage, #98B8A8)';
-    if (level >= 1) return 'var(--peach, #F9CE9C)';
-    return 'var(--gray-300, #d4d4d4)';
-  };
 
   const getReadinessColor = (readiness: number) => {
     if (readiness >= 80) return 'var(--success, #16a34a)';
@@ -273,6 +436,12 @@ export default function SkillJobGraph({
     () => lines.filter((line) => lineFilter === 'all' || (lineFilter === 'gap' ? line.isGap : !line.isGap)),
     [lines, lineFilter],
   );
+
+  useEffect(() => {
+    if (selectedJob) {
+      requestAnimationFrame(() => calculateLines(selectedJob));
+    }
+  }, [selectedJob, calculateLines, displaySkills]);
 
   if (sortedSkills.length === 0 && visibleJobs.length === 0) {
     return (
@@ -368,11 +537,57 @@ export default function SkillJobGraph({
             })}
           </svg>
 
-          {/* Left: Skills */}
+          {/* Left: Skills with frequency */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative', zIndex: 2 }}>
-            {sortedSkills.length > 0 ? sortedSkills.map((skill) => {
-              const pct = LEVEL_TO_PERCENT[skill.level] ?? 0;
+            {selectedJobData && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '0.25rem',
+                padding: '0.35rem 0.5rem',
+                background: 'var(--sage-50, #f0f7f2)',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
+                color: 'var(--gray-600)',
+              }}>
+                <span>
+                  {t('dashboard.skillsForRole') || 'Skills for'}: <strong>{selectedJobData.role_title}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setSelectedJob(null); setLines([]); setConnectedSkills(new Set()); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--gray-500)', padding: '0 0.25rem' }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Column header */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              padding: '0.25rem 0.75rem',
+              fontSize: '0.6875rem',
+              fontWeight: 600,
+              color: 'var(--gray-400)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.05em',
+            }}>
+              <span style={{ flex: 1 }}>{t('dashboard.skillName') || 'Skills'}</span>
+              <span style={{ minWidth: '90px', textAlign: 'right' }}>
+                {t('dashboard.evidenceFrequency') || 'Occurrence in uploaded evidence'}
+              </span>
+            </div>
+
+            {displaySkills.length > 0 ? displaySkills.map((skill) => {
+              const freq = skill.frequency ?? 0;
               const isConnected = connectedSkills.has(skill.skill_id);
+              const isGapSkill = 'isGap' in skill && (skill as { isGap?: boolean }).isGap;
+              const hasEvidence = freq > 0;
+
               return (
                 <div
                   key={skill.skill_id}
@@ -386,38 +601,83 @@ export default function SkillJobGraph({
                     gap: '0.75rem',
                     padding: '0.625rem 0.75rem',
                     borderRadius: '10px',
-                    background: isConnected ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
-                    border: isConnected ? '1.5px solid var(--sage, #98B8A8)' : '1px solid transparent',
+                    background: isConnected
+                      ? 'rgba(152,184,168,0.12)'
+                      : isGapSkill
+                        ? 'rgba(249,206,156,0.08)'
+                        : 'var(--gray-50, #fafafa)',
+                    border: isConnected
+                      ? '1.5px solid var(--sage, #98B8A8)'
+                      : isGapSkill
+                        ? '1.5px dashed var(--peach, #F9CE9C)'
+                        : '1px solid transparent',
                     transition: 'all 0.2s ease',
+                    position: 'relative',
                   }}
                 >
                   <Link
                     href={`/dashboard/skills?highlight=${encodeURIComponent(skill.skill_id)}`}
                     style={{
                       textDecoration: 'none',
-                      color: 'var(--gray-900)',
+                      color: isGapSkill && !hasEvidence ? 'var(--gray-400)' : 'var(--gray-900)',
                       fontWeight: 500,
                       fontSize: '0.875rem',
-                      minWidth: '100px',
+                      flex: 1,
                       whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
                     }}
                   >
                     {skill.canonical_name}
                   </Link>
-                  <div style={{ flex: 1, height: '6px', background: 'var(--gray-200)', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${pct}%`,
-                        height: '100%',
-                        background: getBarColor(skill.level),
-                        borderRadius: '3px',
-                        transition: 'width 0.3s ease',
-                      }}
+
+                  {/* Frequency badge - clickable to show evidence */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEvidencePopoverSkillId(
+                        evidencePopoverSkillId === skill.skill_id ? null : skill.skill_id
+                      );
+                    }}
+                    style={{
+                      minWidth: '44px',
+                      textAlign: 'center',
+                      padding: '0.2rem 0.5rem',
+                      borderRadius: '6px',
+                      border: 'none',
+                      cursor: hasEvidence ? 'pointer' : 'default',
+                      fontWeight: 600,
+                      fontSize: '0.8125rem',
+                      background: hasEvidence
+                        ? freq >= 10
+                          ? 'rgba(22,163,106,0.1)'
+                          : freq >= 5
+                            ? 'rgba(152,184,168,0.15)'
+                            : 'rgba(249,206,156,0.15)'
+                        : 'var(--gray-100, #f0f0f0)',
+                      color: hasEvidence
+                        ? freq >= 10
+                          ? 'var(--success, #16a34a)'
+                          : freq >= 5
+                            ? 'var(--sage-dark, #6b8f7b)'
+                            : 'var(--peach-dark, #c4883c)'
+                        : 'var(--gray-400)',
+                      transition: 'all 0.15s ease',
+                      position: 'relative',
+                    }}
+                    title={hasEvidence ? (t('dashboard.clickToSeeEvidence') || 'Click to see evidence') : ''}
+                  >
+                    {freq}
+                  </button>
+
+                  {/* Evidence popover */}
+                  {evidencePopoverSkillId === skill.skill_id && (
+                    <EvidencePopover
+                      sources={skill.evidence_sources || []}
+                      onClose={() => setEvidencePopoverSkillId(null)}
                     />
-                  </div>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--gray-500)', minWidth: '40px', textAlign: 'right' }}>
-                    {fmt2(pct)}%
-                  </span>
+                  )}
                 </div>
               );
             }) : (
@@ -437,7 +697,7 @@ export default function SkillJobGraph({
                   </div>
                 )}
                 {confirmedJobs.map((job) => {
-                  const isHovered = hoveredJob === job.role_id;
+                  const isActive = activeJobId === job.role_id;
                   const rNum = readinessNum(job.readiness);
                   return (
                     <div
@@ -451,15 +711,19 @@ export default function SkillJobGraph({
                       onMouseLeave={handleJobLeave}
                       onFocus={() => handleJobHover(job.role_id)}
                       onBlur={handleJobRowBlur}
-                      onClick={() => (hoveredJob === job.role_id ? handleJobLeave() : handleJobHover(job.role_id))}
+                      onClick={() => handleJobClick(job.role_id)}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         padding: '0.625rem 0.75rem',
                         borderRadius: '10px',
-                        background: isHovered ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
-                        border: isHovered ? '1.5px solid var(--sage, #98B8A8)' : '1px solid transparent',
+                        background: isActive ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
+                        border: isActive
+                          ? '1.5px solid var(--sage, #98B8A8)'
+                          : selectedJob === job.role_id
+                            ? '1.5px solid var(--sage, #98B8A8)'
+                            : '1px solid transparent',
                         cursor: 'pointer',
                         transition: 'all 0.2s ease',
                       }}
@@ -495,7 +759,7 @@ export default function SkillJobGraph({
                       </div>
                     </div>
                     {potentialJobs.map((job) => {
-                      const isHovered = hoveredJob === job.role_id;
+                      const isActive = activeJobId === job.role_id;
                       const rNum = readinessNum(job.readiness);
                       const matchedRequiredSkills = job.matchedMustSkills;
                       const matchedText = matchedRequiredSkills.slice(0, 3).join(', ');
@@ -512,13 +776,13 @@ export default function SkillJobGraph({
                           onMouseLeave={handleJobLeave}
                           onFocus={() => handleJobHover(job.role_id)}
                           onBlur={handleJobRowBlur}
-                          onClick={() => (hoveredJob === job.role_id ? handleJobLeave() : handleJobHover(job.role_id))}
+                          onClick={() => handleJobClick(job.role_id)}
                           style={{
                             padding: '0.625rem 0.75rem',
                             borderRadius: '10px',
-                            background: isHovered ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
-                            border: `1.5px dashed ${isHovered ? 'var(--peach, #F9CE9C)' : 'var(--gray-300)'}`,
-                            opacity: 0.72,
+                            background: isActive ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
+                            border: `1.5px dashed ${isActive ? 'var(--peach, #F9CE9C)' : 'var(--gray-300)'}`,
+                            opacity: isActive ? 1 : 0.72,
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                           }}

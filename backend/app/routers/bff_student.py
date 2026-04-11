@@ -883,6 +883,54 @@ async def bff_student_profile(
                         "doc_id": chunk["doc_id"],
                     })
 
+        # Frequency-based evidence: count all chunks across all consented
+        # docs that mention this skill, and collect evidence_sources with
+        # snippet + source filename for the explainability UI.
+        evidence_sources: List[Dict[str, Any]] = []
+        frequency = 0
+        try:
+            freq_rows = db.execute(
+                text("""
+                    SELECT ch.chunk_id, ch.snippet, ch.doc_id, d.filename
+                    FROM chunks ch
+                    JOIN documents d ON d.doc_id = ch.doc_id
+                    JOIN consents c ON c.doc_id = d.doc_id::text
+                    JOIN skill_assessments sa
+                        ON sa.doc_id = ch.doc_id::text
+                       AND sa.skill_id = :sid
+                    WHERE c.user_id = :sub AND c.status = 'granted'
+                      AND sa.decision IN ('demonstrated', 'match', 'mentioned')
+                      AND (
+                          sa.evidence::text LIKE '%%' || ch.chunk_id || '%%'
+                      )
+                    ORDER BY d.filename, ch.chunk_id
+                    LIMIT 50
+                """),
+                {"sid": skill_id, "sub": subject},
+            ).mappings().all()
+            frequency = len(freq_rows)
+            for fr in freq_rows:
+                evidence_sources.append({
+                    "chunk_id": fr["chunk_id"],
+                    "snippet": (fr["snippet"] or "")[:300],
+                    "doc_id": fr["doc_id"],
+                    "filename": fr["filename"] or "unknown",
+                })
+        except Exception as exc:
+            _log.debug("frequency evidence query failed for skill %s: %s", skill_id, exc)
+            frequency = len(evidence_items)
+            for ei in evidence_items:
+                doc_row = db.execute(
+                    text("SELECT filename FROM documents WHERE doc_id = :did LIMIT 1"),
+                    {"did": ei["doc_id"]},
+                ).mappings().first()
+                evidence_sources.append({
+                    "chunk_id": ei["chunk_id"],
+                    "snippet": ei["snippet"],
+                    "doc_id": ei["doc_id"],
+                    "filename": (doc_row["filename"] if doc_row else "unknown"),
+                })
+
         if assess_row:
             label = assess_row.get("decision", assess_row.get("label")) or "not_assessed"
             meta = assess_row.get("decision_meta") or {}
@@ -916,6 +964,8 @@ async def bff_student_profile(
             "level": level,
             "rationale": rationale,
             "evidence_items": evidence_items,
+            "frequency": frequency,
+            "evidence_sources": evidence_sources,
         }
 
         if not evidence_items:

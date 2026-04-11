@@ -4,15 +4,70 @@ export const DEMO_DASHBOARD_DOCUMENTS = [
 ];
 
 export const DEMO_DASHBOARD_SKILLS = [
-  { skill_id: 'HKU.SKILL.DATA_ANALYSIS.v1', canonical_name: 'Data Analysis', level: 2, status: 'verified' as const },
-  { skill_id: 'HKU.SKILL.SQL.v1', canonical_name: 'SQL', level: 2, status: 'verified' as const },
-  { skill_id: 'HKU.SKILL.PYTHON.v1', canonical_name: 'Python', level: 2, status: 'verified' as const },
-  { skill_id: 'HKU.SKILL.ML.v1', canonical_name: 'Machine Learning', level: 1, status: 'verified' as const },
-  { skill_id: 'HKU.SKILL.STATISTICS.v1', canonical_name: 'Statistics', level: 1, status: 'verified' as const },
-  { skill_id: 'HKU.SKILL.DATA_VIZ.v1', canonical_name: 'Data Visualization', level: 1, status: 'pending' as const },
-  { skill_id: 'HKU.SKILL.COMMUNICATION.v1', canonical_name: 'Communication', level: 1, status: 'pending' as const },
-  { skill_id: 'HKU.SKILL.PRESENTATION.v1', canonical_name: 'Presentation', level: 0, status: 'missing' as const },
-  { skill_id: 'HKU.SKILL.DEEP_LEARNING.v1', canonical_name: 'Deep Learning', level: 0, status: 'missing' as const },
+  {
+    skill_id: 'HKU.SKILL.DATA_ANALYSIS.v1', canonical_name: 'Data Analysis', level: 2, status: 'verified' as const,
+    frequency: 16,
+    evidence_sources: [
+      { chunk_id: 'dc-1', snippet: 'Performed exploratory data analysis on customer segmentation dataset', doc_id: 'demo-doc-2', filename: 'Demo_Data_Project.md' },
+      { chunk_id: 'dc-2', snippet: 'Applied statistical analysis to identify key performance indicators', doc_id: 'demo-doc-2', filename: 'Demo_Data_Project.md' },
+      { chunk_id: 'dc-3', snippet: 'Conducted data analysis for marketing campaign effectiveness', doc_id: 'demo-doc-1', filename: 'Demo_Resume.pdf' },
+    ],
+  },
+  {
+    skill_id: 'HKU.SKILL.SQL.v1', canonical_name: 'SQL', level: 2, status: 'verified' as const,
+    frequency: 13,
+    evidence_sources: [
+      { chunk_id: 'dc-4', snippet: 'Wrote complex SQL queries to extract insights from relational databases', doc_id: 'demo-doc-2', filename: 'Demo_Data_Project.md' },
+      { chunk_id: 'dc-5', snippet: 'Optimized SQL queries for large-scale data warehouse operations', doc_id: 'demo-doc-1', filename: 'Demo_Resume.pdf' },
+    ],
+  },
+  {
+    skill_id: 'HKU.SKILL.PYTHON.v1', canonical_name: 'Python', level: 2, status: 'verified' as const,
+    frequency: 12,
+    evidence_sources: [
+      { chunk_id: 'dc-6', snippet: 'Built data pipeline using Python pandas and numpy libraries', doc_id: 'demo-doc-2', filename: 'Demo_Data_Project.md' },
+      { chunk_id: 'dc-7', snippet: 'Developed Python scripts for automated report generation', doc_id: 'demo-doc-1', filename: 'Demo_Resume.pdf' },
+    ],
+  },
+  {
+    skill_id: 'HKU.SKILL.ML.v1', canonical_name: 'Machine Learning', level: 1, status: 'verified' as const,
+    frequency: 5,
+    evidence_sources: [
+      { chunk_id: 'dc-8', snippet: 'Applied machine learning classification models on structured data', doc_id: 'demo-doc-2', filename: 'Demo_Data_Project.md' },
+    ],
+  },
+  {
+    skill_id: 'HKU.SKILL.STATISTICS.v1', canonical_name: 'Statistics', level: 1, status: 'verified' as const,
+    frequency: 5,
+    evidence_sources: [
+      { chunk_id: 'dc-9', snippet: 'Performed hypothesis testing and regression analysis', doc_id: 'demo-doc-2', filename: 'Demo_Data_Project.md' },
+    ],
+  },
+  {
+    skill_id: 'HKU.SKILL.DATA_VIZ.v1', canonical_name: 'Data Visualization', level: 1, status: 'pending' as const,
+    frequency: 3,
+    evidence_sources: [
+      { chunk_id: 'dc-10', snippet: 'Built dashboard for internship weekly metrics using Tableau', doc_id: 'demo-doc-1', filename: 'Demo_Resume.pdf' },
+    ],
+  },
+  {
+    skill_id: 'HKU.SKILL.COMMUNICATION.v1', canonical_name: 'Communication', level: 1, status: 'pending' as const,
+    frequency: 3,
+    evidence_sources: [
+      { chunk_id: 'dc-11', snippet: 'Good presentation skills demonstrated in capstone project defense', doc_id: 'demo-doc-1', filename: 'Demo_Resume.pdf' },
+      { chunk_id: 'dc-12', snippet: 'Engaged in group discussion activities for team project', doc_id: 'demo-doc-2', filename: 'Demo_Data_Project.md' },
+    ],
+  },
+  {
+    skill_id: 'HKU.SKILL.PRESENTATION.v1', canonical_name: 'Presentation', level: 0, status: 'missing' as const,
+    frequency: 0,
+    evidence_sources: [],
+  },
+  {
+    skill_id: 'HKU.SKILL.DEEP_LEARNING.v1', canonical_name: 'Deep Learning', level: 0, status: 'missing' as const,
+    frequency: 0,
+    evidence_sources: [],
+  },
 ];
 
 export const DEMO_DASHBOARD_JOB_MATCHES = [
