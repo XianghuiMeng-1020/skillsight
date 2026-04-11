@@ -18,9 +18,32 @@ interface JobMatch {
   readiness: number;
   gaps: string[];
   gaps_all?: string[];
+  critical_gaps?: string[];
+  improvable_gaps?: string[];
   required_skills?: string[];
+  required_skills_all?: string[];
+  required_skills_must?: string[];
+  required_skills_optional?: string[];
   skills_met: number;
   skills_total: number;
+  skills_met_must?: number;
+  skills_total_must?: number;
+  skills_met_optional?: number;
+  skills_total_optional?: number;
+  match_ratio_must?: number;
+  next_best_assessment?: { skill_id?: string; skill_name?: string; reason?: string } | null;
+}
+
+export interface PotentialJobCandidate extends JobMatch {
+  verifiedMatchCount: number;
+  missingSkills: string[];
+}
+
+interface ScoredJob extends JobMatch {
+  verifiedMatchCount: number;
+  missingSkills: string[];
+  matchedMustSkills: string[];
+  mustMatchRatio: number;
 }
 
 export function buildRoleConnections(skills: Skill[], job: JobMatch): Array<{ skillId: string; isGap: boolean }> {
@@ -43,9 +66,53 @@ function readinessNum(r: number): number {
   return typeof r === 'number' && !Number.isNaN(r) ? r : 0;
 }
 
+function normalizedName(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function countVerifiedMatches(skills: Skill[], job: JobMatch): number {
+  const verifiedNames = new Set(skills.filter((s) => s.level > 0).map((s) => normalizedName(s.canonical_name)));
+  const mustSkills = (job.required_skills_must && job.required_skills_must.length > 0)
+    ? job.required_skills_must
+    : (job.required_skills_all || job.required_skills || []);
+  return mustSkills.filter((required) => verifiedNames.has(normalizedName(required))).length;
+}
+
+function collectMissingSkills(skills: Skill[], job: JobMatch): string[] {
+  if (job.critical_gaps && job.critical_gaps.length > 0) {
+    return [...job.critical_gaps, ...(job.improvable_gaps || [])];
+  }
+  const verifiedNames = new Set(skills.filter((s) => s.level > 0).map((s) => normalizedName(s.canonical_name)));
+  const allRequired = (job.required_skills_all && job.required_skills_all.length > 0)
+    ? job.required_skills_all
+    : (job.required_skills || []);
+  return allRequired.filter((required) => !verifiedNames.has(normalizedName(required)));
+}
+
+function collectMatchedMustSkills(skills: Skill[], job: JobMatch): string[] {
+  const verifiedNames = new Set(skills.filter((s) => s.level > 0).map((s) => normalizedName(s.canonical_name)));
+  const mustSkills = (job.required_skills_must && job.required_skills_must.length > 0)
+    ? job.required_skills_must
+    : (job.required_skills_all || job.required_skills || []);
+  return mustSkills.filter((required) => verifiedNames.has(normalizedName(required)));
+}
+
+function computeMustMatchRatio(skills: Skill[], job: JobMatch): number {
+  if (typeof job.match_ratio_must === 'number') {
+    return job.match_ratio_must;
+  }
+  const mustSkills = (job.required_skills_must && job.required_skills_must.length > 0)
+    ? job.required_skills_must
+    : (job.required_skills_all || job.required_skills || []);
+  if (mustSkills.length === 0) return 0;
+  return collectMatchedMustSkills(skills, job).length / mustSkills.length;
+}
+
 interface SkillJobGraphProps {
   skills: Skill[];
   jobMatches: JobMatch[];
+  onPotentialJobsChange?: (jobs: PotentialJobCandidate[]) => void;
+  onOpenAssessmentAssistant?: (job: PotentialJobCandidate) => void;
 }
 
 const LEVEL_TO_PERCENT: Record<number, number> = { 0: 0, 1: 30, 2: 60, 3: 90 };
@@ -58,7 +125,12 @@ interface Line {
   isGap: boolean;
 }
 
-export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps) {
+export default function SkillJobGraph({
+  skills,
+  jobMatches,
+  onPotentialJobsChange,
+  onOpenAssessmentAssistant,
+}: SkillJobGraphProps) {
   const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const skillRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -82,20 +154,45 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
     [skills]
   );
 
-  const sortedJobs = useMemo(
-    () => [...jobMatches].sort((a, b) => b.readiness - a.readiness).slice(0, 8),
-    [jobMatches]
-  );
+  const { confirmedJobs, potentialJobs, visibleJobs } = useMemo(() => {
+    const scored: ScoredJob[] = jobMatches.map((job) => ({
+      ...job,
+      verifiedMatchCount: countVerifiedMatches(skills, job),
+      missingSkills: collectMissingSkills(skills, job),
+      matchedMustSkills: collectMatchedMustSkills(skills, job),
+      mustMatchRatio: computeMustMatchRatio(skills, job),
+    }));
+
+    const confirmed = scored
+      .filter((job) => job.mustMatchRatio >= 0.7 && readinessNum(job.readiness) >= 65)
+      .sort((a, b) => b.readiness - a.readiness)
+      .slice(0, 5);
+
+    const potential = scored
+      .filter((job) => job.mustMatchRatio >= 0.35 && job.mustMatchRatio < 0.7 && readinessNum(job.readiness) >= 45)
+      .sort((a, b) => b.readiness - a.readiness)
+      .slice(0, 3);
+
+    return {
+      confirmedJobs: confirmed,
+      potentialJobs: potential,
+      visibleJobs: [...confirmed, ...potential],
+    };
+  }, [jobMatches, skills]);
+
+  useEffect(() => {
+    onPotentialJobsChange?.(potentialJobs);
+  }, [onPotentialJobsChange, potentialJobs]);
 
   // Build a map: only connect skills explicitly required by each role.
   // Among required skills: dotted = gap, solid = met (level > 0).
   const jobSkillMap = useMemo(() => {
     const map = new Map<string, { skillId: string; isGap: boolean }[]>();
-    for (const job of sortedJobs) {
+    for (const job of visibleJobs) {
       map.set(job.role_id, buildRoleConnections(skills, job));
     }
     return map;
-  }, [sortedJobs, skills]);
+  }, [visibleJobs, skills]);
 
   const calculateLines = useCallback((roleId: string) => {
     const container = containerRef.current;
@@ -168,7 +265,7 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
     [lines, lineFilter],
   );
 
-  if (sortedSkills.length === 0 && sortedJobs.length === 0) {
+  if (sortedSkills.length === 0 && visibleJobs.length === 0) {
     return (
       <div className="card" style={{ border: '1px solid var(--gray-200)' }}>
         <div className="card-content" style={{ textAlign: 'center', padding: '3rem 1rem' }}>
@@ -323,66 +420,155 @@ export default function SkillJobGraph({ skills, jobMatches }: SkillJobGraphProps
 
           {/* Right: Jobs */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative', zIndex: 2 }}>
-            {sortedJobs.length > 0 ? sortedJobs.map((job) => {
-              const isHovered = hoveredJob === job.role_id;
-              const rNum = readinessNum(job.readiness);
-              return (
-                <div
-                  key={job.role_id}
-                  ref={(el) => {
-                    if (el) jobRefs.current.set(job.role_id, el);
-                    else jobRefs.current.delete(job.role_id);
-                  }}
-                  tabIndex={0}
-                  onMouseEnter={() => handleJobHover(job.role_id)}
-                  onMouseLeave={handleJobLeave}
-                  onFocus={() => handleJobHover(job.role_id)}
-                  onBlur={handleJobRowBlur}
-                  onClick={() => (hoveredJob === job.role_id ? handleJobLeave() : handleJobHover(job.role_id))}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0.625rem 0.75rem',
-                    borderRadius: '10px',
-                    background: isHovered ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
-                    border: isHovered ? '1.5px solid var(--sage, #98B8A8)' : '1px solid transparent',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                  }}
-                >
-                  <Link
-                    href="/dashboard/jobs"
-                    style={{
-                      textDecoration: 'none',
-                      color: 'var(--gray-900)',
-                      fontWeight: 500,
-                      fontSize: '0.875rem',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {job.role_title}
-                  </Link>
-                  <span
-                    style={{
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: getReadinessColor(rNum),
-                      background: `${getReadinessColor(rNum)}18`,
-                      padding: '0.2rem 0.5rem',
-                      borderRadius: '6px',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {fmt2(rNum)}%
-                  </span>
-                </div>
-              );
-            }) : (
+            {visibleJobs.length > 0 ? (
+              <>
+                {confirmedJobs.length > 0 && (
+                  <div style={{ marginBottom: '0.25rem', fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 600 }}>
+                    {t('dashboard.confirmedMatches')}
+                  </div>
+                )}
+                {confirmedJobs.map((job) => {
+                  const isHovered = hoveredJob === job.role_id;
+                  const rNum = readinessNum(job.readiness);
+                  return (
+                    <div
+                      key={job.role_id}
+                      ref={(el) => {
+                        if (el) jobRefs.current.set(job.role_id, el);
+                        else jobRefs.current.delete(job.role_id);
+                      }}
+                      tabIndex={0}
+                      onMouseEnter={() => handleJobHover(job.role_id)}
+                      onMouseLeave={handleJobLeave}
+                      onFocus={() => handleJobHover(job.role_id)}
+                      onBlur={handleJobRowBlur}
+                      onClick={() => (hoveredJob === job.role_id ? handleJobLeave() : handleJobHover(job.role_id))}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.625rem 0.75rem',
+                        borderRadius: '10px',
+                        background: isHovered ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
+                        border: isHovered ? '1.5px solid var(--sage, #98B8A8)' : '1px solid transparent',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, fontSize: '0.875rem', color: 'var(--gray-900)' }}>
+                        {job.role_title}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: getReadinessColor(rNum),
+                          background: `${getReadinessColor(rNum)}18`,
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '6px',
+                          flexShrink: 0,
+                        }}
+                      >
+                        {fmt2(rNum)}%
+                      </span>
+                    </div>
+                  );
+                })}
+
+                {potentialJobs.length > 0 && (
+                  <>
+                    <div style={{ marginTop: '0.5rem', borderTop: '1px dashed var(--gray-300)', paddingTop: '0.65rem' }}>
+                      <div style={{ marginBottom: '0.35rem', fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 600 }}>
+                        {t('dashboard.potentialMatches')}
+                      </div>
+                      <div style={{ marginBottom: '0.5rem', fontSize: '0.75rem', color: 'var(--gray-500)' }}>
+                        {t('dashboard.youCouldQualify')}
+                      </div>
+                    </div>
+                    {potentialJobs.map((job) => {
+                      const isHovered = hoveredJob === job.role_id;
+                      const rNum = readinessNum(job.readiness);
+                      const matchedRequiredSkills = job.matchedMustSkills;
+                      const matchedText = matchedRequiredSkills.slice(0, 3).join(', ');
+                      const missingText = job.missingSkills.slice(0, 3).join(', ');
+                      return (
+                        <div
+                          key={job.role_id}
+                          ref={(el) => {
+                            if (el) jobRefs.current.set(job.role_id, el);
+                            else jobRefs.current.delete(job.role_id);
+                          }}
+                          tabIndex={0}
+                          onMouseEnter={() => handleJobHover(job.role_id)}
+                          onMouseLeave={handleJobLeave}
+                          onFocus={() => handleJobHover(job.role_id)}
+                          onBlur={handleJobRowBlur}
+                          onClick={() => (hoveredJob === job.role_id ? handleJobLeave() : handleJobHover(job.role_id))}
+                          style={{
+                            padding: '0.625rem 0.75rem',
+                            borderRadius: '10px',
+                            background: isHovered ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
+                            border: `1.5px dashed ${isHovered ? 'var(--peach, #F9CE9C)' : 'var(--gray-300)'}`,
+                            opacity: 0.72,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, fontSize: '0.875rem', color: 'var(--gray-900)' }}>
+                              {job.role_title}
+                            </div>
+                            <span
+                              style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: getReadinessColor(rNum),
+                                background: `${getReadinessColor(rNum)}18`,
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '6px',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {fmt2(rNum)}%
+                            </span>
+                          </div>
+                          <div style={{ marginTop: '0.3rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
+                            <strong>{t('dashboard.unlockByAssessment')}:</strong> {t('dashboard.takeAssessmentToUnlock')}
+                          </div>
+                          {matchedText && (
+                            <div style={{ marginTop: '0.2rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
+                              <strong>{t('dashboard.matchedSkillsForRole')}:</strong> {matchedText}
+                            </div>
+                          )}
+                          {missingText && (
+                            <div style={{ marginTop: '0.2rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
+                              <strong>{t('dashboard.missingSkillsForRole')}:</strong> {missingText}
+                            </div>
+                          )}
+                          <div style={{ marginTop: '0.45rem', display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                            <Link href="/dashboard/assessments" className="btn btn-secondary btn-sm">
+                              {t('dashboard.takeAssessment')}
+                            </Link>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                onOpenAssessmentAssistant?.(job);
+                              }}
+                            >
+                              {t('dashboard.askAgentToPlan')}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            ) : (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.875rem' }}>
-                {t('dashboard.noJobMatches')}
+                {t('dashboard.noRolesAboveThreshold')}
               </div>
             )}
           </div>

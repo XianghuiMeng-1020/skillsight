@@ -49,6 +49,84 @@
   pointer-events: none;
 }
 
+.proactiveBubble {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 5.9rem;
+  z-index: 997;
+  width: min(340px, calc(100vw - 2rem));
+  padding: 0.85rem 0.95rem 0.8rem;
+  border-radius: 14px;
+  border: 1px dashed var(--peach, #f9ce9c);
+  background: linear-gradient(135deg, rgba(249, 206, 156, 0.2), rgba(152, 184, 168, 0.12));
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.14);
+  animation: proactiveFloatIn 220ms ease-out;
+}
+
+.proactiveBubble::after {
+  content: '';
+  position: absolute;
+  right: 1.35rem;
+  bottom: -8px;
+  width: 14px;
+  height: 14px;
+  border-right: 1px dashed var(--peach, #f9ce9c);
+  border-bottom: 1px dashed var(--peach, #f9ce9c);
+  background: rgba(249, 206, 156, 0.25);
+  transform: rotate(45deg);
+}
+
+.proactiveTitle {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: 0.25rem;
+  padding-right: 1.25rem;
+}
+
+.proactiveText {
+  margin: 0 0 0.65rem;
+  font-size: 0.8125rem;
+  color: var(--gray-700);
+  line-height: 1.45;
+}
+
+.proactiveCta {
+  border: none;
+  border-radius: 999px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white;
+  background: linear-gradient(135deg, var(--coral), var(--coral-dark));
+  box-shadow: 0 4px 14px rgba(225, 129, 130, 0.38);
+  cursor: pointer;
+}
+
+.proactiveCta:hover {
+  transform: translateY(-1px);
+}
+
+.proactiveClose {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--gray-500);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.proactiveClose:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--gray-700);
+}
+
 @keyframes floatingWidgetPulse {
   0%,
   100% {
@@ -58,6 +136,17 @@
   50% {
     transform: scale(1.2);
     opacity: 0;
+  }
+}
+
+@keyframes proactiveFloatIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -179,4 +268,12 @@
 
 .loginPromptBtn:active {
   transform: scale(0.98);
+}
+
+@media (max-width: 768px) {
+  .proactiveBubble {
+    right: 1rem;
+    bottom: 6rem;
+    width: min(310px, calc(100vw - 1.25rem));
+  }
 }

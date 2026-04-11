@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, usePathname } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import { AchievementNotification } from '@/components/Achievements';
 import { ShareButton } from '@/components/ShareCard';
@@ -17,6 +17,7 @@ import { useLanguage } from '@/lib/contexts';
 import { fmt2, fmtInt } from '@/lib/formatNumber';
 import { DEMO_DASHBOARD_DOCUMENTS, DEMO_DASHBOARD_JOB_MATCHES, DEMO_DASHBOARD_SKILLS } from '@/lib/demoDataset';
 import { isDemoQuery, readDemoMode, writeDemoMode } from '@/lib/demoMode';
+import { useAssessmentWidget, type AssessmentWidgetType } from '@/lib/AssessmentWidgetContext';
 
 interface Document {
   doc_id: string;
@@ -38,13 +39,69 @@ interface JobMatch {
   readiness: number;
   gaps: string[];
   gaps_all?: string[];
+  critical_gaps?: string[];
+  improvable_gaps?: string[];
   required_skills?: string[];
+  required_skills_all?: string[];
+  required_skills_must?: string[];
+  required_skills_optional?: string[];
   skills_met: number;
   skills_total: number;
+  skills_met_must?: number;
+  skills_total_must?: number;
+  skills_met_optional?: number;
+  skills_total_optional?: number;
+  match_ratio_must?: number;
+  next_best_assessment?: { skill_id?: string; skill_name?: string; reason?: string } | null;
+}
+
+interface PotentialJobCandidate extends JobMatch {
+  verifiedMatchCount: number;
+  missingSkills: string[];
+}
+
+interface AgentAssessmentContext {
+  assessmentType: AssessmentWidgetType;
+  skillId: string;
+  skillName: string;
+}
+
+const DEFAULT_AGENT_CONTEXT: AgentAssessmentContext = {
+  assessmentType: 'communication',
+  skillId: 'HKU.SKILL.COMMUNICATION.v1',
+  skillName: 'Communication',
+};
+
+const SKILL_TO_AGENT_CONTEXT: Record<string, AgentAssessmentContext> = {
+  communication: DEFAULT_AGENT_CONTEXT,
+  presentation: { assessmentType: 'presentation', skillId: 'HKU.SKILL.PRESENTATION.v1', skillName: 'Presentation' },
+  sql: { assessmentType: 'data_analysis', skillId: 'HKU.SKILL.SQL.v1', skillName: 'SQL' },
+  python: { assessmentType: 'programming', skillId: 'HKU.SKILL.PYTHON.v1', skillName: 'Python' },
+  'machine learning': { assessmentType: 'data_analysis', skillId: 'HKU.SKILL.ML.v1', skillName: 'Machine Learning' },
+  statistics: { assessmentType: 'data_analysis', skillId: 'HKU.SKILL.STATISTICS.v1', skillName: 'Statistics' },
+  'data analysis': { assessmentType: 'data_analysis', skillId: 'HKU.SKILL.DATA_ANALYSIS.v1', skillName: 'Data Analysis' },
+  'data visualization': { assessmentType: 'data_analysis', skillId: 'HKU.SKILL.DATA_VIZ.v1', skillName: 'Data Visualization' },
+  'deep learning': { assessmentType: 'data_analysis', skillId: 'HKU.SKILL.DEEP_LEARNING.v1', skillName: 'Deep Learning' },
+};
+
+function resolveAgentAssessmentContext(skillName?: string): AgentAssessmentContext {
+  const normalized = (skillName || '').trim().toLowerCase();
+  const mapped = SKILL_TO_AGENT_CONTEXT[normalized];
+  if (mapped) {
+    return {
+      ...mapped,
+      skillName: skillName || mapped.skillName,
+    };
+  }
+  return {
+    ...DEFAULT_AGENT_CONTEXT,
+    skillName: skillName || DEFAULT_AGENT_CONTEXT.skillName,
+  };
 }
 
 export default function StudentDashboard() {
   const { t } = useLanguage();
+  const assessmentWidget = useAssessmentWidget();
   const INSIGHTS_PREF_KEY = 'skillsight-dashboard-insights-expanded-v1';
   const searchParams = useSearchParams();
   const [documents, setDocuments] = useState<Document[]>([]);
@@ -56,11 +113,14 @@ export default function StudentDashboard() {
   const [jobsMatchedCount, setJobsMatchedCount] = useState(0);
   const [jobMatches, setJobMatches] = useState<JobMatch[]>([]);
   const [showResumeReviewAgent, setShowResumeReviewAgent] = useState(false);
-  const [showUpdateCard, setShowUpdateCard] = useState(false);
+  const [potentialJobs, setPotentialJobs] = useState<PotentialJobCandidate[]>([]);
+
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [showMoreInsights, setShowMoreInsights] = useState(true);
   const [staleSkills, setStaleSkills] = useState<Array<{ skill_id: string; skill_name: string; last_updated_at?: string }>>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
+  const pathname = usePathname();
   const { totalPoints, recentUnlock, dismissRecentUnlock, unlockShareAchievement, checkSkillAchievements, checkDocumentAchievements } = useAchievements();
 
   const fetchData = async () => {
@@ -123,7 +183,6 @@ export default function StudentDashboard() {
         setJobsMatchedCount(DEMO_DASHBOARD_JOB_MATCHES.length);
         setJobMatches(DEMO_DASHBOARD_JOB_MATCHES);
         setLoading(false);
-        setShowUpdateCard(true);
         return;
       }
       const userData = localStorage.getItem('user');
@@ -138,8 +197,6 @@ export default function StudentDashboard() {
         localStorage.setItem('skillsight-first-route-seen', 'true');
       }
 
-      const dismissedUpdateCard = localStorage.getItem('skillsight-student-update-card-dismissed-v1');
-      setShowUpdateCard(!dismissedUpdateCard);
       const savedInsightsPref = localStorage.getItem(INSIGHTS_PREF_KEY);
       if (savedInsightsPref === '0') setShowMoreInsights(false);
       if (savedInsightsPref === '1') setShowMoreInsights(true);
@@ -150,6 +207,14 @@ export default function StudentDashboard() {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    studentBff.getNotifications(20, controller.signal)
+      .then((r) => setUnreadNotifications(Number(r.unread_count || 0)))
+      .catch(() => setUnreadNotifications(0));
+    return () => controller.abort();
+  }, [pathname]);
 
   const hasDocuments = documents.length > 0;
   const hasVerifiedOrScoredSkills = skills.some((s) => s.status === 'verified' || s.level > 0);
@@ -174,6 +239,28 @@ export default function StudentDashboard() {
           label: t('dashboard.goToJobs'),
         };
 
+  const openAssessmentAgentForPotentialJob = useCallback((job: PotentialJobCandidate) => {
+    const firstMissing = job.next_best_assessment?.skill_name || job.missingSkills?.[0] || '';
+    const context = resolveAgentAssessmentContext(firstMissing || 'Communication');
+    assessmentWidget?.setContext({
+      assessmentType: context.assessmentType,
+      skillId: context.skillId,
+      skillName: context.skillName,
+    });
+    assessmentWidget?.openWidget();
+  }, [assessmentWidget]);
+
+  useEffect(() => {
+    if (!assessmentWidget || potentialJobs.length === 0) return;
+    const firstMissing = potentialJobs[0]?.missingSkills?.[0] || 'Communication';
+    const context = resolveAgentAssessmentContext(firstMissing);
+    assessmentWidget.setContext({
+      assessmentType: context.assessmentType,
+      skillId: context.skillId,
+      skillName: context.skillName,
+    });
+  }, [assessmentWidget, potentialJobs]);
+
   return (
     <div className="app-container">
       <Sidebar />
@@ -184,10 +271,8 @@ export default function StudentDashboard() {
             <h1 className="page-title">{t('dashboard.welcome')}, {userName}! 👋</h1>
             <p className="page-subtitle">{t('dashboard.subtitle')}</p>
           </div>
-          <div className="page-actions" style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', width: '100%', maxWidth: '42rem' }}>
-            {/* Row 1: Quick action buttons */}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              {isDemoMode && <span className="badge badge-warning">{t('jobs.demoModeOn')}</span>}
+          <div className="page-actions" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'nowrap' }}>
+              {isDemoMode && <span className="badge badge-warning" style={{ whiteSpace: 'nowrap' }}>{t('jobs.demoModeOn')}</span>}
               <button
                 onClick={() => setShowAchievements(true)}
                 style={{
@@ -203,6 +288,7 @@ export default function StudentDashboard() {
                   alignItems: 'center',
                   gap: '0.375rem',
                   transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap',
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.borderColor = 'var(--sage)';
@@ -218,13 +304,11 @@ export default function StudentDashboard() {
               <Link href="/dashboard/upload" className="btn btn-primary btn-sm" style={{ whiteSpace: 'nowrap' }}>
                 📤 {t('dashboard.uploadEvidence')}
               </Link>
-              <Link href="/dashboard/sample-cases" className="btn btn-secondary btn-sm" style={{ whiteSpace: 'nowrap' }}>
-                🧪 {t('nav.sampleCases')}
-              </Link>
               {isDemoMode && (
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
+                  style={{ whiteSpace: 'nowrap' }}
                   onClick={() => {
                     writeDemoMode(false);
                     window.location.href = '/dashboard';
@@ -233,13 +317,21 @@ export default function StudentDashboard() {
                   {t('jobs.exitDemoMode')}
                 </button>
               )}
+              <Link href="/settings/notifications" className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap', position: 'relative', fontSize: '1rem', padding: '0.375rem 0.5rem' }}>
+                🔔{unreadNotifications > 0 && <span style={{ position: 'absolute', top: 0, right: 0, background: 'var(--coral)', color: 'white', borderRadius: '50%', width: '1rem', height: '1rem', fontSize: '0.625rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>{unreadNotifications}</span>}
+              </Link>
+              <Link href="/settings" className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap', fontSize: '1rem', padding: '0.375rem 0.5rem' }} title={t('nav.settings') as string}>
+                ⚙️
+              </Link>
+              <Link href="/settings/privacy" className="btn btn-ghost btn-sm" style={{ whiteSpace: 'nowrap', fontSize: '1rem', padding: '0.375rem 0.5rem' }} title={t('nav.privacy') as string}>
+                🔒
+              </Link>
               <ShareButton
                 userName={userName}
                 skills={skills.map(s => ({ name: s.canonical_name, level: s.level }))}
                 overallScore={Math.round((skills.reduce((sum, s) => sum + s.level * 25, 0) / Math.max(skills.length, 1)) * 100) / 100}
                 onShareSuccess={unlockShareAchievement}
               />
-            </div>
           </div>
         </div>
 
@@ -258,38 +350,6 @@ export default function StudentDashboard() {
             </div>
           )}
 
-          {showUpdateCard && (
-            <div className="card" style={{ marginBottom: '1rem', border: '1px solid var(--gray-200)', background: 'linear-gradient(135deg, rgba(201,221,227,0.1), rgba(152,184,168,0.08))' }}>
-              <div className="card-content" style={{ padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <div style={{ minWidth: '16rem' }}>
-                  <div style={{ fontWeight: 600, marginBottom: '0.25rem' }}>📌 {t('dashboard.updateCardTitle')}</div>
-                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--gray-600)' }}>{t('dashboard.updateCardBody')}</p>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                  <Link href="/dashboard/learning" className="btn btn-secondary btn-sm">
-                    {t('dashboard.goToLearningPath')}
-                  </Link>
-                  <Link href="/dashboard/sample-cases" className="btn btn-primary btn-sm">
-                    {t('dashboard.viewSampleCases')}
-                  </Link>
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm"
-                    onClick={() => {
-                      setShowUpdateCard(false);
-                      try {
-                        localStorage.setItem('skillsight-student-update-card-dismissed-v1', '1');
-                      } catch {
-                        // noop
-                      }
-                    }}
-                  >
-                    {t('common.close')}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           {!loading && staleSkills.length > 0 && (
             <div className="alert" style={{ marginBottom: '1rem', border: '1px solid var(--warning, #f59e0b)', background: 'var(--warning-light, #fef3c7)' }}>
               <span className="alert-icon">⏳</span>
@@ -335,9 +395,6 @@ export default function StudentDashboard() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                   <Link href={nextStep.href} className="btn btn-primary btn-sm">
                     {nextStep.label}
-                  </Link>
-                  <Link href="/dashboard/sample-cases" className="btn btn-secondary btn-sm">
-                    {t('dashboard.viewSampleCases')}
                   </Link>
                 </div>
               </div>
@@ -476,7 +533,12 @@ export default function StudentDashboard() {
 
           {/* ── Section 2: Skills ↔ Jobs connection diagram ── */}
           <div style={{ marginBottom: '1.5rem' }}>
-            <SkillJobGraph skills={skills} jobMatches={jobMatches} />
+            <SkillJobGraph
+              skills={skills}
+              jobMatches={jobMatches}
+              onPotentialJobsChange={setPotentialJobs}
+              onOpenAssessmentAssistant={openAssessmentAgentForPotentialJob}
+            />
           </div>
 
           {/* ── Section 4: HKU CEDARS contact bar ── */}
@@ -572,6 +634,7 @@ export default function StudentDashboard() {
           onClose={() => setShowResumeReviewAgent(false)}
         />
       )}
+
     </div>
   );
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { AgentChat } from '@/components/AgentChat';
@@ -9,15 +9,20 @@ import { useLanguage } from '@/lib/contexts';
 import styles from './FloatingAssessmentWidget.module.css';
 
 const DEFAULT_SKILL_ID = 'HKU.SKILL.COMMUNICATION.v1';
+const PROACTIVE_NUDGE_INTERVAL_MS = 2 * 60 * 1000;
 
 export function FloatingAssessmentWidget() {
   const ctx = useAssessmentWidget();
   const { t } = useLanguage();
   const pathname = usePathname();
   const [hasBeenOpened, setHasBeenOpened] = useState(false);
+  const [proactiveSnoozeUntil, setProactiveSnoozeUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
 
   const handleOpen = useCallback(() => {
     setHasBeenOpened(true);
+    setProactiveSnoozeUntil(Date.now() + PROACTIVE_NUDGE_INTERVAL_MS);
+    setNow(Date.now());
     ctx?.openWidget();
   }, [ctx]);
 
@@ -46,9 +51,48 @@ export function FloatingAssessmentWidget() {
   const hasContext = ctx.assessmentType != null && ctx.skillId != null;
   const showChat = hasBeenOpened && (hasContext || true);
   const showLoginPrompt = isLoginPage && ctx.isOpen;
+  const proactiveEligible =
+    pathname.startsWith('/dashboard') &&
+    !isLoginPage &&
+    hasContext &&
+    !ctx.isOpen;
+
+  const shouldShowProactiveNudge = proactiveEligible && now >= proactiveSnoozeUntil;
+
+  useEffect(() => {
+    setProactiveSnoozeUntil(0);
+    setNow(Date.now());
+  }, [ctx.skillId, pathname]);
+
+  useEffect(() => {
+    if (!proactiveEligible || now >= proactiveSnoozeUntil) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [proactiveEligible, proactiveSnoozeUntil, now]);
 
   return (
     <>
+      {shouldShowProactiveNudge && (
+        <div className={styles.proactiveBubble} role="status" aria-live="polite">
+          <button
+            type="button"
+            className={styles.proactiveClose}
+            onClick={() => {
+              setProactiveSnoozeUntil(Date.now() + PROACTIVE_NUDGE_INTERVAL_MS);
+              setNow(Date.now());
+            }}
+            aria-label={t('common.close')}
+          >
+            ×
+          </button>
+          <div className={styles.proactiveTitle}>🤖 {t('dashboard.potentialAgentPromptTitle')}</div>
+          <p className={styles.proactiveText}>{t('dashboard.potentialAgentPromptBody')}</p>
+          <button type="button" className={styles.proactiveCta} onClick={handleOpen}>
+            {t('dashboard.askAgentToPlan')}
+          </button>
+        </div>
+      )}
+
       <button
         type="button"
         className={styles.fab}

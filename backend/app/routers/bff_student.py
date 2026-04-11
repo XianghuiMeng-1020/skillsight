@@ -1179,6 +1179,61 @@ class InterviewPrepReq(BaseModel):
     question_count: int = 5
 
 
+READINESS_MUST_WEIGHT_BOOST = 1.2
+READINESS_OPTIONAL_WEIGHT_FACTOR = 0.7
+READINESS_MENTIONED_FLOOR = 0.22
+READINESS_RECENCY_HALF_LIFE_DAYS = 180
+READINESS_RECENCY_MIN_FACTOR = 0.6
+READINESS_CRITICAL_GAP_THRESHOLD = 0.45
+READINESS_MET_THRESHOLD = 0.75
+
+ROLE_KEY_SKILLS: Dict[str, List[str]] = {
+    "data scientist": ["python", "machine learning", "statistics"],
+    "machine learning": ["python", "machine learning", "statistics"],
+    "nlp": ["python", "machine learning"],
+    "ai": ["python", "machine learning"],
+    "data analyst": ["sql", "data analysis", "statistics"],
+}
+
+
+def _normalize_text(value: Any) -> str:
+    return str(value or "").strip().lower()
+
+
+def _recency_factor(assessed_at: Optional[datetime], now_utc: datetime) -> float:
+    if not assessed_at:
+        return READINESS_RECENCY_MIN_FACTOR
+    assessed = assessed_at if assessed_at.tzinfo else assessed_at.replace(tzinfo=timezone.utc)
+    age_days = max(0.0, (now_utc - assessed).total_seconds() / 86400.0)
+    if age_days <= 7:
+        return 1.0
+    decay = 0.5 ** (age_days / READINESS_RECENCY_HALF_LIFE_DAYS)
+    return max(READINESS_RECENCY_MIN_FACTOR, min(1.0, decay))
+
+
+def _base_skill_score(decision: str, achieved: int, target: int) -> float:
+    target_safe = max(1, int(target))
+    achieved_safe = max(0, int(achieved))
+    ratio = min(1.2, achieved_safe / target_safe)
+    if decision in ("demonstrated", "match"):
+        if achieved_safe >= target_safe:
+            return 1.0
+        return min(0.95, 0.45 + 0.5 * ratio)
+    if decision == "mentioned":
+        return min(0.6, max(READINESS_MENTIONED_FLOOR, 0.15 + 0.35 * ratio))
+    return 0.0
+
+
+def _key_skill_names_for_role(role_title: str, reqs: List[Dict[str, Any]]) -> List[str]:
+    title = _normalize_text(role_title)
+    for keyword, skill_names in ROLE_KEY_SKILLS.items():
+        if keyword in title:
+            return skill_names
+    must_reqs = [r for r in reqs if bool(r.get("required"))]
+    must_reqs.sort(key=lambda r: float(r.get("weight") or 1.0), reverse=True)
+    return [_normalize_text(r.get("skill_name")) for r in must_reqs[:2]]
+
+
 @router.post("/roles/alignment/batch")
 async def bff_role_alignment_batch(
     payload: RoleAlignmentBatchReq,
@@ -1215,7 +1270,8 @@ async def bff_role_alignment_batch(
     assess_sql = text("""
         SELECT DISTINCT ON (sa.skill_id)
             sa.skill_id, sa.decision,
-            COALESCE(sp.level, 0) AS level
+            COALESCE(sp.level, 0) AS level,
+            sa.created_at AS assessed_at
         FROM skill_assessments sa
         JOIN consents c ON c.doc_id = sa.doc_id::text AND c.user_id = :sub AND c.status = 'granted'
         LEFT JOIN skill_proficiency sp
@@ -1234,7 +1290,11 @@ async def bff_role_alignment_batch(
             raw_level = 2
         elif decision == "mentioned" and raw_level == 0:
             raw_level = 1
-        skill_map[r["skill_id"]] = {"decision": decision, "level": raw_level}
+        skill_map[r["skill_id"]] = {
+            "decision": decision,
+            "level": raw_level,
+            "assessed_at": r.get("assessed_at"),
+        }
 
     # 3) Get role titles
     from sqlalchemy.sql import bindparam as bp2
@@ -1258,6 +1318,7 @@ async def bff_role_alignment_batch(
     for r in req_rows:
         role_reqs[r["role_id"]].append(dict(r))
 
+    now_utc = _now_utc()
     items = []
     for rid in role_ids:
         reqs = role_reqs.get(rid, [])
@@ -1267,43 +1328,102 @@ async def bff_role_alignment_batch(
 
         total_weight = 0.0
         weighted_score = 0.0
-        meet_count = 0
-        gap_skills = []
+        must_total = 0
+        must_met = 0
+        optional_total = 0
+        optional_met = 0
+        meet_count = 0  # keep backward compatibility (all requirements)
+        critical_gaps: List[str] = []
+        improvable_gaps: List[str] = []
+        key_skill_scores: List[float] = []
 
+        role_title = role_titles.get(rid, "")
+        key_skill_names = set(_key_skill_names_for_role(role_title, reqs))
+        required_skills_all: List[str] = []
+        required_skills_must: List[str] = []
+        required_skills_optional: List[str] = []
+        next_best_assessment: Optional[Dict[str, str]] = None
         for req_item in reqs:
             sid = req_item["skill_id"]
             target = int(req_item["target_level"]) if req_item["target_level"] is not None else 2
             weight = float(req_item["weight"]) if req_item["weight"] is not None else 1.0
             required = bool(req_item["required"])
+            skill_name = str(req_item.get("skill_name") or sid)
+            skill_name_norm = _normalize_text(skill_name)
+            required_skills_all.append(skill_name)
+            if required:
+                required_skills_must.append(skill_name)
+                must_total += 1
+            else:
+                required_skills_optional.append(skill_name)
+                optional_total += 1
 
             sk = skill_map.get(sid, {})
             decision = sk.get("decision", "")
             achieved = sk.get("level", 0)
+            assessed_at = sk.get("assessed_at")
+            base_score = _base_skill_score(decision, achieved, target)
+            score = base_score * _recency_factor(assessed_at, now_utc)
+            effective_weight = max(0.1, weight * (READINESS_MUST_WEIGHT_BOOST if required else READINESS_OPTIONAL_WEIGHT_FACTOR))
 
-            if decision in ("demonstrated", "match") and achieved >= target:
-                score = 1.0
+            if score >= READINESS_MET_THRESHOLD:
                 meet_count += 1
-            elif decision in ("demonstrated", "match") and achieved > 0:
-                score = max(0.3, min(1.0, achieved / max(target, 1)))
-                gap_skills.append(req_item["skill_name"])
+                if required:
+                    must_met += 1
+                else:
+                    optional_met += 1
             else:
-                score = 0.0 if required else 0.1
-                gap_skills.append(req_item["skill_name"])
+                if required:
+                    critical_gaps.append(skill_name)
+                else:
+                    improvable_gaps.append(skill_name)
+                if next_best_assessment is None:
+                    next_best_assessment = {
+                        "skill_id": str(sid),
+                        "skill_name": skill_name,
+                        "reason": "critical_gap" if required else "improvable_gap",
+                    }
 
-            weighted_score += score * weight
-            total_weight += weight
+            if required and skill_name_norm in key_skill_names:
+                key_skill_scores.append(score)
+
+            weighted_score += score * effective_weight
+            total_weight += effective_weight
 
         readiness = round((weighted_score / total_weight) * 100, 2) if total_weight > 0 else 0
-        required_skills = [str(req_item.get("skill_name", "")) for req_item in reqs if req_item.get("skill_name")]
+
+        # Key-skill gating to avoid inflated readiness when gatekeeper skills are weak.
+        if key_skill_scores:
+            min_key = min(key_skill_scores)
+            avg_key = sum(key_skill_scores) / len(key_skill_scores)
+            if min_key < 0.35:
+                readiness = min(readiness, 62.0)
+            elif avg_key < 0.6:
+                readiness = min(readiness, 75.0)
+
+        match_ratio_must = round((must_met / must_total), 4) if must_total > 0 else 0.0
+        all_gaps = critical_gaps + improvable_gaps
+
         items.append({
             "role_id": rid,
-            "role_title": role_titles.get(rid, ""),
+            "role_title": role_title,
             "readiness": readiness,
             "skills_met": meet_count,
             "skills_total": len(reqs),
-            "gaps": gap_skills[:3],
-            "gaps_all": gap_skills,
-            "required_skills": required_skills,
+            "skills_met_must": must_met,
+            "skills_total_must": must_total,
+            "skills_met_optional": optional_met,
+            "skills_total_optional": optional_total,
+            "match_ratio_must": match_ratio_must,
+            "gaps": all_gaps[:3],
+            "gaps_all": all_gaps,
+            "critical_gaps": critical_gaps,
+            "improvable_gaps": improvable_gaps,
+            "required_skills": required_skills_all,
+            "required_skills_all": required_skills_all,
+            "required_skills_must": required_skills_must,
+            "required_skills_optional": required_skills_optional,
+            "next_best_assessment": next_best_assessment,
         })
 
     return {"items": items, "count": len(items)}

@@ -402,7 +402,27 @@ export const studentBff = {
     ),
 
   getRoleAlignmentBatch: (roleIds: string[], docId: string) =>
-    bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[]; gaps_all?: string[]; required_skills?: string[] }>; count: number }>(
+    bffRequest<{ items: Array<{
+      role_id: string;
+      role_title: string;
+      readiness: number;
+      skills_met?: number;
+      skills_total?: number;
+      skills_met_must?: number;
+      skills_total_must?: number;
+      skills_met_optional?: number;
+      skills_total_optional?: number;
+      match_ratio_must?: number;
+      gaps?: string[];
+      gaps_all?: string[];
+      critical_gaps?: string[];
+      improvable_gaps?: string[];
+      required_skills?: string[];
+      required_skills_all?: string[];
+      required_skills_must?: string[];
+      required_skills_optional?: string[];
+      next_best_assessment?: { skill_id?: string; skill_name?: string; reason?: string } | null;
+    }>; count: number }>(
       '/bff/student/roles/alignment/batch',
       { method: 'POST', body: { role_ids: roleIds, doc_id: docId } }
     ),
@@ -586,7 +606,27 @@ export const studentBff = {
   getCareerSummary: () =>
     bffRequest<CareerSummaryResponse>('/bff/student/career-summary'),
 
-  getJobMatches: async (): Promise<{ count: number; items: Array<{ role_id: string; role_title: string; readiness: number; gaps: string[]; gaps_all: string[]; required_skills: string[]; skills_met: number; skills_total: number }> }> => {
+  getJobMatches: async (): Promise<{ count: number; items: Array<{
+    role_id: string;
+    role_title: string;
+    readiness: number;
+    gaps: string[];
+    gaps_all: string[];
+    critical_gaps: string[];
+    improvable_gaps: string[];
+    required_skills: string[];
+    required_skills_all: string[];
+    required_skills_must: string[];
+    required_skills_optional: string[];
+    skills_met: number;
+    skills_total: number;
+    skills_met_must: number;
+    skills_total_must: number;
+    skills_met_optional: number;
+    skills_total_optional: number;
+    match_ratio_must: number;
+    next_best_assessment?: { skill_id?: string; skill_name?: string; reason?: string } | null;
+  }> }> => {
     const [rolesData, docsData] = await Promise.all([
       bffRequest<{ items: unknown[] }>('/bff/student/roles?limit=20'),
       bffRequest<{ items: Array<{ doc_id?: string }> }>('/bff/student/documents?limit=1').catch(() => ({ items: [] })),
@@ -596,11 +636,53 @@ export const studentBff = {
     if (!latestDocId || !roles.length) return { count: 0, items: [] };
 
     const roleIds = roles.map(r => r.role_id ?? '').filter(Boolean);
-    const batch = await bffRequest<{ items: Array<{ role_id: string; role_title: string; readiness: number; skills_met?: number; skills_total?: number; gaps?: string[]; gaps_all?: string[]; required_skills?: string[] }> }>(
+    const batch = await bffRequest<{ items: Array<{
+      role_id: string;
+      role_title: string;
+      readiness: number;
+      skills_met?: number;
+      skills_total?: number;
+      skills_met_must?: number;
+      skills_total_must?: number;
+      skills_met_optional?: number;
+      skills_total_optional?: number;
+      match_ratio_must?: number;
+      gaps?: string[];
+      gaps_all?: string[];
+      critical_gaps?: string[];
+      improvable_gaps?: string[];
+      required_skills?: string[];
+      required_skills_all?: string[];
+      required_skills_must?: string[];
+      required_skills_optional?: string[];
+      next_best_assessment?: { skill_id?: string; skill_name?: string; reason?: string } | null;
+    }> }>(
       '/bff/student/roles/alignment/batch',
       { method: 'POST', body: { role_ids: roleIds, doc_id: latestDocId } }
     );
     const byId = new Map(batch.items?.map(i => [i.role_id, i]) ?? []);
+    type JobMatchItem = {
+      role_id: string;
+      role_title: string;
+      readiness: number;
+      gaps: string[];
+      gaps_all: string[];
+      critical_gaps: string[];
+      improvable_gaps: string[];
+      required_skills: string[];
+      required_skills_all: string[];
+      required_skills_must: string[];
+      required_skills_optional: string[];
+      skills_met: number;
+      skills_total: number;
+      skills_met_must: number;
+      skills_total_must: number;
+      skills_met_optional: number;
+      skills_total_optional: number;
+      match_ratio_must: number;
+      next_best_assessment: { skill_id?: string; skill_name?: string; reason?: string } | null;
+    };
+
     const matched = roles
       .map(r => {
         const id = r.role_id ?? '';
@@ -611,12 +693,23 @@ export const studentBff = {
           readiness: b.readiness,
           gaps: b.gaps ?? [],
           gaps_all: b.gaps_all ?? b.gaps ?? [],
-          required_skills: b.required_skills ?? [],
+          critical_gaps: b.critical_gaps ?? [],
+          improvable_gaps: b.improvable_gaps ?? [],
+          required_skills: b.required_skills ?? b.required_skills_all ?? [],
+          required_skills_all: b.required_skills_all ?? b.required_skills ?? [],
+          required_skills_must: b.required_skills_must ?? [],
+          required_skills_optional: b.required_skills_optional ?? [],
           skills_met: b.skills_met ?? 0,
           skills_total: b.skills_total ?? 0,
+          skills_met_must: b.skills_met_must ?? 0,
+          skills_total_must: b.skills_total_must ?? 0,
+          skills_met_optional: b.skills_met_optional ?? 0,
+          skills_total_optional: b.skills_total_optional ?? 0,
+          match_ratio_must: b.match_ratio_must ?? 0,
+          next_best_assessment: b.next_best_assessment ?? null,
         } : null;
       })
-      .filter((x): x is { role_id: string; role_title: string; readiness: number; gaps: string[]; gaps_all: string[]; required_skills: string[]; skills_met: number; skills_total: number } => x !== null && x.readiness >= 60);
+      .filter((x): x is JobMatchItem => x !== null);
     return { count: matched.length, items: matched };
   },
 
