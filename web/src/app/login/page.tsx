@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage, LANGUAGES, type Language } from '@/lib/contexts';
 import { devLogin, type BffRole } from '@/lib/bffClient';
+import { writeDemoMode } from '@/lib/demoMode';
 
 // SkillSight Logo Component
 const SkillSightLogo = ({ size = 48 }: { size?: number }) => (
@@ -54,9 +55,12 @@ export default function LoginPage() {
       } catch {
         hadUserBeforeLogin = false;
       }
-      await devLogin({ subject_id: subjectId, role: bffRole, ttl_s: 43200 });
       try {
-        // Keep tutorial completion for returning users; only reset for first-time login.
+        await devLogin({ subject_id: subjectId, role: bffRole, ttl_s: 43200 });
+      } catch {
+        // Backend unavailable — proceed with local-only session
+      }
+      try {
         if (!hadUserBeforeLogin) localStorage.removeItem('skillsight-tutorial-completed');
         localStorage.setItem('user', JSON.stringify({
           id: subjectId,
@@ -72,8 +76,7 @@ export default function LoginPage() {
       router.push(role === 'admin' ? '/admin' : '/dashboard');
     } catch (err) {
       const msg = err instanceof Error ? err.message : '';
-      const isNetwork = msg === 'Failed to fetch' || msg?.toLowerCase().includes('fetch') || msg?.toLowerCase().includes('network');
-      setError(isNetwork ? (t('login.failedNetwork') as string) : (msg || (t('common.error') as string)));
+      setError(msg || (t('common.error') as string));
       setLoading(false);
     }
   };
@@ -224,6 +227,64 @@ export default function LoginPage() {
         <p className="login-help">
           {t('login.needHelp')} <a href="mailto:support@hku.hk" style={{ color: '#E18182' }}>{t('login.contactUs')}</a>
         </p>
+
+        {/* Demo Entry */}
+        <div style={{ marginTop: '0.75rem', display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={async () => {
+              setLoading(true);
+              setError('');
+              try {
+                await devLogin({ subject_id: 'hku_demo_user', role: 'student', ttl_s: 43200 });
+              } catch {
+                // Backend may be unavailable; proceed with local-only demo mode
+              }
+              try {
+                localStorage.setItem('user', JSON.stringify({
+                  id: 'hku_demo_user',
+                  name: 'Demo Student',
+                  email: 'demo@connect.hku.hk',
+                  role: 'student',
+                  avatar: 'D',
+                }));
+              } catch { /* noop */ }
+              writeDemoMode(true);
+              window.dispatchEvent(new Event('skillsight-login'));
+              router.push('/dashboard?demo=1');
+            }}
+            disabled={loading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              padding: '0.625rem 1.5rem',
+              borderRadius: '999px',
+              border: '2px solid var(--teal-dark)',
+              background: 'white',
+              color: 'var(--teal-dark)',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              transition: 'all 0.2s ease',
+              opacity: loading ? 0.6 : 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!loading) {
+                e.currentTarget.style.background = 'var(--teal-50)';
+                e.currentTarget.style.borderColor = 'var(--teal-dark)';
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 4px 12px rgba(159, 197, 207, 0.3)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'white';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            🧪 {t('login.tryDemo')}
+          </button>
+        </div>
       </div>
       
       {/* HKU 115 Anniversary Logo */}
