@@ -163,13 +163,22 @@ export default function SkillJobGraph({
       mustMatchRatio: computeMustMatchRatio(skills, job),
     }));
 
+    const confirmedSet = new Set<string>();
     const confirmed = scored
       .filter((job) => job.mustMatchRatio >= 0.7 && readinessNum(job.readiness) >= 65)
       .sort((a, b) => b.readiness - a.readiness)
       .slice(0, 5);
+    for (const j of confirmed) confirmedSet.add(j.role_id);
 
     const potential = scored
-      .filter((job) => job.mustMatchRatio >= 0.35 && job.mustMatchRatio < 0.7 && readinessNum(job.readiness) >= 45)
+      .filter((job) => {
+        if (confirmedSet.has(job.role_id)) return false;
+        const r = readinessNum(job.readiness);
+        if (r < 45) return false;
+        if (job.mustMatchRatio >= 0.35 && job.mustMatchRatio < 0.7) return true;
+        if (job.mustMatchRatio >= 0.7 && r < 65) return true;
+        return false;
+      })
       .sort((a, b) => b.readiness - a.readiness)
       .slice(0, 3);
 

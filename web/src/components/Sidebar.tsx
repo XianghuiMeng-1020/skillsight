@@ -72,7 +72,6 @@ const studentNavSections: NavSection[] = [
     items: [
       { icon: '🏠', labelKey: 'nav.dashboard', hintKey: 'nav.hint.dashboard', href: '/dashboard' },
       { icon: '📤', labelKey: 'dashboard.uploadEvidence', hintKey: 'nav.hint.upload', href: '/dashboard/upload' },
-      { icon: '🧪', labelKey: 'nav.sampleCases', hintKey: 'nav.hint.sampleCases', href: '/dashboard/sample-cases' },
       { icon: '📊', labelKey: 'dashboard.skills', hintKey: 'nav.hint.skills', href: '/dashboard/skills' },
       { icon: '📝', labelKey: 'dashboard.assessments', hintKey: 'nav.hint.assessments', href: '/dashboard/assessments' },
       { icon: '📄', labelKey: 'nav.resume', hintKey: 'nav.hint.resume', href: '/dashboard/resume' },
@@ -230,11 +229,6 @@ export default function Sidebar() {
           </div>
           <span>SkillSight</span>
         </Link>
-        {!isAdmin && (
-          <Link href="/settings/notifications" className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }}>
-            🔔{unreadNotifications > 0 ? ` ${unreadNotifications}` : ''}
-          </Link>
-        )}
       </div>
 
       <nav className="sidebar-nav">
@@ -262,21 +256,6 @@ export default function Sidebar() {
           </div>
         ))}
 
-        <div className="nav-section">
-          <div className="nav-section-title">{t('nav.settings')}</div>
-          {settingsNav.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`nav-item ${pathname === item.href ? 'active' : ''}`}
-              title={item.hintKey ? t(item.hintKey) : ''}
-              onClick={isMobile ? closeMobile : undefined}
-            >
-              <span className="nav-item-icon" aria-hidden="true">{item.icon}</span>
-              <span>{t(item.labelKey)}</span>
-            </Link>
-          ))}
-        </div>
       </nav>
 
       <div className="sidebar-footer">

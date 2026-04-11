@@ -1189,15 +1189,38 @@ READINESS_MET_THRESHOLD = 0.75
 
 ROLE_KEY_SKILLS: Dict[str, List[str]] = {
     "data scientist": ["python", "machine learning", "statistics"],
-    "machine learning": ["python", "machine learning", "statistics"],
-    "nlp": ["python", "machine learning"],
-    "ai": ["python", "machine learning"],
+    "machine learning engineer": ["python", "machine learning", "statistics"],
+    "ml engineer": ["python", "machine learning", "statistics"],
+    "nlp engineer": ["python", "machine learning"],
+    "ai engineer": ["python", "machine learning"],
+    "ai researcher": ["python", "machine learning"],
     "data analyst": ["sql", "data analysis", "statistics"],
+    "business analyst": ["data analysis", "communication"],
+    "bi analyst": ["sql", "data visualization"],
+    "bi developer": ["sql", "data visualization"],
+    "software engineer": ["programming", "system design"],
+    "software developer": ["programming", "system design"],
+    "backend engineer": ["programming", "system design"],
+    "frontend engineer": ["programming", "javascript"],
+    "full stack": ["programming", "javascript"],
+    "product manager": ["product sense", "data analysis", "communication"],
+    "quant analyst": ["statistics", "python", "mathematics"],
+    "quantitative analyst": ["statistics", "python", "mathematics"],
+    "research assistant": ["data analysis", "statistics"],
+    "ux researcher": ["data analysis", "communication"],
+    "data engineer": ["sql", "python", "data analysis"],
 }
 
+import re as _re
 
 def _normalize_text(value: Any) -> str:
     return str(value or "").strip().lower()
+
+
+_ROLE_KEY_RE: Dict[_re.Pattern, List[str]] = {
+    _re.compile(r"\b" + _re.escape(k) + r"\b"): v
+    for k, v in ROLE_KEY_SKILLS.items()
+}
 
 
 def _recency_factor(assessed_at: Optional[datetime], now_utc: datetime) -> float:
@@ -1226,9 +1249,15 @@ def _base_skill_score(decision: str, achieved: int, target: int) -> float:
 
 def _key_skill_names_for_role(role_title: str, reqs: List[Dict[str, Any]]) -> List[str]:
     title = _normalize_text(role_title)
-    for keyword, skill_names in ROLE_KEY_SKILLS.items():
-        if keyword in title:
-            return skill_names
+    best_match: Optional[List[str]] = None
+    best_len = 0
+    for pattern, skill_names in _ROLE_KEY_RE.items():
+        m = pattern.search(title)
+        if m and m.end() - m.start() > best_len:
+            best_len = m.end() - m.start()
+            best_match = skill_names
+    if best_match is not None:
+        return best_match
     must_reqs = [r for r in reqs if bool(r.get("required"))]
     must_reqs.sort(key=lambda r: float(r.get("weight") or 1.0), reverse=True)
     return [_normalize_text(r.get("skill_name")) for r in must_reqs[:2]]
