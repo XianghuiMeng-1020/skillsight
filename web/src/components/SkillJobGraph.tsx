@@ -53,6 +53,7 @@ interface ScoredJob extends JobMatch {
   missingSkills: string[];
   matchedMustSkills: string[];
   mustMatchRatio: number;
+  matchScore: number;
 }
 
 export function buildRoleConnections(skills: Skill[], job: JobMatch): Array<{ skillId: string; isGap: boolean }> {
@@ -259,38 +260,45 @@ export default function SkillJobGraph({
     [skills]
   );
 
-  const { confirmedJobs, potentialJobs, visibleJobs } = useMemo(() => {
-    const scored: ScoredJob[] = jobMatches.map((job) => ({
-      ...job,
-      verifiedMatchCount: countVerifiedMatches(skills, job),
-      missingSkills: collectMissingSkills(skills, job),
-      matchedMustSkills: collectMatchedMustSkills(skills, job),
-      mustMatchRatio: computeMustMatchRatio(skills, job),
-    }));
+  const { confirmedJobs, potentialJobs, potentialSet, visibleJobs } = useMemo(() => {
+    const scored: ScoredJob[] = jobMatches.map((job) => {
+      const ratio = computeMustMatchRatio(skills, job);
+      return {
+        ...job,
+        verifiedMatchCount: countVerifiedMatches(skills, job),
+        missingSkills: collectMissingSkills(skills, job),
+        matchedMustSkills: collectMatchedMustSkills(skills, job),
+        mustMatchRatio: ratio,
+        matchScore: Math.round(readinessNum(job.readiness) * (0.6 + 0.4 * ratio)),
+      };
+    });
 
     const confirmedSet = new Set<string>();
     const confirmed = scored
-      .filter((job) => job.mustMatchRatio >= 0.7 && readinessNum(job.readiness) >= 65)
-      .sort((a, b) => b.readiness - a.readiness)
+      .filter((job) => job.matchScore >= 65)
+      .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, 5);
     for (const j of confirmed) confirmedSet.add(j.role_id);
 
     const potential = scored
       .filter((job) => {
         if (confirmedSet.has(job.role_id)) return false;
-        const r = readinessNum(job.readiness);
-        if (r < 45) return false;
-        if (job.mustMatchRatio >= 0.35 && job.mustMatchRatio < 0.7) return true;
-        if (job.mustMatchRatio >= 0.7 && r < 65) return true;
-        return false;
+        if (job.matchScore < 35) return false;
+        if (job.mustMatchRatio < 0.2) return false;
+        return true;
       })
-      .sort((a, b) => b.readiness - a.readiness)
+      .sort((a, b) => b.matchScore - a.matchScore)
       .slice(0, 3);
+
+    const potentialSet = new Set(potential.map(j => j.role_id));
 
     return {
       confirmedJobs: confirmed,
       potentialJobs: potential,
-      visibleJobs: [...confirmed, ...potential],
+      potentialSet,
+      visibleJobs: [...confirmed, ...potential].sort(
+        (a, b) => readinessNum(b.readiness) - readinessNum(a.readiness),
+      ),
     };
   }, [jobMatches, skills]);
 
@@ -687,18 +695,92 @@ export default function SkillJobGraph({
             )}
           </div>
 
-          {/* Right: Jobs */}
+          {/* Right: Jobs — unified list sorted by readiness */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative', zIndex: 2 }}>
             {visibleJobs.length > 0 ? (
               <>
-                {confirmedJobs.length > 0 && (
-                  <div style={{ marginBottom: '0.25rem', fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 600 }}>
-                    {t('dashboard.confirmedMatches')}
-                  </div>
-                )}
-                {confirmedJobs.map((job) => {
+                {visibleJobs.map((job) => {
+                  const isPotential = potentialSet.has(job.role_id);
                   const isActive = activeJobId === job.role_id;
                   const rNum = readinessNum(job.readiness);
+
+                  if (isPotential) {
+                    const matchedText = job.matchedMustSkills.slice(0, 3).join(', ');
+                    const missingText = job.missingSkills.slice(0, 3).join(', ');
+                    return (
+                      <div
+                        key={job.role_id}
+                        ref={(el) => {
+                          if (el) jobRefs.current.set(job.role_id, el);
+                          else jobRefs.current.delete(job.role_id);
+                        }}
+                        tabIndex={0}
+                        onMouseEnter={() => handleJobHover(job.role_id)}
+                        onMouseLeave={handleJobLeave}
+                        onFocus={() => handleJobHover(job.role_id)}
+                        onBlur={handleJobRowBlur}
+                        onClick={() => handleJobClick(job.role_id)}
+                        style={{
+                          padding: '0.625rem 0.75rem',
+                          borderRadius: '10px',
+                          background: isActive ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
+                          border: `1.5px dashed ${isActive ? 'var(--peach, #F9CE9C)' : 'var(--gray-300)'}`,
+                          cursor: 'pointer',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', overflow: 'hidden' }}>
+                            <span style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: 'rgba(249,206,156,0.2)', color: 'var(--peach-dark, #c4883c)', fontWeight: 600, flexShrink: 0 }}>
+                              {t('dashboard.potentialTag') || 'Potential'}
+                            </span>
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, fontSize: '0.875rem', color: 'var(--gray-900)' }}>
+                              {job.role_title}
+                            </span>
+                          </div>
+                          <span
+                            style={{
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: getReadinessColor(rNum),
+                              background: `${getReadinessColor(rNum)}18`,
+                              padding: '0.2rem 0.5rem',
+                              borderRadius: '6px',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {fmt2(rNum)}%
+                          </span>
+                        </div>
+                        {matchedText && (
+                          <div style={{ marginTop: '0.25rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
+                            ✓ {matchedText}
+                          </div>
+                        )}
+                        {missingText && (
+                          <div style={{ marginTop: '0.15rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
+                            ✗ {missingText}
+                          </div>
+                        )}
+                        <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                          <Link href="/dashboard/assessments" className="btn btn-secondary btn-sm">
+                            {t('dashboard.takeAssessment')}
+                          </Link>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onOpenAssessmentAssistant?.(job);
+                            }}
+                          >
+                            {t('dashboard.askAgentToPlan')}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={job.role_id}
@@ -747,97 +829,6 @@ export default function SkillJobGraph({
                     </div>
                   );
                 })}
-
-                {potentialJobs.length > 0 && (
-                  <>
-                    <div style={{ marginTop: '0.5rem', borderTop: '1px dashed var(--gray-300)', paddingTop: '0.65rem' }}>
-                      <div style={{ marginBottom: '0.35rem', fontSize: '0.75rem', color: 'var(--gray-500)', fontWeight: 600 }}>
-                        {t('dashboard.potentialMatches')}
-                      </div>
-                      <div style={{ marginBottom: '0.5rem', fontSize: '0.75rem', color: 'var(--gray-500)' }}>
-                        {t('dashboard.youCouldQualify')}
-                      </div>
-                    </div>
-                    {potentialJobs.map((job) => {
-                      const isActive = activeJobId === job.role_id;
-                      const rNum = readinessNum(job.readiness);
-                      const matchedRequiredSkills = job.matchedMustSkills;
-                      const matchedText = matchedRequiredSkills.slice(0, 3).join(', ');
-                      const missingText = job.missingSkills.slice(0, 3).join(', ');
-                      return (
-                        <div
-                          key={job.role_id}
-                          ref={(el) => {
-                            if (el) jobRefs.current.set(job.role_id, el);
-                            else jobRefs.current.delete(job.role_id);
-                          }}
-                          tabIndex={0}
-                          onMouseEnter={() => handleJobHover(job.role_id)}
-                          onMouseLeave={handleJobLeave}
-                          onFocus={() => handleJobHover(job.role_id)}
-                          onBlur={handleJobRowBlur}
-                          onClick={() => handleJobClick(job.role_id)}
-                          style={{
-                            padding: '0.625rem 0.75rem',
-                            borderRadius: '10px',
-                            background: isActive ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
-                            border: `1.5px dashed ${isActive ? 'var(--peach, #F9CE9C)' : 'var(--gray-300)'}`,
-                            opacity: isActive ? 1 : 0.72,
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                            <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, fontSize: '0.875rem', color: 'var(--gray-900)' }}>
-                              {job.role_title}
-                            </div>
-                            <span
-                              style={{
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                color: getReadinessColor(rNum),
-                                background: `${getReadinessColor(rNum)}18`,
-                                padding: '0.2rem 0.5rem',
-                                borderRadius: '6px',
-                                flexShrink: 0,
-                              }}
-                            >
-                              {fmt2(rNum)}%
-                            </span>
-                          </div>
-                          <div style={{ marginTop: '0.3rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
-                            <strong>{t('dashboard.unlockByAssessment')}:</strong> {t('dashboard.takeAssessmentToUnlock')}
-                          </div>
-                          {matchedText && (
-                            <div style={{ marginTop: '0.2rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
-                              <strong>{t('dashboard.matchedSkillsForRole')}:</strong> {matchedText}
-                            </div>
-                          )}
-                          {missingText && (
-                            <div style={{ marginTop: '0.2rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
-                              <strong>{t('dashboard.missingSkillsForRole')}:</strong> {missingText}
-                            </div>
-                          )}
-                          <div style={{ marginTop: '0.45rem', display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                            <Link href="/dashboard/assessments" className="btn btn-secondary btn-sm">
-                              {t('dashboard.takeAssessment')}
-                            </Link>
-                            <button
-                              type="button"
-                              className="btn btn-ghost btn-sm"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                onOpenAssessmentAssistant?.(job);
-                              }}
-                            >
-                              {t('dashboard.askAgentToPlan')}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
               </>
             ) : (
               <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--gray-400)', fontSize: '0.875rem' }}>
