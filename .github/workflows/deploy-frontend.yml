@@ -8,6 +8,12 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Force any node20-pinned action (currently cloudflare/wrangler-action
+    # @v3.15.0) to execute on Node 24. This matches GitHub's mandatory
+    # default starting 2026-06-02 and removes the runtime deprecation
+    # warning ahead of time. Safe to drop once wrangler-action ships v4.
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     permissions:
       contents: read
       deployments: write
