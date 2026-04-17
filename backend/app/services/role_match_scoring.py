@@ -368,6 +368,9 @@ class RoleMatchResult:
     improvable_gaps: List[str] = field(default_factory=list)
     adjacent_credits: List[Dict[str, str]] = field(default_factory=list)
     items: List[ScoredRequirement] = field(default_factory=list)
+    freshness_label: str = "unknown"
+    freshness_age_days: Optional[int] = None
+    rank_score: float = 0.0  # readiness × freshness nudge (used for sorting)
 
 
 # ---------------------------------------------------------------------------
@@ -450,6 +453,76 @@ def reliability_factor(level: Optional[str]) -> float:
     if not level:
         return 1.0  # no penalty if we don't know
     return RELIABILITY_FACTOR.get(level, 1.0)
+
+
+# ---------------------------------------------------------------------------
+# Role freshness — derived purely from ``roles.last_seen_at``.
+#
+# The intent is honest transparency, not score manipulation: we surface a
+# human-readable label ("Active" / "Recent" / "Aging" / "Stale") and a
+# small ranking nudge factor for tie-breaks.  Readiness itself is NOT
+# adjusted because that score is about the student's match to the
+# requirements, not about the role's market freshness.
+# ---------------------------------------------------------------------------
+
+FRESHNESS_ACTIVE_DAYS: int = 14
+FRESHNESS_RECENT_DAYS: int = 60
+FRESHNESS_AGING_DAYS: int = 180
+
+# Tie-break nudge applied on top of readiness when sorting.  Bounded to
+# keep readiness order dominant.
+FRESHNESS_RANK_NUDGE: Dict[str, float] = {
+    "active": 1.03,
+    "recent": 1.01,
+    "aging": 1.0,
+    "stale": 0.97,
+    "unknown": 1.0,
+}
+
+
+def freshness_label(
+    last_seen_at: Optional[datetime],
+    now_utc: Optional[datetime] = None,
+) -> str:
+    """Map a last-seen timestamp to one of: active / recent / aging /
+    stale / unknown.  Pure function."""
+    if last_seen_at is None:
+        return "unknown"
+    if now_utc is None:
+        now_utc = datetime.now(timezone.utc)
+    seen = (
+        last_seen_at
+        if last_seen_at.tzinfo
+        else last_seen_at.replace(tzinfo=timezone.utc)
+    )
+    age_days = max(0.0, (now_utc - seen).total_seconds() / 86400.0)
+    if age_days <= FRESHNESS_ACTIVE_DAYS:
+        return "active"
+    if age_days <= FRESHNESS_RECENT_DAYS:
+        return "recent"
+    if age_days <= FRESHNESS_AGING_DAYS:
+        return "aging"
+    return "stale"
+
+
+def freshness_rank_factor(label: str) -> float:
+    return FRESHNESS_RANK_NUDGE.get(label, 1.0)
+
+
+def freshness_age_days(
+    last_seen_at: Optional[datetime],
+    now_utc: Optional[datetime] = None,
+) -> Optional[int]:
+    if last_seen_at is None:
+        return None
+    if now_utc is None:
+        now_utc = datetime.now(timezone.utc)
+    seen = (
+        last_seen_at
+        if last_seen_at.tzinfo
+        else last_seen_at.replace(tzinfo=timezone.utc)
+    )
+    return int(max(0.0, (now_utc - seen).total_seconds() / 86400.0))
 
 
 # ---------------------------------------------------------------------------
@@ -627,6 +700,7 @@ def score_role(
     adjacency: Optional[Mapping[str, List[Dict[str, Any]]]] = None,
     role_description: Optional[str] = None,
     semantic_bonus_cap: float = 5.0,
+    role_last_seen_at: Optional[datetime] = None,
 ) -> RoleMatchResult:
     """Compute the unified role-match result.
 
@@ -800,6 +874,13 @@ def score_role(
     must_ratio = round(must_met / must_total, 4) if must_total else 0.0
     match_class = classify_match(readiness, must_ratio)
 
+    # Freshness — pure metadata + tiny ranking nudge.  Does NOT
+    # influence readiness because that score is about the student's fit,
+    # not about the role's market activity.
+    f_label = freshness_label(role_last_seen_at, now_utc)
+    f_age = freshness_age_days(role_last_seen_at, now_utc)
+    rank = round(readiness * freshness_rank_factor(f_label), 2)
+
     if soft_matches:
         # Surface soft matches via adjacent_credits with a special
         # transfer_weight marker so the FE renders them in the same row.
@@ -829,6 +910,9 @@ def score_role(
         improvable_gaps=improvable_gaps,
         adjacent_credits=adjacent_credits,
         items=items,
+        freshness_label=f_label,
+        freshness_age_days=f_age,
+        rank_score=rank,
     )
 
 

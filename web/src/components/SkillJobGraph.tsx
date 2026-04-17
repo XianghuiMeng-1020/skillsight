@@ -45,6 +45,10 @@ interface JobMatch {
   match_ratio_must?: number;
   adjacent_credits?: Array<{ required_skill: string; via_skill: string; transfer_weight: string }>;
   next_best_assessment?: { skill_id?: string; skill_name?: string; reason?: string } | null;
+  freshness_label?: 'active' | 'recent' | 'aging' | 'stale' | 'unknown';
+  freshness_age_days?: number | null;
+  last_seen_at?: string | null;
+  rank_score?: number;
 }
 
 export interface PotentialJobCandidate extends JobMatch {
@@ -232,6 +236,69 @@ function EvidencePopover({ sources, onClose }: { sources: EvidenceSource[]; onCl
         ))}
       </div>
     </div>
+  );
+}
+
+interface FreshnessChipProps {
+  label?: JobMatch['freshness_label'];
+  ageDays?: number | null;
+  t: (key: string) => string;
+}
+
+function FreshnessChip({ label, ageDays, t }: FreshnessChipProps) {
+  if (!label || label === 'unknown') return null;
+  const palette: Record<string, { bg: string; fg: string; border: string; dot: string }> = {
+    active: { bg: 'rgba(152,184,168,0.18)', fg: 'var(--sage-dark, #6b8f7b)', border: 'rgba(107,143,123,0.45)', dot: '#3aa676' },
+    recent: { bg: 'rgba(180,200,190,0.18)', fg: 'var(--sage-dark, #6b8f7b)', border: 'rgba(107,143,123,0.30)', dot: '#7eb89c' },
+    aging:  { bg: 'rgba(220,210,195,0.25)', fg: 'var(--gray-600, #6c6c6c)', border: 'rgba(160,160,160,0.30)', dot: '#bfa97e' },
+    stale:  { bg: 'rgba(220,220,220,0.40)', fg: 'var(--gray-500, #8a8a8a)', border: 'rgba(160,160,160,0.30)', dot: '#a8a8a8' },
+  };
+  const style = palette[label] ?? palette.recent;
+  const labelText =
+    t(`dashboard.freshness.${label}`) ||
+    ({ active: 'Active', recent: 'Recent', aging: 'Aging', stale: 'Stale' } as Record<string, string>)[label] ||
+    '';
+  const ageText =
+    typeof ageDays === 'number' && ageDays >= 0
+      ? (ageDays < 1
+          ? (t('dashboard.freshness.today') || 'today')
+          : ageDays < 30
+            ? (t('dashboard.freshness.daysAgo') || '{n}d ago').replace('{n}', String(ageDays))
+            : (t('dashboard.freshness.monthsAgo') || '{n}mo ago').replace('{n}', String(Math.max(1, Math.round(ageDays / 30)))))
+      : '';
+  const help =
+    (t('dashboard.freshness.help') ||
+      'How recently this role was observed in the live job market. Active = past 14 days, Recent ≤ 60d, Aging ≤ 180d, Stale > 180d.');
+  return (
+    <span
+      title={help}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '0.25rem',
+        fontSize: '0.65rem',
+        fontWeight: 600,
+        color: style.fg,
+        background: style.bg,
+        border: `1px solid ${style.border}`,
+        padding: '0.1rem 0.35rem',
+        borderRadius: '999px',
+        cursor: 'help',
+        flexShrink: 0,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          width: '6px',
+          height: '6px',
+          borderRadius: '999px',
+          background: style.dot,
+        }}
+      />
+      <span>{labelText}</span>
+      {ageText ? <span style={{ opacity: 0.8 }}>· {ageText}</span> : null}
+    </span>
   );
 }
 
@@ -879,6 +946,11 @@ export default function SkillJobGraph({
                             </span>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                            <FreshnessChip
+                              label={job.freshness_label}
+                              ageDays={job.freshness_age_days}
+                              t={t}
+                            />
                             {job.mustTotal > 0 && (
                               <span
                                 title={(t('dashboard.mustHaveTooltip') || 'Required must-have skills met: {met} of {total}').replace('{met}', String(job.mustMet)).replace('{total}', String(job.mustTotal))}
@@ -989,6 +1061,11 @@ export default function SkillJobGraph({
                         {job.role_title}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                        <FreshnessChip
+                          label={job.freshness_label}
+                          ageDays={job.freshness_age_days}
+                          t={t}
+                        />
                         {job.mustTotal > 0 && (
                           <span
                             title={(t('dashboard.mustHaveTooltip') || 'Required must-have skills met: {met} of {total}').replace('{met}', String(job.mustMet)).replace('{total}', String(job.mustTotal))}

@@ -31,6 +31,10 @@ def import_roles(payload: List[Dict[str, Any]], db: Session = Depends(get_db)) -
         exists = db.execute(text("SELECT 1 FROM roles WHERE role_id=:rid LIMIT 1"), {"rid": rid}).scalar()
         now = datetime.now(timezone.utc)
         if not exists:
+            # Insert; first_seen_at/last_seen_at default to now() per
+            # migration v9w0x1y2z3a4.  Older deployments without the
+            # migration applied still work because we use the legacy
+            # column set here and let the trigger-less default kick in.
             db.execute(
                 text("""
                     INSERT INTO roles (role_id, role_title, description, created_at, updated_at)
@@ -45,6 +49,27 @@ def import_roles(payload: List[Dict[str, Any]], db: Session = Depends(get_db)) -
                 },
             )
             inserted += 1
+        # Always bump last_seen_at on every observation so refresh
+        # scripts running on a schedule keep market freshness fresh.
+        # Wrapped in try/except so a deployment that hasn't applied the
+        # freshness migration yet doesn't fail the entire import.
+        try:
+            db.execute(
+                text("""
+                    UPDATE roles
+                    SET last_seen_at = :now,
+                        updated_at = :now,
+                        first_seen_at = COALESCE(first_seen_at, :now)
+                    WHERE role_id = :rid
+                """),
+                {"now": now, "rid": rid},
+            )
+        except Exception:
+            # Pre-migration fallback: at least keep updated_at fresh.
+            db.execute(
+                text("UPDATE roles SET updated_at = :now WHERE role_id = :rid"),
+                {"now": now, "rid": rid},
+            )
         skills_req = r.get("skills_required") or []
         for sr in skills_req:
             skill_id = sr.get("skill_id", "").strip()

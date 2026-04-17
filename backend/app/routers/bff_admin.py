@@ -701,6 +701,20 @@ def bff_admin_import_roles(
                 "skills": json.dumps(r.skills_required or {}),
             },
         )
+        # Bump last_seen_at; keeps the freshness chip on the dashboard
+        # accurate after each admin re-import.  Tolerates the
+        # pre-migration schema (column missing) gracefully.
+        try:
+            db.execute(
+                text(
+                    "UPDATE roles SET last_seen_at = now(), "
+                    "first_seen_at = COALESCE(first_seen_at, now()) "
+                    "WHERE role_id = :rid"
+                ),
+                {"rid": r.role_id},
+            )
+        except Exception:
+            pass
         imported += 1
     db.commit()
 

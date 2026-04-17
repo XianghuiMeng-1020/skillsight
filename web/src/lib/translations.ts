@@ -316,6 +316,46 @@ export const translations: Translations = {
     'zh-TW': '已記錄，感謝回饋',
     en: 'Thanks — recorded',
   },
+  'dashboard.freshness.active': {
+    zh: '在招',
+    'zh-TW': '在招',
+    en: 'Active',
+  },
+  'dashboard.freshness.recent': {
+    zh: '近期',
+    'zh-TW': '近期',
+    en: 'Recent',
+  },
+  'dashboard.freshness.aging': {
+    zh: '逐渐过时',
+    'zh-TW': '逐漸過時',
+    en: 'Aging',
+  },
+  'dashboard.freshness.stale': {
+    zh: '已久未见',
+    'zh-TW': '已久未見',
+    en: 'Stale',
+  },
+  'dashboard.freshness.today': {
+    zh: '今天',
+    'zh-TW': '今天',
+    en: 'today',
+  },
+  'dashboard.freshness.daysAgo': {
+    zh: '{n} 天前',
+    'zh-TW': '{n} 天前',
+    en: '{n}d ago',
+  },
+  'dashboard.freshness.monthsAgo': {
+    zh: '{n} 个月前',
+    'zh-TW': '{n} 個月前',
+    en: '{n}mo ago',
+  },
+  'dashboard.freshness.help': {
+    zh: '该岗位最近一次出现在我们抓取的招聘市场中的时间。在招＝近 14 天内、近期＝60 天内、逐渐过时＝180 天内、已久未见＞180 天。新鲜度只用于排序提示，不会改变就绪度分数。',
+    'zh-TW': '該職位最近一次出現在我們抓取的招聘市場中的時間。在招＝近 14 天內、近期＝60 天內、逐漸過時＝180 天內、已久未見＞180 天。新鮮度只用於排序提示，不會改變準備程度分數。',
+    en: 'How recently this role was observed in the live job market. Active = past 14 days, Recent ≤ 60d, Aging ≤ 180d, Stale > 180d. Freshness only nudges sort order — it does not change your readiness score.',
+  },
   'dashboard.hoverToConnect': { zh: '悬停查看技能关联', 'zh-TW': '懸停查看技能關聯', en: 'Hover to see skill connections' },
   'dashboard.readiness': { zh: '就绪度', 'zh-TW': '準備程度', en: 'Readiness' },
   'dashboard.cedarsTitle': { zh: 'HKU 就业中心', 'zh-TW': 'HKU 就業中心', en: 'HKU Career Centre' },

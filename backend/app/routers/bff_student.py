@@ -1319,15 +1319,33 @@ async def bff_role_alignment_batch(
 
     # 3) Get role titles + descriptions (description feeds the soft-requirement bonus)
     from sqlalchemy.sql import bindparam as bp2
-    role_title_sql = text(
-        "SELECT role_id, role_title, description FROM roles WHERE role_id IN :rids"
-    ).bindparams(bp2("rids", expanding=True))
+    # last_seen_at is optional — if the freshness migration hasn't run
+    # yet the column won't exist, so we try the rich query first and
+    # fall back to the legacy projection on any error.
     role_titles: Dict[str, str] = {}
     role_descriptions: Dict[str, str] = {}
-    for r in db.execute(role_title_sql, {"rids": tuple(role_ids)}).mappings().all():
-        rid = str(r["role_id"])
-        role_titles[rid] = str(r["role_title"])
-        role_descriptions[rid] = str(r.get("description") or "")
+    role_last_seen: Dict[str, Any] = {}
+    role_meta_sql_full = text(
+        "SELECT role_id, role_title, description, last_seen_at "
+        "FROM roles WHERE role_id IN :rids"
+    ).bindparams(bp2("rids", expanding=True))
+    role_meta_sql_legacy = text(
+        "SELECT role_id, role_title, description "
+        "FROM roles WHERE role_id IN :rids"
+    ).bindparams(bp2("rids", expanding=True))
+    try:
+        meta_rows = db.execute(role_meta_sql_full, {"rids": tuple(role_ids)}).mappings().all()
+        for r in meta_rows:
+            rid = str(r["role_id"])
+            role_titles[rid] = str(r["role_title"])
+            role_descriptions[rid] = str(r.get("description") or "")
+            role_last_seen[rid] = r.get("last_seen_at")
+    except Exception:
+        meta_rows = db.execute(role_meta_sql_legacy, {"rids": tuple(role_ids)}).mappings().all()
+        for r in meta_rows:
+            rid = str(r["role_id"])
+            role_titles[rid] = str(r["role_title"])
+            role_descriptions[rid] = str(r.get("description") or "")
 
     # 4) Get ALL role requirements in one query
     req_sql = text("""
@@ -1418,6 +1436,7 @@ async def bff_role_alignment_batch(
             aliases=cg_aliases,
             adjacency=cg_adjacency,
             role_description=role_descriptions.get(rid),
+            role_last_seen_at=role_last_seen.get(rid),
         )
 
         # Backward-compatible projection of the scorer result.
@@ -1460,6 +1479,15 @@ async def bff_role_alignment_batch(
             "required_skills_optional": required_skills_optional,
             "adjacent_credits": result.adjacent_credits,
             "next_best_assessment": next_best_assessment,
+            "freshness_label": result.freshness_label,
+            "freshness_age_days": result.freshness_age_days,
+            "rank_score": result.rank_score,
+            "last_seen_at": (
+                role_last_seen.get(rid).isoformat()
+                if role_last_seen.get(rid) is not None
+                and hasattr(role_last_seen.get(rid), "isoformat")
+                else None
+            ),
         })
 
     return {"items": items, "count": len(items)}
