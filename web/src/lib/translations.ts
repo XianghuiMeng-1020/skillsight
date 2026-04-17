@@ -270,6 +270,27 @@ export const translations: Translations = {
   'dashboard.confirmedMatches': { zh: '已确认匹配岗位', 'zh-TW': '已確認匹配職位', en: 'Confirmed Matches' },
   'dashboard.potentialMatches': { zh: '潜在可解锁岗位', 'zh-TW': '潛在可解鎖職位', en: 'Potential Unlocks' },
   'dashboard.potentialTag': { zh: '潜在', 'zh-TW': '潛在', en: 'Potential' },
+  'dashboard.mustShort': { zh: '必需', 'zh-TW': '必需', en: 'Must' },
+  'dashboard.mustHaveTooltip': {
+    zh: '已满足该岗位必需技能：{met} / {total}',
+    'zh-TW': '已滿足該職位必需技能：{met} / {total}',
+    en: 'Must-have skills met for this role: {met} of {total}',
+  },
+  'dashboard.readinessTooltip': {
+    zh: '就绪度：基于该岗位技能要求的加权匹配（综合必需技能与可选技能的覆盖度与水平）。',
+    'zh-TW': '就緒度：依據該職位技能要求的加權匹配（綜合必需技能與可選技能的覆蓋度與水平）。',
+    en: 'Readiness: weighted match against this role’s skill requirements (combines coverage and level for must-have and optional skills).',
+  },
+  'dashboard.potentialReason': {
+    zh: '虽然就绪度为 {readiness}%，但仍有 {mustGap} 项必需技能未满足（已满足 {mustMet}/{mustTotal}）。完成对应评估后，该岗位即可升级为「最佳匹配」。',
+    'zh-TW': '雖然就緒度為 {readiness}%，但仍有 {mustGap} 項必需技能未滿足（已滿足 {mustMet}/{mustTotal}）。完成對應評估後，該職位即可升級為「最佳匹配」。',
+    en: 'Even though readiness is {readiness}%, {mustGap} must-have skill(s) are still missing ({mustMet}/{mustTotal} met). Complete an assessment on those skills to upgrade this role to a confirmed match.',
+  },
+  'dashboard.classificationHelp': {
+    zh: '当某岗位仍缺少关键必需技能时，即便整体就绪度较高，也会显示为「潜在」。把鼠标悬停到「潜在」标签或右侧的「必需 X/Y」即可看到具体差距。',
+    'zh-TW': '當某職位仍缺少關鍵必需技能時，即便整體就緒度較高，也會顯示為「潛在」。把滑鼠懸停在「潛在」標籤或右側的「必需 X/Y」即可看到具體差距。',
+    en: 'A role is shown as Potential when key must-have skills are still missing — even if its overall readiness percentage looks high. Hover the badge or the “Must X/Y” chip to see the gap.',
+  },
   'dashboard.hoverToConnect': { zh: '悬停查看技能关联', 'zh-TW': '懸停查看技能關聯', en: 'Hover to see skill connections' },
   'dashboard.readiness': { zh: '就绪度', 'zh-TW': '準備程度', en: 'Readiness' },
   'dashboard.cedarsTitle': { zh: 'HKU 就业中心', 'zh-TW': 'HKU 就業中心', en: 'HKU Career Centre' },

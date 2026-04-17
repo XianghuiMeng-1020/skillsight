@@ -54,6 +54,8 @@ interface ScoredJob extends JobMatch {
   matchedMustSkills: string[];
   mustMatchRatio: number;
   matchScore: number;
+  mustTotal: number;
+  mustMet: number;
 }
 
 export function buildRoleConnections(skills: Skill[], job: JobMatch): Array<{ skillId: string; isGap: boolean }> {
@@ -263,13 +265,27 @@ export default function SkillJobGraph({
   const { confirmedJobs, potentialJobs, potentialSet, visibleJobs } = useMemo(() => {
     const scored: ScoredJob[] = jobMatches.map((job) => {
       const ratio = computeMustMatchRatio(skills, job);
+      const matchedMust = collectMatchedMustSkills(skills, job);
+      const mustListLength = (job.required_skills_must && job.required_skills_must.length > 0)
+        ? job.required_skills_must.length
+        : ((job.required_skills_all && job.required_skills_all.length > 0)
+            ? job.required_skills_all.length
+            : (job.required_skills?.length ?? 0));
+      const mustTotal = (typeof job.skills_total_must === 'number' && job.skills_total_must > 0)
+        ? job.skills_total_must
+        : mustListLength;
+      const mustMet = (typeof job.skills_met_must === 'number')
+        ? job.skills_met_must
+        : matchedMust.length;
       return {
         ...job,
         verifiedMatchCount: countVerifiedMatches(skills, job),
         missingSkills: collectMissingSkills(skills, job),
-        matchedMustSkills: collectMatchedMustSkills(skills, job),
+        matchedMustSkills: matchedMust,
         mustMatchRatio: ratio,
         matchScore: Math.round(readinessNum(job.readiness) * (0.6 + 0.4 * ratio)),
+        mustTotal,
+        mustMet,
       };
     });
 
@@ -504,6 +520,12 @@ export default function SkillJobGraph({
         <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', lineHeight: 1.45, color: 'var(--gray-500)' }}>
           {t('dashboard.graphConnectionHelp')}
         </p>
+        <p style={{ margin: '0.35rem 0 0', fontSize: '0.72rem', lineHeight: 1.45, color: 'var(--gray-500)' }}>
+          <span style={{ fontSize: '0.625rem', padding: '0.05rem 0.3rem', borderRadius: '4px', background: 'rgba(249,206,156,0.2)', color: 'var(--peach-dark, #c4883c)', fontWeight: 600, marginRight: '0.35rem' }}>
+            {t('dashboard.potentialTag') || 'Potential'}
+          </span>
+          {t('dashboard.classificationHelp') || 'A role is shown as Potential when key must-have skills are still missing — even if its overall readiness percentage looks high. Hover the badge or the “Must X/Y” chip to see the gap.'}
+        </p>
       </div>
       <div className="card-content" style={{ padding: '1rem 1.5rem 1.5rem' }}>
         <div
@@ -707,6 +729,12 @@ export default function SkillJobGraph({
                   if (isPotential) {
                     const matchedText = job.matchedMustSkills.slice(0, 3).join(', ');
                     const missingText = job.missingSkills.slice(0, 3).join(', ');
+                    const mustGap = Math.max(job.mustTotal - job.mustMet, 0);
+                    const potentialReason = (t('dashboard.potentialReason') || 'Overall readiness is {readiness}%, but {mustMet}/{mustTotal} must-have skills are met. Complete an assessment on the missing skills to unlock this role as a confirmed match.')
+                      .replace('{readiness}', fmt2(rNum))
+                      .replace('{mustMet}', String(job.mustMet))
+                      .replace('{mustTotal}', String(job.mustTotal))
+                      .replace('{mustGap}', String(mustGap));
                     return (
                       <div
                         key={job.role_id}
@@ -731,26 +759,50 @@ export default function SkillJobGraph({
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', overflow: 'hidden' }}>
-                            <span style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: 'rgba(249,206,156,0.2)', color: 'var(--peach-dark, #c4883c)', fontWeight: 600, flexShrink: 0 }}>
+                            <span
+                              title={potentialReason}
+                              style={{ fontSize: '0.625rem', padding: '0.1rem 0.35rem', borderRadius: '4px', background: 'rgba(249,206,156,0.2)', color: 'var(--peach-dark, #c4883c)', fontWeight: 600, flexShrink: 0, cursor: 'help', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}
+                            >
                               {t('dashboard.potentialTag') || 'Potential'}
+                              <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>ⓘ</span>
                             </span>
                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, fontSize: '0.875rem', color: 'var(--gray-900)' }}>
                               {job.role_title}
                             </span>
                           </div>
-                          <span
-                            style={{
-                              fontSize: '0.75rem',
-                              fontWeight: 600,
-                              color: getReadinessColor(rNum),
-                              background: `${getReadinessColor(rNum)}18`,
-                              padding: '0.2rem 0.5rem',
-                              borderRadius: '6px',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {fmt2(rNum)}%
-                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                            {job.mustTotal > 0 && (
+                              <span
+                                title={(t('dashboard.mustHaveTooltip') || 'Required must-have skills met: {met} of {total}').replace('{met}', String(job.mustMet)).replace('{total}', String(job.mustTotal))}
+                                style={{
+                                  fontSize: '0.7rem',
+                                  fontWeight: 600,
+                                  color: 'var(--peach-dark, #c4883c)',
+                                  background: 'rgba(249,206,156,0.18)',
+                                  border: '1px dashed rgba(196,136,60,0.45)',
+                                  padding: '0.15rem 0.4rem',
+                                  borderRadius: '6px',
+                                  cursor: 'help',
+                                }}
+                              >
+                                {t('dashboard.mustShort') || 'Must'} {job.mustMet}/{job.mustTotal}
+                              </span>
+                            )}
+                            <span
+                              title={(t('dashboard.readinessTooltip') || 'Readiness: weighted match against this role’s skill requirements.')}
+                              style={{
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                color: getReadinessColor(rNum),
+                                background: `${getReadinessColor(rNum)}18`,
+                                padding: '0.2rem 0.5rem',
+                                borderRadius: '6px',
+                                cursor: 'help',
+                              }}
+                            >
+                              {fmt2(rNum)}%
+                            </span>
+                          </div>
                         </div>
                         {matchedText && (
                           <div style={{ marginTop: '0.25rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
@@ -758,7 +810,7 @@ export default function SkillJobGraph({
                           </div>
                         )}
                         {missingText && (
-                          <div style={{ marginTop: '0.15rem', fontSize: '0.72rem', color: 'var(--gray-500)' }}>
+                          <div style={{ marginTop: '0.15rem', fontSize: '0.72rem', color: 'var(--peach-dark, #c4883c)' }}>
                             ✗ {missingText}
                           </div>
                         )}
@@ -798,6 +850,7 @@ export default function SkillJobGraph({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        gap: '0.5rem',
                         padding: '0.625rem 0.75rem',
                         borderRadius: '10px',
                         background: isActive ? 'rgba(152,184,168,0.12)' : 'var(--gray-50, #fafafa)',
@@ -810,22 +863,42 @@ export default function SkillJobGraph({
                         transition: 'all 0.2s ease',
                       }}
                     >
-                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, fontSize: '0.875rem', color: 'var(--gray-900)' }}>
+                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500, fontSize: '0.875rem', color: 'var(--gray-900)', flex: 1 }}>
                         {job.role_title}
                       </div>
-                      <span
-                        style={{
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          color: getReadinessColor(rNum),
-                          background: `${getReadinessColor(rNum)}18`,
-                          padding: '0.2rem 0.5rem',
-                          borderRadius: '6px',
-                          flexShrink: 0,
-                        }}
-                      >
-                        {fmt2(rNum)}%
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                        {job.mustTotal > 0 && (
+                          <span
+                            title={(t('dashboard.mustHaveTooltip') || 'Required must-have skills met: {met} of {total}').replace('{met}', String(job.mustMet)).replace('{total}', String(job.mustTotal))}
+                            style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 600,
+                              color: 'var(--sage-dark, #6b8f7b)',
+                              background: 'rgba(152,184,168,0.15)',
+                              border: '1px solid rgba(107,143,123,0.35)',
+                              padding: '0.15rem 0.4rem',
+                              borderRadius: '6px',
+                              cursor: 'help',
+                            }}
+                          >
+                            {t('dashboard.mustShort') || 'Must'} {job.mustMet}/{job.mustTotal}
+                          </span>
+                        )}
+                        <span
+                          title={(t('dashboard.readinessTooltip') || 'Readiness: weighted match against this role’s skill requirements.')}
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            color: getReadinessColor(rNum),
+                            background: `${getReadinessColor(rNum)}18`,
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: '6px',
+                            cursor: 'help',
+                          }}
+                        >
+                          {fmt2(rNum)}%
+                        </span>
+                      </div>
                     </div>
                   );
                 })}
