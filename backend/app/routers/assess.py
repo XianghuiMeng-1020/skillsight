@@ -32,6 +32,12 @@ from backend.app.change_log_events import (
 )
 from backend.app.services.market_demand_index import compute_market_demand_index
 from backend.app.services.semantic_job_matcher import match_job_skill_semantic
+from backend.app.services.role_match_scoring import (
+    StudentSkill as _StudentSkill,
+    RoleRequirement as _RoleRequirement,
+    score_role as _score_role,
+    classify_match as _classify_match,
+)
 from backend.app.change_log_events import (
     get_prev_skill_snapshot,
     write_skill_snapshot,
@@ -717,7 +723,47 @@ def role_readiness(
     # Calculate overall score
     demand_index = compute_market_demand_index(db)
     score = _calculate_readiness_score(items, demand_index=demand_index)
-    
+
+    # Cross-validate against the unified scorer so the heavy path never
+    # disagrees with the dashboard batch path on classification.  We also
+    # emit the unified ``readiness`` (0-100) and ``match_class``.
+    try:
+        unified_requirements = [
+            _RoleRequirement(
+                skill_id=str(r.get("skill_id")),
+                skill_name=str(r.get("skill_name") or r.get("skill_id")),
+                target_level=int(r.get("target_level") or 2),
+                required=bool(r.get("required")),
+                weight=float(r.get("weight") or 1.0),
+            )
+            for r in requirements
+        ]
+        unified_student_skills = [
+            _StudentSkill(
+                skill_id=it["skill_id"],
+                skill_name=it["skill_name"],
+                decision=it.get("decision") or "",
+                achieved_level=int(it.get("achieved_level") or 0),
+                reliability_level=it.get("reliability_level"),
+            )
+            for it in items
+        ]
+        unified = _score_role(
+            role_id=req.role_id,
+            role_title=role.get("role_title", ""),
+            requirements=unified_requirements,
+            student_skills=unified_student_skills,
+            demand_index=demand_index,
+        )
+        unified_readiness = unified.readiness
+        unified_match_class = unified.match_class
+        unified_must_ratio = unified.match_ratio_must
+    except Exception as exc:  # never let the unified scorer break the legacy endpoint
+        _log.warning("unified scorer failed for role %s: %s", req.role_id, exc)
+        unified_readiness = round(score * 100.0, 2)
+        unified_must_ratio = 0.0
+        unified_match_class = _classify_match(unified_readiness, unified_must_ratio)
+
     # Decision 2 B1: overall reliability for role_readiness
     agg_items = [it for it in items if it.get("reliability_level")]
     if not agg_items:
@@ -740,6 +786,9 @@ def role_readiness(
         "role_id": req.role_id,
         "role_title": role.get("role_title", ""),
         "score": score,
+        "readiness": unified_readiness,
+        "match_class": unified_match_class,
+        "match_ratio_must": unified_must_ratio,
         "status_summary": status_counts,
         "items": items,
         "reliability": {"level": overall_reliability, "reason_codes": [reliability_reason]},

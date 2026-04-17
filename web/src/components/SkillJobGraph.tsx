@@ -25,6 +25,8 @@ interface JobMatch {
   role_id: string;
   role_title: string;
   readiness: number;
+  raw_readiness?: number;
+  match_class?: 'confirmed' | 'potential' | 'below';
   gaps: string[];
   gaps_all?: string[];
   critical_gaps?: string[];
@@ -40,6 +42,7 @@ interface JobMatch {
   skills_met_optional?: number;
   skills_total_optional?: number;
   match_ratio_must?: number;
+  adjacent_credits?: Array<{ required_skill: string; via_skill: string; transfer_weight: string }>;
   next_best_assessment?: { skill_id?: string; skill_name?: string; reason?: string } | null;
 }
 
@@ -289,22 +292,41 @@ export default function SkillJobGraph({
       };
     });
 
-    const confirmedSet = new Set<string>();
-    const confirmed = scored
-      .filter((job) => job.matchScore >= 65)
-      .sort((a, b) => b.matchScore - a.matchScore)
-      .slice(0, 5);
-    for (const j of confirmed) confirmedSet.add(j.role_id);
+    // Prefer backend-emitted match_class (single source of truth from
+    // backend.app.services.role_match_scoring); fall back to the legacy FE
+    // heuristic only when the backend hasn't deployed yet or the field is
+    // missing for any reason.
+    const backendSaysAnything = scored.some((j) => typeof j.match_class === 'string');
 
-    const potential = scored
-      .filter((job) => {
-        if (confirmedSet.has(job.role_id)) return false;
-        if (job.matchScore < 35) return false;
-        if (job.mustMatchRatio < 0.2) return false;
-        return true;
-      })
-      .sort((a, b) => b.matchScore - a.matchScore)
-      .slice(0, 3);
+    let confirmed: ScoredJob[];
+    let potential: ScoredJob[];
+
+    if (backendSaysAnything) {
+      confirmed = scored
+        .filter((j) => j.match_class === 'confirmed')
+        .sort((a, b) => readinessNum(b.readiness) - readinessNum(a.readiness))
+        .slice(0, 5);
+      const confirmedIds = new Set(confirmed.map((j) => j.role_id));
+      potential = scored
+        .filter((j) => j.match_class === 'potential' && !confirmedIds.has(j.role_id))
+        .sort((a, b) => readinessNum(b.readiness) - readinessNum(a.readiness))
+        .slice(0, 3);
+    } else {
+      confirmed = scored
+        .filter((job) => job.matchScore >= 65)
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 5);
+      const confirmedIds = new Set(confirmed.map((j) => j.role_id));
+      potential = scored
+        .filter((job) => {
+          if (confirmedIds.has(job.role_id)) return false;
+          if (job.matchScore < 35) return false;
+          if (job.mustMatchRatio < 0.2) return false;
+          return true;
+        })
+        .sort((a, b) => b.matchScore - a.matchScore)
+        .slice(0, 3);
+    }
 
     const potentialSet = new Set(potential.map(j => j.role_id));
 
@@ -812,6 +834,14 @@ export default function SkillJobGraph({
                         {missingText && (
                           <div style={{ marginTop: '0.15rem', fontSize: '0.72rem', color: 'var(--peach-dark, #c4883c)' }}>
                             ✗ {missingText}
+                          </div>
+                        )}
+                        {Array.isArray(job.adjacent_credits) && job.adjacent_credits.length > 0 && (
+                          <div
+                            title={t('dashboard.transferableHelp') || 'Partial credit was given because related skills you already have are transferable to this requirement.'}
+                            style={{ marginTop: '0.2rem', fontSize: '0.7rem', color: 'var(--sage-dark, #6b8f7b)', cursor: 'help' }}
+                          >
+                            ↪ {t('dashboard.transferableShort') || 'Transferable'}: {job.adjacent_credits.slice(0, 2).map((c) => `${c.via_skill}→${c.required_skill}`).join(', ')}
                           </div>
                         )}
                         <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>

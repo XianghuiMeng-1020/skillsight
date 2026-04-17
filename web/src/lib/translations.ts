@@ -291,6 +291,16 @@ export const translations: Translations = {
     'zh-TW': '當某職位仍缺少關鍵必需技能時，即便整體就緒度較高，也會顯示為「潛在」。把滑鼠懸停在「潛在」標籤或右側的「必需 X/Y」即可看到具體差距。',
     en: 'A role is shown as Potential when key must-have skills are still missing — even if its overall readiness percentage looks high. Hover the badge or the “Must X/Y” chip to see the gap.',
   },
+  'dashboard.transferableShort': {
+    zh: '可迁移技能',
+    'zh-TW': '可遷移技能',
+    en: 'Transferable',
+  },
+  'dashboard.transferableHelp': {
+    zh: '系统检测到你已具备的相关技能可以部分迁移到该岗位的要求，因此给出了部分加分。',
+    'zh-TW': '系統偵測到你已具備的相關技能可以部分遷移到該職位的要求，因此給出了部分加分。',
+    en: 'Partial credit was given because related skills you already have are transferable to this requirement.',
+  },
   'dashboard.hoverToConnect': { zh: '悬停查看技能关联', 'zh-TW': '懸停查看技能關聯', en: 'Hover to see skill connections' },
   'dashboard.readiness': { zh: '就绪度', 'zh-TW': '準備程度', en: 'Readiness' },
   'dashboard.cedarsTitle': { zh: 'HKU 就业中心', 'zh-TW': 'HKU 就業中心', en: 'HKU Career Centre' },
