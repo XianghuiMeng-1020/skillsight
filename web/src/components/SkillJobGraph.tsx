@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useMemo, useEffect, type FocusEvent } fr
 import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
+import { studentBff } from '@/lib/bffClient';
 
 interface EvidenceSource {
   chunk_id: string;
@@ -234,6 +235,71 @@ function EvidencePopover({ sources, onClose }: { sources: EvidenceSource[]; onCl
   );
 }
 
+interface MatchFeedbackButtonsProps {
+  job: JobMatch;
+  verdict?: 'good' | 'bad';
+  onSubmit: (job: JobMatch, verdict: 'good' | 'bad') => void;
+  t: (key: string) => string;
+  compact?: boolean;
+}
+
+function MatchFeedbackButtons({ job, verdict, onSubmit, t, compact = false }: MatchFeedbackButtonsProps) {
+  const submitted = !!verdict;
+  const baseStyle: React.CSSProperties = {
+    fontSize: compact ? '0.85rem' : '0.95rem',
+    lineHeight: 1,
+    padding: compact ? '0.1rem 0.25rem' : '0.15rem 0.35rem',
+    borderRadius: '6px',
+    border: '1px solid transparent',
+    background: 'transparent',
+    cursor: submitted ? 'default' : 'pointer',
+    color: 'var(--gray-500)',
+    transition: 'all 0.15s ease',
+  };
+  const goodActive = verdict === 'good';
+  const badActive = verdict === 'bad';
+  const goodLabel = t('dashboard.matchFeedbackGood') || 'Good match';
+  const badLabel = t('dashboard.matchFeedbackBad') || 'Bad match';
+  const thanks = t('dashboard.matchFeedbackThanks') || 'Thanks';
+  return (
+    <span
+      style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        type="button"
+        title={submitted ? thanks : goodLabel}
+        aria-label={goodLabel}
+        disabled={submitted}
+        onClick={() => !submitted && onSubmit(job, 'good')}
+        style={{
+          ...baseStyle,
+          color: goodActive ? 'var(--sage-dark, #6b8f7b)' : baseStyle.color,
+          background: goodActive ? 'rgba(152,184,168,0.18)' : baseStyle.background,
+          opacity: submitted && !goodActive ? 0.35 : 1,
+        }}
+      >
+        👍
+      </button>
+      <button
+        type="button"
+        title={submitted ? thanks : badLabel}
+        aria-label={badLabel}
+        disabled={submitted}
+        onClick={() => !submitted && onSubmit(job, 'bad')}
+        style={{
+          ...baseStyle,
+          color: badActive ? 'var(--peach-dark, #c4883c)' : baseStyle.color,
+          background: badActive ? 'rgba(249,206,156,0.22)' : baseStyle.background,
+          opacity: submitted && !badActive ? 0.35 : 1,
+        }}
+      >
+        👎
+      </button>
+    </span>
+  );
+}
+
 export default function SkillJobGraph({
   skills,
   jobMatches,
@@ -251,6 +317,26 @@ export default function SkillJobGraph({
   const [lineFilter, setLineFilter] = useState<'all' | 'gap' | 'met'>('all');
   const [isNarrow, setIsNarrow] = useState(false);
   const [evidencePopoverSkillId, setEvidencePopoverSkillId] = useState<string | null>(null);
+  const [matchFeedback, setMatchFeedback] = useState<Record<string, 'good' | 'bad'>>({});
+
+  const submitFeedback = useCallback(
+    async (job: JobMatch, verdict: 'good' | 'bad') => {
+      setMatchFeedback((prev) => ({ ...prev, [job.role_id]: verdict }));
+      try {
+        await studentBff.submitMatchFeedback(job.role_id, verdict, {
+          readiness: job.readiness,
+          matchClass: job.match_class,
+        });
+      } catch {
+        setMatchFeedback((prev) => {
+          const next = { ...prev };
+          delete next[job.role_id];
+          return next;
+        });
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 900px)');
@@ -844,7 +930,7 @@ export default function SkillJobGraph({
                             ↪ {t('dashboard.transferableShort') || 'Transferable'}: {job.adjacent_credits.slice(0, 2).map((c) => `${c.via_skill}→${c.required_skill}`).join(', ')}
                           </div>
                         )}
-                        <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                        <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center' }}>
                           <Link href="/dashboard/assessments" className="btn btn-secondary btn-sm">
                             {t('dashboard.takeAssessment')}
                           </Link>
@@ -858,6 +944,12 @@ export default function SkillJobGraph({
                           >
                             {t('dashboard.askAgentToPlan')}
                           </button>
+                          <MatchFeedbackButtons
+                            job={job}
+                            verdict={matchFeedback[job.role_id]}
+                            onSubmit={submitFeedback}
+                            t={t}
+                          />
                         </div>
                       </div>
                     );
@@ -928,6 +1020,13 @@ export default function SkillJobGraph({
                         >
                           {fmt2(rNum)}%
                         </span>
+                        <MatchFeedbackButtons
+                          job={job}
+                          verdict={matchFeedback[job.role_id]}
+                          onSubmit={submitFeedback}
+                          t={t}
+                          compact
+                        />
                       </div>
                     </div>
                   );

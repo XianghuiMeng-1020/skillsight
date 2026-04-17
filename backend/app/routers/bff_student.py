@@ -1246,6 +1246,7 @@ from backend.app.services.role_match_scoring import (
     canonicalize as _canon,
     normalize_skill_label as _normalize_skill_label,
 )
+from backend.app.services import concept_graph as _concept_graph
 
 READINESS_CRITICAL_GAP_THRESHOLD = 0.45  # legacy; kept for any callers
 
@@ -1316,10 +1317,17 @@ async def bff_role_alignment_batch(
             "assessed_at": r.get("assessed_at"),
         }
 
-    # 3) Get role titles
+    # 3) Get role titles + descriptions (description feeds the soft-requirement bonus)
     from sqlalchemy.sql import bindparam as bp2
-    role_title_sql = text("SELECT role_id, role_title FROM roles WHERE role_id IN :rids").bindparams(bp2("rids", expanding=True))
-    role_titles = {str(r["role_id"]): str(r["role_title"]) for r in db.execute(role_title_sql, {"rids": tuple(role_ids)}).mappings().all()}
+    role_title_sql = text(
+        "SELECT role_id, role_title, description FROM roles WHERE role_id IN :rids"
+    ).bindparams(bp2("rids", expanding=True))
+    role_titles: Dict[str, str] = {}
+    role_descriptions: Dict[str, str] = {}
+    for r in db.execute(role_title_sql, {"rids": tuple(role_ids)}).mappings().all():
+        rid = str(r["role_id"])
+        role_titles[rid] = str(r["role_title"])
+        role_descriptions[rid] = str(r.get("description") or "")
 
     # 4) Get ALL role requirements in one query
     req_sql = text("""
@@ -1366,6 +1374,16 @@ async def bff_role_alignment_batch(
         for sid, info in skill_map.items()
     ]
 
+    # Pull DB-backed concept graph (falls back to in-code defaults if
+    # the migration hasn't been applied yet).
+    try:
+        cg_aliases = _concept_graph.get_aliases(engine)
+        cg_adjacency = _concept_graph.get_adjacency(engine)
+    except Exception as exc:  # never let loader errors break the API
+        _log.warning("concept_graph load failed (%s); using in-code defaults", exc)
+        cg_aliases = None
+        cg_adjacency = None
+
     now_utc = _now_utc()
     items = []
     for rid in role_ids:
@@ -1397,6 +1415,9 @@ async def bff_role_alignment_batch(
             requirements=requirements,
             student_skills=student_skills,
             now_utc=now_utc,
+            aliases=cg_aliases,
+            adjacency=cg_adjacency,
+            role_description=role_descriptions.get(rid),
         )
 
         # Backward-compatible projection of the scorer result.
@@ -1442,6 +1463,72 @@ async def bff_role_alignment_batch(
         })
 
     return {"items": items, "count": len(items)}
+
+
+# ─── Match feedback (ground-truth signal for future calibration) ──────────────
+
+
+class MatchFeedbackReq(BaseModel):
+    role_id: str
+    verdict: str  # "good" | "bad" | "unsure"
+    readiness: Optional[float] = None
+    match_class: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.post("/match/feedback")
+def bff_match_feedback(
+    payload: MatchFeedbackReq,
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """Capture per-user thumbs up/down on a role-match recommendation.
+
+    Stored in ``match_feedback``.  Falls through gracefully if the table
+    hasn't been migrated yet so the FE never sees a 500.
+    """
+    verdict = (payload.verdict or "").strip().lower()
+    if verdict not in {"good", "bad", "unsure"}:
+        raise HTTPException(status_code=400, detail="verdict must be good|bad|unsure")
+    role_id = (payload.role_id or "").strip()
+    if not role_id:
+        raise HTTPException(status_code=400, detail="role_id required")
+
+    try:
+        db.execute(
+            text(
+                """
+                INSERT INTO match_feedback
+                    (subject_id, role_id, verdict, readiness, match_class, note)
+                VALUES
+                    (:sid, :rid, :v, :rd, :mc, :note)
+                """
+            ),
+            {
+                "sid": ident.subject_id,
+                "rid": role_id,
+                "v": verdict,
+                "rd": float(payload.readiness) if payload.readiness is not None else None,
+                "mc": payload.match_class,
+                "note": (payload.note or None),
+            },
+        )
+        db.commit()
+        log_audit(
+            engine,
+            subject_id=ident.subject_id,
+            action="bff.student.match.feedback",
+            object_type="role",
+            object_id=role_id,
+            status="ok",
+            detail={"verdict": verdict, "readiness": payload.readiness},
+        )
+        return {"ok": True}
+    except Exception as exc:
+        db.rollback()
+        # Most likely the migration hasn't been applied yet — never break the FE.
+        _log.warning("match_feedback insert failed (likely missing table): %s", exc)
+        return {"ok": False, "reason": "feedback_unavailable"}
 
 
 @router.post("/roles/alignment")

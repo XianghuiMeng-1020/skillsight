@@ -458,6 +458,23 @@ export const studentBff = {
     }
   },
 
+  submitMatchFeedback: async (
+    roleId: string,
+    verdict: 'good' | 'bad' | 'unsure',
+    extras?: { readiness?: number; matchClass?: string; note?: string }
+  ) => {
+    return bffRequest<{ ok: boolean; reason?: string }>('/bff/student/match/feedback', {
+      method: 'POST',
+      body: {
+        role_id: roleId,
+        verdict,
+        readiness: extras?.readiness,
+        match_class: extras?.matchClass,
+        note: extras?.note,
+      },
+    });
+  },
+
   upload: async (file: File, purpose: string, scope: string, token: string) => {
     const form = new FormData();
     form.append('file', file);

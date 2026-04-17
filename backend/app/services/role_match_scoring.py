@@ -388,16 +388,20 @@ def normalize_skill_label(value: Any) -> str:
     return s
 
 
-def canonicalize(label: str) -> str:
+def canonicalize(label: str, aliases: Optional[Mapping[str, str]] = None) -> str:
     """Resolve a free-text label to its canonical concept key.
 
     Falls through to the normalized label when no alias is registered, so
     exact-name matching still works as before.
+
+    ``aliases`` lets callers inject a DB-loaded merged map without making
+    this function impure.
     """
     norm = normalize_skill_label(label)
     if not norm:
         return ""
-    return SKILL_ALIASES.get(norm, norm)
+    src = aliases if aliases is not None else SKILL_ALIASES
+    return src.get(norm, norm)
 
 
 # ---------------------------------------------------------------------------
@@ -457,6 +461,7 @@ def find_adjacent_evidence(
     target_canon: str,
     student_by_canon: Mapping[str, StudentSkill],
     now_utc: datetime,
+    adjacency: Optional[Mapping[str, List[Dict[str, Any]]]] = None,
 ) -> Optional[Dict[str, Any]]:
     """If the student does not have ``target_canon`` directly, search for
     an adjacent skill they *do* have and return the best partial-credit
@@ -464,7 +469,8 @@ def find_adjacent_evidence(
 
     Returns ``None`` if no adjacent evidence is available.
     """
-    neighbors = SKILL_ADJACENCY.get(target_canon)
+    src = adjacency if adjacency is not None else SKILL_ADJACENCY
+    neighbors = src.get(target_canon)
     if not neighbors:
         return None
     best: Optional[Dict[str, Any]] = None
@@ -502,6 +508,7 @@ def key_skill_canons_for_role(
     role_title: str,
     requirements: Sequence[RoleRequirement],
     discovered: Optional[Sequence[str]] = None,
+    aliases: Optional[Mapping[str, str]] = None,
 ) -> List[str]:
     """Return the canonical key-skill set for a role.
 
@@ -512,7 +519,7 @@ def key_skill_canons_for_role(
     3. Top-2 must-skills by weight.
     """
     if discovered:
-        return [canonicalize(s) for s in discovered if s]
+        return [canonicalize(s, aliases) for s in discovered if s]
 
     title_norm = normalize_skill_label(role_title)
     best_match: Optional[List[str]] = None
@@ -523,11 +530,11 @@ def key_skill_canons_for_role(
             best_len = m.end() - m.start()
             best_match = skill_names
     if best_match is not None:
-        return [canonicalize(s) for s in best_match]
+        return [canonicalize(s, aliases) for s in best_match]
 
     must_reqs = [r for r in requirements if r.required]
     must_reqs = sorted(must_reqs, key=lambda r: r.weight, reverse=True)
-    return [canonicalize(r.skill_name) for r in must_reqs[:2]]
+    return [canonicalize(r.skill_name, aliases) for r in must_reqs[:2]]
 
 
 def smooth_key_skill_penalty(key_scores: Sequence[float]) -> float:
@@ -580,12 +587,13 @@ def classify_match(readiness_pct: float, must_ratio: float) -> str:
 
 def _index_student_skills(
     skills: Iterable[StudentSkill],
+    aliases: Optional[Mapping[str, str]] = None,
 ) -> Dict[str, StudentSkill]:
     """Index by canonical concept key.  Last write wins; when callers
     pre-sort by recency the most recent assessment dominates."""
     out: Dict[str, StudentSkill] = {}
     for s in skills:
-        canon = canonicalize(s.skill_name) or canonicalize(s.skill_id)
+        canon = canonicalize(s.skill_name, aliases) or canonicalize(s.skill_id, aliases)
         if not canon:
             continue
         prev = out.get(canon)
@@ -615,23 +623,38 @@ def score_role(
     now_utc: Optional[datetime] = None,
     discovered_key_skills: Optional[Sequence[str]] = None,
     demand_index: Optional[Mapping[str, float]] = None,
+    aliases: Optional[Mapping[str, str]] = None,
+    adjacency: Optional[Mapping[str, List[Dict[str, Any]]]] = None,
+    role_description: Optional[str] = None,
+    semantic_bonus_cap: float = 5.0,
 ) -> RoleMatchResult:
     """Compute the unified role-match result.
 
     All inputs are pure data structures so this function can be unit
     tested without any DB.
+
+    ``aliases`` / ``adjacency`` accept DB-loaded overrides (see
+    ``backend.app.services.concept_graph``); when omitted the curated
+    in-code defaults are used.
+
+    ``role_description`` enables a small **soft-requirement** bonus: any
+    student skill that's NOT in the explicit requirements but does
+    appear in the role's job description gets a tiny readiness boost
+    (capped by ``semantic_bonus_cap`` percentage points).  This addresses
+    the long-tail "JD mentions Spark, role doesn't list it as a
+    requirement, but the student knows it" case.
     """
     if now_utc is None:
         now_utc = datetime.now(timezone.utc)
 
-    student_by_canon = _index_student_skills(student_skills)
+    student_by_canon = _index_student_skills(student_skills, aliases)
 
     items: List[ScoredRequirement] = []
     critical_gaps: List[str] = []
     improvable_gaps: List[str] = []
     adjacent_credits: List[Dict[str, str]] = []
     key_canons = key_skill_canons_for_role(
-        role_title, requirements, discovered_key_skills
+        role_title, requirements, discovered_key_skills, aliases
     )
     key_canon_set = set(key_canons)
     key_scores: List[float] = []
@@ -646,7 +669,7 @@ def score_role(
     weighted_score = 0.0
 
     for req in requirements:
-        canon = canonicalize(req.skill_name) or canonicalize(req.skill_id)
+        canon = canonicalize(req.skill_name, aliases) or canonicalize(req.skill_id, aliases)
         student = student_by_canon.get(canon)
 
         matched_via = "none"
@@ -662,7 +685,7 @@ def score_role(
         else:
             base = 0.0
             rec = 1.0
-            adj = find_adjacent_evidence(canon, student_by_canon, now_utc)
+            adj = find_adjacent_evidence(canon, student_by_canon, now_utc, adjacency)
             if adj is not None:
                 base = adj["score"]  # already includes recency × reliability × transfer weight
                 rec = 1.0  # baked-in
@@ -738,8 +761,56 @@ def score_role(
     penalty = smooth_key_skill_penalty(key_scores)
     readiness = round(raw_readiness * penalty, 2)
 
+    # Soft-requirement bonus: student skills that are NOT in the explicit
+    # role requirements but DO appear in the role's JD text get a small
+    # bonus.  This catches the common "JD mentions Spark, role schema
+    # doesn't list it but student knows it" case without resorting to
+    # full-blown embeddings.
+    soft_bonus = 0.0
+    soft_matches: List[str] = []
+    if role_description:
+        jd_norm = normalize_skill_label(role_description)
+        if jd_norm:
+            req_canons = {
+                canonicalize(r.skill_name, aliases) or canonicalize(r.skill_id, aliases)
+                for r in requirements
+            }
+            for canon, sk in student_by_canon.items():
+                if canon in req_canons:
+                    continue
+                if sk.decision not in ("demonstrated", "match"):
+                    continue
+                # word-boundary check on canonical AND original label.
+                names_to_try = {canon, normalize_skill_label(sk.skill_name)}
+                hit = False
+                for name in names_to_try:
+                    if not name:
+                        continue
+                    pat = re.compile(rf"(?<!\w){re.escape(name)}(?!\w)")
+                    if pat.search(jd_norm):
+                        hit = True
+                        break
+                if hit:
+                    soft_bonus += 1.5  # percentage points per soft match
+                    soft_matches.append(sk.skill_name)
+            soft_bonus = min(soft_bonus, max(0.0, semantic_bonus_cap))
+            if soft_bonus > 0:
+                readiness = round(min(100.0, readiness + soft_bonus), 2)
+
     must_ratio = round(must_met / must_total, 4) if must_total else 0.0
     match_class = classify_match(readiness, must_ratio)
+
+    if soft_matches:
+        # Surface soft matches via adjacent_credits with a special
+        # transfer_weight marker so the FE renders them in the same row.
+        for name in soft_matches:
+            adjacent_credits.append(
+                {
+                    "required_skill": "(JD bonus)",
+                    "via_skill": name,
+                    "transfer_weight": "soft",
+                }
+            )
 
     return RoleMatchResult(
         role_id=role_id,

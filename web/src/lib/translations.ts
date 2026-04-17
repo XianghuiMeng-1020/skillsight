@@ -301,6 +301,21 @@ export const translations: Translations = {
     'zh-TW': '系統偵測到你已具備的相關技能可以部分遷移到該職位的要求，因此給出了部分加分。',
     en: 'Partial credit was given because related skills you already have are transferable to this requirement.',
   },
+  'dashboard.matchFeedbackGood': {
+    zh: '这个推荐很准',
+    'zh-TW': '這個推薦很準',
+    en: 'Good match',
+  },
+  'dashboard.matchFeedbackBad': {
+    zh: '这个推荐不太准',
+    'zh-TW': '這個推薦不太準',
+    en: 'Not a good match',
+  },
+  'dashboard.matchFeedbackThanks': {
+    zh: '已记录，感谢反馈',
+    'zh-TW': '已記錄，感謝回饋',
+    en: 'Thanks — recorded',
+  },
   'dashboard.hoverToConnect': { zh: '悬停查看技能关联', 'zh-TW': '懸停查看技能關聯', en: 'Hover to see skill connections' },
   'dashboard.readiness': { zh: '就绪度', 'zh-TW': '準備程度', en: 'Readiness' },
   'dashboard.cedarsTitle': { zh: 'HKU 就业中心', 'zh-TW': 'HKU 就業中心', en: 'HKU Career Centre' },
