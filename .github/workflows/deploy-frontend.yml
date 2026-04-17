@@ -12,10 +12,10 @@ jobs:
       contents: read
       deployments: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
@@ -31,8 +31,12 @@ jobs:
         env:
           NEXT_PUBLIC_API_URL: https://skillsight-api.onrender.com
 
+      # NOTE: wrangler-action still ships on Node 20 as of v3.15.0
+      # (upstream Node 24 / Wrangler v4 upgrade is tracked in
+      # cloudflare/wrangler-action#415 and #410). Pin explicitly so the
+      # bump is a one-line change once upstream releases v4.
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
