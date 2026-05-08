@@ -839,18 +839,23 @@ async def bff_student_profile(
     for skill in skills_rows:
         skill_id = skill["skill_id"]
 
-        assess_row = db.execute(
-            text("""
-                SELECT decision, evidence, decision_meta
-                FROM skill_assessments sa
-                JOIN consents c ON c.doc_id = sa.doc_id::text
-                WHERE sa.skill_id = :sid
-                  AND c.user_id = :sub
-                  AND c.status = 'granted'
-                ORDER BY sa.created_at DESC LIMIT 1
-            """),
-            {"sid": skill_id, "sub": subject},
-        ).mappings().first()
+        try:
+            assess_row = db.execute(
+                text("""
+                    SELECT decision, evidence, decision_meta
+                    FROM skill_assessments sa
+                    JOIN consents c ON c.doc_id = sa.doc_id::text
+                    WHERE sa.skill_id = :sid
+                      AND c.user_id = :sub
+                      AND c.status = 'granted'
+                    ORDER BY sa.created_at DESC LIMIT 1
+                """),
+                {"sid": skill_id, "sub": subject},
+            ).mappings().first()
+        except Exception as _exc:
+            _log.debug("assess_row query failed for skill %s: %s", skill_id, _exc)
+            db.rollback()
+            assess_row = None
 
         evidence_items = []
         if assess_row:
@@ -944,17 +949,22 @@ async def bff_student_profile(
             label = "not_assessed"
             rationale = None
 
-        prof_row = db.execute(
-            text("""
-                SELECT sp.level FROM skill_proficiency sp
-                JOIN consents c ON c.doc_id = sp.doc_id::text
-                  AND c.user_id = :sub AND c.status = 'granted'
-                WHERE sp.skill_id = :sid
-                ORDER BY sp.created_at DESC LIMIT 1
-            """),
-            {"sub": subject, "sid": skill_id},
-        ).mappings().first()
-        level = int(prof_row["level"]) if prof_row and prof_row.get("level") is not None else None
+        try:
+            prof_row = db.execute(
+                text("""
+                    SELECT sp.level FROM skill_proficiency sp
+                    JOIN consents c ON c.doc_id = sp.doc_id::text
+                      AND c.user_id = :sub AND c.status = 'granted'
+                    WHERE sp.skill_id = :sid
+                    ORDER BY sp.created_at DESC LIMIT 1
+                """),
+                {"sub": subject, "sid": skill_id},
+            ).mappings().first()
+            level = int(prof_row["level"]) if prof_row and prof_row.get("level") is not None else None
+        except Exception as _exc:
+            _log.debug("prof_row query failed for skill %s: %s", skill_id, _exc)
+            db.rollback()
+            level = None
 
         entry: Dict[str, Any] = {
             "skill_id": skill_id,

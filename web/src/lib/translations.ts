@@ -797,7 +797,7 @@ export const translations: Translations = {
   'login.signInHKU': { zh: '🔐 使用 HKU 门户登录', 'zh-TW': '🔐 使用 HKU 門戶登入', en: '🔐 Sign in with HKU Portal' },
   'login.or': { zh: '或', 'zh-TW': '或', en: 'or' },
   'login.emailPlaceholder': { zh: '邮箱地址', 'zh-TW': '電郵地址', en: 'Email address' },
-  'login.continueEmail': { zh: '使用邮箱继续', 'zh-TW': '使用電郵繼續', en: 'Continue with Email' },
+  'login.continueEmail': { zh: '邮箱登录 / 注册', 'zh-TW': '電郵登入 / 註冊', en: 'Login / Register with Email' },
   'login.needHelp': { zh: '需要帮助？', 'zh-TW': '需要幫助？', en: 'Need help?' },
   'login.contactUs': { zh: '联系我们', 'zh-TW': '聯絡我們', en: 'Contact us' },
   'login.testAccountTitle': { zh: '测试账户', 'zh-TW': '測試帳戶', en: 'Test account' },
@@ -805,6 +805,8 @@ export const translations: Translations = {
   'login.failedNetwork': { zh: '无法连接服务器，请检查网络后重试或联系支持。', 'zh-TW': '無法連接伺服器，請檢查網路後重試或聯絡支援。', en: 'Cannot connect. Please check your network and try again, or contact support.' },
   'login.tryDemo': { zh: '试用演示', 'zh-TW': '試用示範', en: 'Try our demo' },
   'login.tryDemoDesc': { zh: '无需登录，快速体验 SkillSight 核心功能', 'zh-TW': '無需登入，快速體驗 SkillSight 核心功能', en: 'Explore SkillSight core features without signing in' },
+  'login.autoRegisterHint': { zh: '首次使用邮箱登录即自动创建账号，无需预先注册', 'zh-TW': '首次使用電郵登入即自動建立帳號，無需預先註冊', en: 'First-time users are automatically registered — no sign-up needed' },
+  'login.seminarBanner': { zh: '📢 研讨会参与者：请输入您的邮箱地址，系统将自动为您创建专属账号', 'zh-TW': '📢 研討會參與者：請輸入您的電郵地址，系統將自動為您建立專屬帳號', en: '📢 Seminar attendees: enter your email below — your personal account is created automatically' },
   'assistant.loginRequired': { zh: '请先登录以使用评估助手', 'zh-TW': '請先登入以使用評估助手', en: 'Please log in to use the assessment assistant' },
   'assistant.goLogin': { zh: '去登录', 'zh-TW': '前往登入', en: 'Go to Login' },
 

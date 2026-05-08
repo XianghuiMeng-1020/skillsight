@@ -120,6 +120,21 @@ export default function LoginPage() {
       </div>
 
       <div className="login-card fade-in">
+        {/* Seminar welcome banner */}
+        <div style={{
+          marginBottom: '1.25rem',
+          padding: '0.75rem 1rem',
+          background: 'linear-gradient(135deg, rgba(225,129,130,0.12), rgba(201,221,227,0.18))',
+          border: '1px solid rgba(225,129,130,0.3)',
+          borderRadius: '10px',
+          fontSize: '0.82rem',
+          color: '#374151',
+          lineHeight: '1.5',
+          textAlign: 'center',
+        }}>
+          {t('login.seminarBanner') as string}
+        </div>
+
         <div className="login-logo">
           <SkillSightLogo size={48} />
         </div>
@@ -212,6 +227,17 @@ export default function LoginPage() {
                 e.currentTarget.style.boxShadow = 'none';
               }}
             />
+            <p style={{
+              margin: '0.4rem 0 0',
+              fontSize: '0.76rem',
+              color: '#6B7280',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.3rem',
+            }}>
+              <span style={{ color: '#10B981', fontWeight: 600 }}>✓</span>
+              {t('login.autoRegisterHint') as string}
+            </p>
           </div>
           <button
             type="submit"

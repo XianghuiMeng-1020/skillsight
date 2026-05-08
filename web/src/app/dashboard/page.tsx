@@ -109,7 +109,7 @@ function resolveAgentAssessmentContext(skillName?: string): AgentAssessmentConte
 }
 
 export default function StudentDashboard() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const assessmentWidget = useAssessmentWidget();
   const INSIGHTS_PREF_KEY = 'skillsight-dashboard-insights-expanded-v1';
   const searchParams = useSearchParams();
@@ -127,6 +127,7 @@ export default function StudentDashboard() {
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [showMoreInsights, setShowMoreInsights] = useState(true);
   const [staleSkills, setStaleSkills] = useState<Array<{ skill_id: string; skill_name: string; last_updated_at?: string }>>([]);
+  const [showSeminarGuide, setShowSeminarGuide] = useState(false);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const pathname = usePathname();
@@ -211,6 +212,11 @@ export default function StudentDashboard() {
       if (!hasSeenHint) {
         setShowFirstTimeHint(true);
         localStorage.setItem('skillsight-first-route-seen', 'true');
+      }
+
+      const seminarDismissed = localStorage.getItem('skillsight-seminar-guide-dismissed');
+      if (!seminarDismissed) {
+        setShowSeminarGuide(true);
       }
 
       const savedInsightsPref = localStorage.getItem(INSIGHTS_PREF_KEY);
@@ -379,6 +385,74 @@ export default function StudentDashboard() {
               <Link href="/dashboard/assessments" className="btn btn-secondary btn-sm">
                 {t('dashboard.reassessNow')}
               </Link>
+            </div>
+          )}
+
+          {/* ── Seminar guide card ── */}
+          {showSeminarGuide && (
+            <div style={{
+              marginBottom: '1.25rem',
+              padding: '1.25rem 1.5rem',
+              background: 'linear-gradient(135deg, rgba(225,129,130,0.08) 0%, rgba(201,221,227,0.15) 100%)',
+              border: '1px solid rgba(225,129,130,0.25)',
+              borderRadius: '14px',
+              position: 'relative',
+            }}>
+              <button
+                onClick={() => {
+                  setShowSeminarGuide(false);
+                  try { localStorage.setItem('skillsight-seminar-guide-dismissed', 'true'); } catch { /* noop */ }
+                }}
+                style={{
+                  position: 'absolute', top: '0.75rem', right: '0.75rem',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: '1rem', color: '#9CA3AF', lineHeight: 1,
+                }}
+                aria-label="Dismiss"
+              >✕</button>
+              <div style={{ fontWeight: 700, fontSize: '1rem', marginBottom: '0.75rem', color: '#1C1917' }}>
+                🎓 {language === 'en' ? 'Seminar Quick-Start Guide' : language === 'zh-TW' ? '研討會快速指南' : '研讨会快速入门指南'}
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                {[
+                  { step: '1', icon: '📤', label: language === 'en' ? 'Upload Resume' : language === 'zh-TW' ? '上傳簡歷' : '上传简历', href: '/dashboard/upload' },
+                  { step: '2', icon: '🧠', label: language === 'en' ? 'View Skills' : language === 'zh-TW' ? '查看技能' : '查看技能', href: '/dashboard/skills' },
+                  { step: '3', icon: '📝', label: language === 'en' ? 'Take Assessment' : language === 'zh-TW' ? '技能評估' : '技能评估', href: '/dashboard/assessments' },
+                  { step: '4', icon: '💼', label: language === 'en' ? 'Browse Jobs' : language === 'zh-TW' ? '瀏覽職位' : '浏览岗位', href: '/dashboard/jobs' },
+                  { step: '5', icon: '📊', label: language === 'en' ? 'Export Report' : language === 'zh-TW' ? '匯出報告' : '导出报告', href: '/export' },
+                ].map(({ step, icon, label, href }) => (
+                  <Link
+                    key={step}
+                    href={href}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.4rem',
+                      padding: '0.5rem 0.875rem',
+                      background: 'white', borderRadius: '999px',
+                      border: '1px solid rgba(225,129,130,0.3)',
+                      fontSize: '0.82rem', fontWeight: 600, color: '#374151',
+                      textDecoration: 'none',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(225,129,130,0.08)';
+                      e.currentTarget.style.borderColor = '#E18182';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'white';
+                      e.currentTarget.style.borderColor = 'rgba(225,129,130,0.3)';
+                    }}
+                  >
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                      width: '1.2rem', height: '1.2rem', borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #E18182, #F9CE9C)',
+                      color: 'white', fontSize: '0.65rem', fontWeight: 800, flexShrink: 0,
+                    }}>{step}</span>
+                    {icon} {label}
+                  </Link>
+                ))}
+              </div>
             </div>
           )}
 

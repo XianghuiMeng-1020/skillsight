@@ -27,9 +27,9 @@ services:
       - key: SKILLSIGHT_ALLOW_DEV_LOGIN
         value: "true"
       - key: CORS_ALLOWED_ORIGINS
-        value: https://skillsight.pages.dev,https://skillsight-230.pages.dev,https://www.skillsight.pages.dev
+        value: https://skillsight.pages.dev,https://skillsight-230.pages.dev,https://www.skillsight.pages.dev,https://39785649.skillsight-230-97u.pages.dev
       - key: RATE_LIMIT_ENABLED
-        value: "true"
+        value: "false"
       - key: LLM_PROVIDER
         value: openai
       - key: OPENAI_API_KEY
@@ -41,9 +41,9 @@ services:
       - key: QDRANT_API_KEY
         sync: false
       - key: DB_POOL_SIZE
-        value: "10"
+        value: "20"
       - key: DB_MAX_OVERFLOW
-        value: "15"
+        value: "30"
       - key: WEB_CONCURRENCY
         value: "4"
     healthCheckPath: /health
