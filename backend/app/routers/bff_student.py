@@ -894,13 +894,18 @@ async def bff_student_profile(
                 elif isinstance(e, str):
                     raw_ids.append(e)
             for cid in (raw_ids or [])[:3]:
-                chunk = db.execute(
-                    text("""
-                        SELECT chunk_id, snippet, section_path, page_start, doc_id
-                        FROM chunks WHERE chunk_id = :cid LIMIT 1
-                    """),
-                    {"cid": cid},
-                ).mappings().first()
+                try:
+                    chunk = db.execute(
+                        text("""
+                            SELECT chunk_id, snippet, section_path, page_start, doc_id
+                            FROM chunks WHERE chunk_id = :cid LIMIT 1
+                        """),
+                        {"cid": cid},
+                    ).mappings().first()
+                except Exception as _exc:
+                    _log.debug("chunk lookup failed for cid %s: %s", cid, _exc)
+                    db.rollback()
+                    chunk = None
                 if chunk:
                     evidence_items.append({
                         "chunk_id": chunk["chunk_id"],
@@ -945,12 +950,16 @@ async def bff_student_profile(
                 })
         except Exception as exc:
             _log.debug("frequency evidence query failed for skill %s: %s", skill_id, exc)
+            db.rollback()
             frequency = len(evidence_items)
             for ei in evidence_items:
-                doc_row = db.execute(
-                    text("SELECT filename FROM documents WHERE doc_id = :did LIMIT 1"),
-                    {"did": ei["doc_id"]},
-                ).mappings().first()
+                try:
+                    doc_row = db.execute(
+                        text("SELECT filename FROM documents WHERE doc_id = :did LIMIT 1"),
+                        {"did": ei["doc_id"]},
+                    ).mappings().first()
+                except Exception:
+                    doc_row = None
                 evidence_sources.append({
                     "chunk_id": ei["chunk_id"],
                     "snippet": ei["snippet"],
@@ -1154,17 +1163,32 @@ async def bff_student_profile(
         _log.warning("stale skills query failed: %s", exc)
         stale_skills = []
 
-    return {
-        "subject_id": subject,
-        "documents_count": len(doc_rows),
-        "documents": [dict(d) for d in doc_rows],
-        "skills": skills_profile,
-        "recent_assessment_events": recent_assessment_events,
-        "recent_role_events": recent_role_events,
-        "recent_export_events": recent_export_events,
-        "stale_skills": stale_skills,
-        "generated_at": _now_utc().isoformat(),
-    }
+    try:
+        return {
+            "subject_id": subject,
+            "documents_count": len(doc_rows),
+            "documents": [dict(d) for d in doc_rows],
+            "skills": skills_profile,
+            "recent_assessment_events": recent_assessment_events,
+            "recent_role_events": recent_role_events,
+            "recent_export_events": recent_export_events,
+            "stale_skills": stale_skills,
+            "generated_at": _now_utc().isoformat(),
+        }
+    except Exception as exc:
+        _log.error("profile response build failed for %s: %s", subject, exc)
+        return {
+            "subject_id": subject,
+            "documents_count": 0,
+            "documents": [],
+            "skills": [],
+            "recent_assessment_events": [],
+            "recent_role_events": [],
+            "recent_export_events": [],
+            "stale_skills": [],
+            "generated_at": _now_utc().isoformat(),
+            "degraded": True,
+        }
 
 
 @router.get("/assessments/recent")
