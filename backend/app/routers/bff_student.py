@@ -780,60 +780,82 @@ async def bff_student_profile(
     """
     Compile student skills profile with evidence items.
     Each skill entry includes Why/Evidence chunks from real assessments.
+
+    Defensive contract: this endpoint must never return 500. Each sub-query is
+    wrapped so a partial failure degrades gracefully (e.g. empty skills list)
+    instead of breaking the entire dashboard.
     """
     if user_id and user_id != ident.subject_id:
         raise HTTPException(status_code=403, detail="Cross-user profile access is forbidden")
     subject = ident.subject_id
 
-    skills_rows = db.execute(
-        text(
-            """
-            WITH user_skills AS (
-                SELECT DISTINCT sp.skill_id
-                FROM skill_proficiency sp
-                JOIN consents c ON c.doc_id = sp.doc_id::text
-                WHERE c.user_id = :sub AND c.status = 'granted'
-
-                UNION
-
-                SELECT DISTINCT sa.skill_id
-                FROM skill_assessments sa
-                JOIN consents c ON c.doc_id = sa.doc_id::text
-                WHERE c.user_id = :sub AND c.status = 'granted'
-
-                UNION
-
-                SELECT DISTINCT s.skill_id
-                FROM skill_assessment_snapshots s
-                WHERE s.subject_id = :sub
-            )
-            SELECT sk.skill_id, sk.canonical_name, sk.definition
-            FROM skills sk
-            JOIN user_skills us ON us.skill_id = sk.skill_id
-            ORDER BY sk.canonical_name
-            LIMIT 50
-            """
-        ),
-        {"sub": subject},
-    ).mappings().all()
-    if not skills_rows:
-        # Backward-compatible fallback for brand new users without any assessments.
+    try:
         skills_rows = db.execute(
-            text("SELECT skill_id, canonical_name, definition FROM skills ORDER BY canonical_name LIMIT 20")
-        ).mappings().all()
+            text(
+                """
+                WITH user_skills AS (
+                    SELECT DISTINCT sp.skill_id
+                    FROM skill_proficiency sp
+                    JOIN consents c ON c.doc_id = sp.doc_id::text
+                    WHERE c.user_id = :sub AND c.status = 'granted'
 
-    consent_cols = set(_table_columns(db, "consents"))
-    scope_select = "c.scope" if "scope" in consent_cols else "NULL::text AS scope"
-    doc_rows = db.execute(
-        text(f"""
-            SELECT d.doc_id, d.filename, {scope_select}, c.status, d.created_at
-            FROM documents d
-            JOIN consents c ON c.doc_id = d.doc_id::text
-            WHERE c.user_id = :sub AND c.status = 'granted'
-            ORDER BY d.created_at DESC LIMIT 10
-        """),
-        {"sub": subject},
-    ).mappings().all()
+                    UNION
+
+                    SELECT DISTINCT sa.skill_id
+                    FROM skill_assessments sa
+                    JOIN consents c ON c.doc_id = sa.doc_id::text
+                    WHERE c.user_id = :sub AND c.status = 'granted'
+
+                    UNION
+
+                    SELECT DISTINCT s.skill_id
+                    FROM skill_assessment_snapshots s
+                    WHERE s.subject_id = :sub
+                )
+                SELECT sk.skill_id, sk.canonical_name, sk.definition
+                FROM skills sk
+                JOIN user_skills us ON us.skill_id = sk.skill_id
+                ORDER BY sk.canonical_name
+                LIMIT 50
+                """
+            ),
+            {"sub": subject},
+        ).mappings().all()
+    except Exception as exc:
+        _log.warning("profile.user_skills query failed for %s: %s", subject, exc)
+        db.rollback()
+        skills_rows = []
+
+    if not skills_rows:
+        try:
+            skills_rows = db.execute(
+                text(
+                    "SELECT skill_id, canonical_name, definition "
+                    "FROM skills ORDER BY canonical_name LIMIT 20"
+                )
+            ).mappings().all()
+        except Exception as exc:
+            _log.warning("profile.skills_catalog fallback failed: %s", exc)
+            db.rollback()
+            skills_rows = []
+
+    try:
+        consent_cols = set(_table_columns(db, "consents"))
+        scope_select = "c.scope" if "scope" in consent_cols else "NULL::text AS scope"
+        doc_rows = db.execute(
+            text(f"""
+                SELECT d.doc_id, d.filename, {scope_select}, c.status, d.created_at
+                FROM documents d
+                JOIN consents c ON c.doc_id = d.doc_id::text
+                WHERE c.user_id = :sub AND c.status = 'granted'
+                ORDER BY d.created_at DESC LIMIT 10
+            """),
+            {"sub": subject},
+        ).mappings().all()
+    except Exception as exc:
+        _log.warning("profile.documents query failed for %s: %s", subject, exc)
+        db.rollback()
+        doc_rows = []
 
     skills_profile = []
     for skill in skills_rows:

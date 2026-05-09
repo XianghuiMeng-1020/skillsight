@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLanguage, LANGUAGES, type Language } from '@/lib/contexts';
 import { devLogin, type BffRole } from '@/lib/bffClient';
 import { writeDemoMode } from '@/lib/demoMode';
+import { getOrCreateGuestSubjectId } from '@/lib/guestId';
 
 // SkillSight Logo Component
 const SkillSightLogo = ({ size = 48 }: { size?: number }) => (
@@ -82,7 +83,11 @@ export default function LoginPage() {
   };
 
   const handleHKULogin = () => {
-    doLogin('hku_demo_user', 'Demo Student', 'demo@connect.hku.hk');
+    // Each visitor gets a unique, browser-persistent subject_id so backend
+    // records (consents, documents, assessments) are isolated per user.
+    const subjectId = getOrCreateGuestSubjectId();
+    const shortId = subjectId.replace(/^hku_guest_/, '').slice(0, 6).toUpperCase();
+    doLogin(subjectId, `Demo Student ${shortId}`, `demo+${shortId.toLowerCase()}@connect.hku.hk`);
   };
 
   const handleEmailLogin = (e: React.FormEvent) => {
@@ -260,16 +265,18 @@ export default function LoginPage() {
             onClick={async () => {
               setLoading(true);
               setError('');
+              const subjectId = getOrCreateGuestSubjectId();
+              const shortId = subjectId.replace(/^hku_guest_/, '').slice(0, 6).toUpperCase();
               try {
-                await devLogin({ subject_id: 'hku_demo_user', role: 'student', ttl_s: 43200 });
+                await devLogin({ subject_id: subjectId, role: 'student', ttl_s: 43200 });
               } catch {
                 // Backend may be unavailable; proceed with local-only demo mode
               }
               try {
                 localStorage.setItem('user', JSON.stringify({
-                  id: 'hku_demo_user',
-                  name: 'Demo Student',
-                  email: 'demo@connect.hku.hk',
+                  id: subjectId,
+                  name: `Demo Student ${shortId}`,
+                  email: `demo+${shortId.toLowerCase()}@connect.hku.hk`,
                   role: 'student',
                   avatar: 'D',
                 }));
