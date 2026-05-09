@@ -29,32 +29,56 @@ services:
       - key: CORS_ALLOWED_ORIGINS
         value: https://skillsight.pages.dev,https://skillsight-230.pages.dev,https://www.skillsight.pages.dev,https://39785649.skillsight-230-97u.pages.dev
       - key: RATE_LIMIT_ENABLED
-        value: "false"
+        value: "true"
+      - key: RATE_LIMIT_PER_MINUTE_RESUME_LLM
+        value: "6"
+      - key: RATE_LIMIT_PER_MINUTE_AI
+        value: "20"
+      - key: RATE_LIMIT_PER_MINUTE_ASSESS
+        value: "30"
       - key: LLM_PROVIDER
         value: openai
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+      # Concurrency knobs: at most 8 concurrent OpenAI calls per process
+      - key: LLM_MAX_CONCURRENT
+        value: "8"
+      - key: LLM_MAX_RETRIES
+        value: "3"
+      - key: LLM_RETRY_BASE_S
+        value: "2.0"
+      # Emergency kill-switch: set to "true" to disable all LLM calls instantly
+      # and return rule-based fallback responses only.
+      - key: LLM_FALLBACK_RULES_ONLY
+        value: "false"
       - key: QDRANT_URL
         sync: false
       - key: QDRANT_API_KEY
         sync: false
+      # Per-worker pool size reduced so 4 workers × 10 = 40 < Render Standard PG limit (97).
+      # With max_overflow=15 worst-case is 4×25=100; pool_timeout=30 keeps queuing short.
       - key: DB_POOL_SIZE
-        value: "20"
+        value: "10"
       - key: DB_MAX_OVERFLOW
+        value: "15"
+      - key: DB_POOL_TIMEOUT
         value: "30"
       - key: WEB_CONCURRENCY
         value: "4"
     healthCheckPath: /health
-    numInstances: 1
+    # Two API instances share the load; each holds at most 40 PG connections.
+    numInstances: 2
 
   - type: worker
     name: skillsight-worker
     runtime: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: .
-    plan: starter
+    # Upgraded from starter (0.5 vCPU/512 MB) to standard so PDF/DOCX parsing
+    # doesn't OOM when 50 users upload simultaneously.
+    plan: standard
     envVars:
       - key: DATABASE_URL
         fromDatabase:
@@ -84,11 +108,17 @@ services:
 
   - type: redis
     name: skillsight-redis
-    plan: starter
-    maxmemoryPolicy: noeviction
+    # Upgraded from starter to standard for higher memory ceiling.
+    plan: standard
+    # allkeys-lru: evict least-recently-used keys when memory is full rather
+    # than blocking new writes (noeviction would OOM-kill the queue).
+    maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
 databases:
   - name: skillsight-db
-    plan: starter
+    # Upgraded from starter (97 connections) to standard (171 connections)
+    # to safely support 2 web instances × 4 workers × 25 connections each = 200 theoretical
+    # but real usage is much lower due to DB release around LLM calls.
+    plan: standard
     postgresMajorVersion: "16"

@@ -15,6 +15,7 @@ qdrant-client>=1.7
 
 # Document parsing
 python-docx>=1.1
+docxtpl>=0.17
 pymupdf>=1.23
 python-pptx>=0.6.23
 openpyxl>=3.1

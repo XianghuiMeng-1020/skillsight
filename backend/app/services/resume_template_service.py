@@ -1662,9 +1662,85 @@ def apply_template(
         parsed.name, len(parsed.contact_lines), len(parsed.sections),
     )
 
+    # ── docxtpl path: try to find a designer-supplied .docx template file ────
+    raw = _try_docxtpl_render(key, parsed, template_options or {})
+    if raw is not None:
+        _log.info("apply_template: rendered via docxtpl key='%s'", key)
+        return raw
+
+    # ── Fallback: python-docx programmatic builder ───────────────────────────
     builder = _TEMPLATE_BUILDERS.get(key, _build_professional_classic)
     raw = builder(parsed)
     return _postprocess_docx_with_template_options(raw, template_options or {}, key)
+
+
+def _try_docxtpl_render(key: str, parsed: "ResumeData", opts: dict) -> bytes | None:
+    """Render using a designer-supplied ``{key}.docx`` template via docxtpl (Jinja2).
+
+    Template files live in ``backend/templates/resume/`` or
+    ``packages/resume_templates/``.  If no file is found, or if docxtpl is not
+    installed, returns ``None`` and the caller falls back to the python-docx builder.
+
+    Context variables exposed to the Jinja2 template:
+      {{ name }}, {{ contact }}, {{ summary }}, {{ sections }} (list of
+      {title, items(list of str)} dicts), {{ skills_lines }}, {{ now_year }}.
+    """
+    import os as _os
+    from pathlib import Path as _Path
+
+    _repo_root = _Path(__file__).resolve().parents[3]
+    _backend_dir = _Path(__file__).resolve().parents[2]
+    _template_dirs = [
+        _backend_dir / "templates" / "resume",
+        _repo_root / "packages" / "resume_templates",
+    ]
+    tpl_path: _Path | None = None
+    for d in _template_dirs:
+        candidate = d / f"{key}.docx"
+        if candidate.exists():
+            tpl_path = candidate
+            break
+
+    if tpl_path is None:
+        return None
+
+    try:
+        from docxtpl import DocxTemplate
+    except ImportError:
+        _log.warning("docxtpl not installed; falling back to python-docx builder")
+        return None
+
+    try:
+        import datetime
+        tpl = DocxTemplate(str(tpl_path))
+
+        sections_ctx = []
+        for s in parsed.sections:
+            sections_ctx.append({
+                "title": s.title,
+                "items": [line for line in s.body_lines if line.strip()],
+            })
+
+        context = {
+            "name": parsed.name or "",
+            "contact": " | ".join(parsed.contact_lines),
+            "summary": parsed.summary or "",
+            "sections": sections_ctx,
+            "skills_lines": parsed.skills_lines or [],
+            "now_year": datetime.date.today().year,
+            # Template options passthrough
+            "accent_color": (opts.get("accent_color") or "default"),
+        }
+
+        from io import BytesIO
+        tpl.render(context)
+        buf = BytesIO()
+        tpl.save(buf)
+        raw = buf.getvalue()
+        return _postprocess_docx_with_template_options(raw, opts, key)
+    except Exception as ex:
+        _log.warning("docxtpl render failed for key='%s': %s — using builder fallback", key, ex)
+        return None
 
 
 def _postprocess_docx_with_template_options(raw_docx: bytes, opts: dict, template_key: str) -> bytes:

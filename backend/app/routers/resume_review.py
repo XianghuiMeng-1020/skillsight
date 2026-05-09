@@ -310,6 +310,51 @@ def _cosine(vec_a: Counter, vec_b: Counter) -> float:
     return float(num / den)
 
 
+def _embedding_cosine(text_a: str, text_b: str) -> Optional[float]:
+    """True cosine similarity via project embedding function; None on failure."""
+    try:
+        from backend.app.services.embedding import embed_texts
+        vecs = embed_texts([text_a[:2000], text_b[:2000]])
+        if len(vecs) != 2:
+            return None
+        a, b = vecs[0], vecs[1]
+        dot = sum(x * y for x, y in zip(a, b))
+        na = math.sqrt(sum(x * x for x in a))
+        nb = math.sqrt(sum(x * x for x in b))
+        if na == 0 or nb == 0:
+            return None
+        return float(dot / (na * nb))
+    except Exception:
+        return None
+
+
+def _build_inline_diff_html(baseline: str, current: str) -> str:
+    """Sentence-level HTML diff with <span class='diff-add/del/eq'> markers."""
+    import difflib
+
+    def _sentences(text: str) -> List[str]:
+        return [s.strip() for s in re.split(r"(?<=[.!?。！？\n])\s*", text) if s.strip()]
+
+    base_s = _sentences(baseline)[:300]
+    curr_s = _sentences(current)[:300]
+    matcher = difflib.SequenceMatcher(None, base_s, curr_s, autojunk=False)
+    parts: List[str] = []
+    for op, i1, i2, j1, j2 in matcher.get_opcodes():
+        if op == "equal":
+            for s in curr_s[j1:j2]:
+                parts.append(f"<span class='diff-eq'>{s}</span>")
+        elif op in ("replace", "insert"):
+            for s in curr_s[j1:j2]:
+                parts.append(f"<span class='diff-add'>{s}</span>")
+            if op == "replace":
+                for s in base_s[i1:i2]:
+                    parts.append(f"<span class='diff-del'>{s}</span>")
+        elif op == "delete":
+            for s in base_s[i1:i2]:
+                parts.append(f"<span class='diff-del'>{s}</span>")
+    return " ".join(parts)
+
+
 def _parse_score_map(value: Any) -> Dict[str, Any]:
     if isinstance(value, dict):
         return value
@@ -549,9 +594,16 @@ def _analyze_resume_diff(
     risk_validator_issues = (timeline_issues + fact_issues + exaggeration_issues)[:8]
     risks.extend([r for r in risk_validator_issues if r not in risks])
 
-    # Sentence-level semantic alignment (embedding-lite cosine over token vectors).
+    # Sentence-level semantic alignment.
+    # Prefer true embeddings; fall back to bag-of-words cosine when unavailable.
     base_sentences = _split_sentences(baseline_text)
     cur_sentences = _split_sentences(current_text)
+
+    # Try whole-document embedding cosine first (fast, one API call each side)
+    doc_embedding_sim = _embedding_cosine(baseline_text, current_text)
+    use_embedding = doc_embedding_sim is not None
+    alignment_method = "embedding" if use_embedding else "bag_of_words"
+
     base_vecs = [_sentence_vector(s) for s in base_sentences]
     cur_vecs = [_sentence_vector(s) for s in cur_sentences]
     matched_pairs: List[Dict[str, Any]] = []
@@ -578,13 +630,17 @@ def _analyze_resume_diff(
                 }
             )
     matched_count = len(matched_pairs)
-    avg_sim = (sim_sum / matched_count) if matched_count else 0.0
+    bow_avg_sim = (sim_sum / matched_count) if matched_count else 0.0
+    # Blend: if embedding available, use it for document-level similarity
+    avg_sim = float(doc_embedding_sim) if use_embedding else bow_avg_sim
     semantic_alignment = {
         "avg_similarity": round(avg_sim, 3),
+        "alignment_method": alignment_method,
         "matched_sentences": matched_count,
         "added_sentences": max(0, len(cur_sentences) - matched_count),
         "removed_sentences": max(0, len(base_sentences) - matched_count),
         "pairs": sorted(matched_pairs, key=lambda x: x["similarity"], reverse=True)[:10],
+        "inline_diff_html": _build_inline_diff_html(baseline_text, current_text),
     }
     if semantic_alignment["avg_similarity"] < 0.35 and (semantic_alignment["added_sentences"] + semantic_alignment["removed_sentences"]) > 8:
         risks.append(
@@ -806,6 +862,12 @@ def resume_review_score(
             status_code=400,
             detail={"error": "no_chunks", "message": "Document not yet parsed or content too short. Please try again later."},
         )
+    # ── Release DB connection before the long LLM call ───────────────────────
+    # score_resume only needs the already-loaded resume_text + target_role_id.
+    # Closing the session returns the PG connection back to the pool so it
+    # can be used by other requests while this one waits on OpenAI (up to 120 s).
+    db.close()
+
     _t0 = time.perf_counter()
     try:
         result = score_resume(
@@ -813,6 +875,7 @@ def resume_review_score(
             doc_id=doc_id,
             user_id=subject_id,
             target_role_id=review.get("target_role_id"),
+            resume_text_override=resume_text,  # avoids re-fetching chunks
         )
         _log.info(
             "bff.resume.score.timing_ms=%.1f review_id=%s doc_id=%s",
@@ -848,6 +911,7 @@ def resume_review_score(
         ) from e
     scores = result["scores"]
     total = result["total"]
+    # DB session auto-reconnects here for the writes
     verification_snapshot = build_verification_snapshot(
         db,
         user_id=subject_id,
@@ -982,6 +1046,9 @@ def resume_review_suggest(
             status_code=400,
             detail={"error": "no_chunks", "message": "Document content not available."},
         )
+    # ── Release DB connection before the long LLM call ───────────────────────
+    db.close()
+
     _t0 = time.perf_counter()
     try:
         suggestions = enhancer_generate_suggestions(
@@ -1236,6 +1303,9 @@ def resume_review_rescore(
             status_code=400,
             detail={"error": "resume_too_short", "message": "Resulting content too short after applying suggestions."},
         )
+    # ── Release DB connection before the long LLM call ───────────────────────
+    db.close()
+
     try:
         result = score_resume(
             db,
@@ -1682,13 +1752,19 @@ def resume_review_apply_template(
             resume_content = _merge_resume_with_suggestions(db, review_id, doc_id, subject_id)
         _log.info("apply-template: resume_content length=%d, calling template_apply", len(resume_content))
 
+        # template_apply is CPU-bound; release DB connection so the pool can
+        # serve other requests while python-docx builds the document.
+        _template_id = payload.template_id
+        _template_opts = payload.template_options or {}
+        db.close()
+
         _t0 = time.perf_counter()
         doc_bytes = template_apply(
             db,
             review_id=review_id,
-            template_id=payload.template_id,
+            template_id=_template_id,
             resume_content=resume_content,
-            template_options=payload.template_options or {},
+            template_options=_template_opts,
         )
         _log.info(
             "apply-template: doc_bytes length=%d timing_ms=%.1f",

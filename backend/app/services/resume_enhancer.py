@@ -27,6 +27,21 @@ SUGGEST_TIMEOUT = 120
 VALID_DIMENSIONS = {"impact", "relevance", "structure", "language", "skills_presentation", "ats"}
 VALID_PRIORITIES = {"high", "medium", "low"}
 
+# Regex patterns that signal a fabricated strong claim if not found in original text
+import re as _re
+_FABRICATED_CLAIM_RE = _re.compile(
+    r"""
+    (?:
+        \b\d{1,3}(?:\.\d+)?\s*%           # percentages: 35%, 12.5%
+        | \$\d[\d,]*                        # dollar amounts: $50,000
+        | \b\d{2,}[xX]\b                    # multipliers: 10x, 3X
+        | \b\d+\s*(?:times|fold)\b          # "3 times", "4-fold"
+        | \b(?:increased|reduced|improved|saved|grew|cut|boosted)\s+by\s+\d  # "improved by 30"
+    )
+    """,
+    _re.VERBOSE | _re.IGNORECASE,
+)
+
 
 def _get_llm_generate():
     """Return the configured LLM generate function."""
@@ -57,15 +72,47 @@ def _get_default_model() -> str:
     return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 
-def load_suggest_prompt() -> str:
-    path = PROMPTS_DIR / "resume_suggest_v1.txt"
+def load_suggest_prompt(lang: str = "en") -> str:
+    fname = "resume_suggest_zh_v1.txt" if lang == "zh" else "resume_suggest_v1.txt"
+    path = PROMPTS_DIR / fname
+    if not path.exists():
+        # fallback to English
+        path = PROMPTS_DIR / "resume_suggest_v1.txt"
     if not path.exists():
         raise FileNotFoundError(f"Suggest prompt not found: {path}")
     return path.read_text(encoding="utf-8")
 
 
-def _validate_suggestion(item: Any, index: int) -> Dict[str, Any]:
-    """Validate one suggestion item; return as dict with keys expected by DB (original_text, suggested_text, explanation)."""
+def _is_cjk_heavy(text: str, threshold: float = 0.15) -> bool:
+    """Return True if >15 % of chars are CJK ideographs."""
+    if not text:
+        return False
+    cjk = sum(
+        1 for ch in text
+        if "\u4e00" <= ch <= "\u9fff"
+        or "\u3400" <= ch <= "\u4dbf"
+        or "\uf900" <= ch <= "\ufaff"
+    )
+    return cjk / len(text) >= threshold
+
+
+def _has_fabricated_claim(suggested: str, original_resume: str) -> bool:
+    """Return True if *suggested* introduces a quantitative claim absent from the resume."""
+    for m in _FABRICATED_CLAIM_RE.finditer(suggested):
+        claim = m.group(0).strip()
+        if claim.lower() not in original_resume.lower():
+            return True
+    return False
+
+
+def _validate_suggestion(item: Any, index: int, resume_text: str = "") -> Dict[str, Any]:
+    """Validate one suggestion item; return as dict with keys expected by DB (original_text, suggested_text, explanation).
+
+    Server-side anchor & fabrication checks:
+    - original must appear verbatim in resume_text (if provided).
+    - suggested must not introduce quantitative claims absent from the resume.
+    Raises ValueError to indicate the suggestion should be discarded.
+    """
     if not isinstance(item, dict):
         raise ValueError("llm_parse_error")
     dimension = item.get("dimension") or ""
@@ -78,6 +125,24 @@ def _validate_suggestion(item: Any, index: int) -> Dict[str, Any]:
     original = (item.get("original") or "").strip()
     suggested = (item.get("suggested") or "").strip()
     why = (item.get("why") or "").strip()
+
+    if resume_text and original:
+        if original not in resume_text:
+            _log.warning(
+                "anchor_check: suggestion %d 'original' not found verbatim in resume; discarding. sample=%r",
+                index,
+                original[:100],
+            )
+            raise ValueError("anchor_not_found")
+
+    if resume_text and suggested and _has_fabricated_claim(suggested, resume_text):
+        _log.warning(
+            "anchor_check: suggestion %d 'suggested' introduces fabricated claim; discarding. sample=%r",
+            index,
+            suggested[:150],
+        )
+        raise ValueError("fabricated_claim")
+
     return {
         "dimension": dimension,
         "section": section[:500] if section else None,
@@ -99,7 +164,10 @@ def generate_suggestions(
     Generate improvement suggestions from scoring results and resume text.
     Returns list of dicts with keys: dimension, section, original_text, suggested_text, explanation, priority.
     """
-    prompt_tpl = load_suggest_prompt()
+    lang = "zh" if _is_cjk_heavy(resume_text or "") else "en"
+    prompt_tpl = load_suggest_prompt(lang=lang)
+    if lang == "zh":
+        _log.info("generate_suggestions: CJK-heavy resume — using Chinese suggest prompt")
     verified_skills = get_verified_skills_summary(db, user_id)
     target_role_desc = get_target_role_description(db, target_role_id)
 
@@ -146,9 +214,22 @@ def generate_suggestions(
         raise ValueError("llm_parse_error")
 
     out = []
+    discarded_anchors = 0
+    discarded_fabricated = 0
     for i, item in enumerate(data[:50]):
         try:
-            out.append(_validate_suggestion(item, i))
-        except ValueError:
+            out.append(_validate_suggestion(item, i, resume_text=resume_text or ""))
+        except ValueError as e:
+            if str(e) == "anchor_not_found":
+                discarded_anchors += 1
+            elif str(e) == "fabricated_claim":
+                discarded_fabricated += 1
             continue
+    if discarded_anchors or discarded_fabricated:
+        _log.info(
+            "generate_suggestions: discarded anchor_not_found=%d fabricated_claim=%d kept=%d",
+            discarded_anchors,
+            discarded_fabricated,
+            len(out),
+        )
     return out

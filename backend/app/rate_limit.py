@@ -24,6 +24,9 @@ RATE_LIMIT_SCOPES = {
     "bff_student_upload": "/bff/student/documents/upload",
     "bff_student_auto_assess": "/bff/student/documents/",
     "bff_student_interactive": "/bff/student/interactive/",
+    # Resume-review LLM endpoints — each triggers an OpenAI call, so they need
+    # per-user throttling to prevent OpenAI 429 cascade and PG pool starvation.
+    "bff_resume_score": "/bff/student/resume-review/",
 }
 
 # In-memory fallback: scope -> (client_key -> (count, window_start))
@@ -96,6 +99,16 @@ def _scope_for_path(path: str) -> Optional[str]:
         return "bff_student_auto_assess"
     if path.startswith("/bff/student/interactive/"):
         return "bff_student_interactive"
+    # Resume-review LLM calls: score, suggest, rescore, one-click-enhance, apply-template
+    if path.startswith("/bff/student/resume-review/"):
+        # Only throttle state-mutating LLM operations (score/suggest/rescore/enhance/apply)
+        _llm_suffixes = ("/score", "/suggest", "/rescore", "/one-click-enhance", "/apply-template")
+        if any(path.endswith(s) or ("/" + s.lstrip("/") + "/") in path for s in _llm_suffixes):
+            return "bff_resume_score"
+        # Also cover parameterised paths like /{id}/score
+        segments = [s for s in path.split("/") if s]
+        if len(segments) >= 4 and segments[-1] in ("score", "suggest", "rescore", "apply-template"):
+            return "bff_resume_score"
     return None
 
 
@@ -113,6 +126,8 @@ def _limit_for_scope(scope: str) -> int:
         "bff_student_upload": "RATE_LIMIT_PER_MINUTE_UPLOAD",
         "bff_student_auto_assess": "RATE_LIMIT_PER_MINUTE_ASSESS",
         "bff_student_interactive": "RATE_LIMIT_PER_MINUTE_INTERACTIVE",
+        # Per-user resume LLM calls: default 6 per minute (1 full flow per ~10 s)
+        "bff_resume_score": "RATE_LIMIT_PER_MINUTE_RESUME_LLM",
     }
     key = env_map.get(scope, "RATE_LIMIT_PER_MINUTE")
     default = 60

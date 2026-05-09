@@ -3,6 +3,13 @@ FROM python:3.13-slim-bookworm
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential libpq-dev curl \
     tesseract-ocr libtesseract-dev \
+    # LibreOffice headless for DOCX → PDF conversion
+    libreoffice-core libreoffice-writer libreoffice-java-common \
+    # CJK fonts so Chinese/Japanese/Korean resumes render correctly in PDFs
+    fonts-noto-cjk \
+    # Reduce libreoffice startup noise
+    fontconfig \
+    && fc-cache -fv \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/src
