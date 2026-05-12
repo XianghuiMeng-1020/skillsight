@@ -4,6 +4,11 @@ compatibility_date = "2024-01-01"
 
 [vars]
 OPENAI_MODEL = "gpt-4o-mini"
+BACKEND_API_URL = "https://skillsight-api.onrender.com"
+
+# Secrets (injected via `wrangler secret put`, NOT stored here):
+#   OPENAI_API_KEY
+#   BACKEND_BEARER_TOKEN
 
 [[kv_namespaces]]
 binding = "SKILLSIGHT_KV"
