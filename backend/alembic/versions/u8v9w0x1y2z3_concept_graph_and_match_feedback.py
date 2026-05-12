@@ -31,6 +31,25 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    # The legacy migrations (2ba356720a89 / 2a13d08b5c33) created skill_aliases
+    # with a different schema (alias_id UUID, skill_id, alias, confidence, status).
+    # This migration redefines it with the canonical concept-graph schema.
+    # If the old table exists (identified by the presence of the old 'alias' column),
+    # drop it first so CREATE TABLE below produces the correct schema.
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'skill_aliases'
+                  AND column_name = 'alias'
+            ) THEN
+                DROP TABLE skill_aliases CASCADE;
+            END IF;
+        END $$;
+        """
+    )
     op.execute(
         """
         CREATE TABLE IF NOT EXISTS skill_aliases (
