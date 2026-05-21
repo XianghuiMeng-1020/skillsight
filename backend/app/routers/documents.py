@@ -72,9 +72,21 @@ def _coerce_json(v: Any) -> Any:
         return v
 
 
+_TABLE_COLS_CACHE: dict = {}
+_TABLE_NAMES_CACHE: set = set()
+
+
 def _table_cols(table: str) -> List[str]:
-    insp = inspect(engine)
-    return [c["name"] for c in insp.get_columns(table, schema="public")]
+    if table not in _TABLE_COLS_CACHE:
+        insp = inspect(engine)
+        _TABLE_COLS_CACHE[table] = [c["name"] for c in insp.get_columns(table, schema="public")]
+    return _TABLE_COLS_CACHE[table]
+
+
+def _known_tables() -> set:
+    if not _TABLE_NAMES_CACHE:
+        _TABLE_NAMES_CACHE.update(inspect(engine).get_table_names(schema="public"))
+    return _TABLE_NAMES_CACHE
 
 
 def _chunk_text(s: str, chunk_size: int = 800, overlap: int = 100) -> List[Tuple[int, int, str]]:
@@ -168,8 +180,7 @@ def list_documents(
     Return {count, items}.
     """
     try:
-        insp = inspect(engine)
-        tables = set(insp.get_table_names(schema="public"))
+        tables = _known_tables()
         if "documents" not in tables:
             raise RuntimeError(f"'documents' table not found. public tables={sorted(tables)[:50]}")
 
@@ -245,8 +256,7 @@ def get_document(
     ident: Identity = Depends(require_auth),
 ) -> Dict[str, Any]:
     try:
-        insp = inspect(engine)
-        cols = [c["name"] for c in insp.get_columns("documents", schema="public")]
+        cols = _table_cols("documents")
 
         want: List[str] = []
         for c in ["doc_id", "filename", "stored_path", "doc_type", "created_at"]:
@@ -290,12 +300,11 @@ def list_chunks_for_document(
     """
     check_doc_access(ident, doc_id, db)
     try:
-        insp = inspect(engine)
-        tables = set(insp.get_table_names(schema="public"))
+        tables = _known_tables()
         if "chunks" not in tables:
             raise RuntimeError("'chunks' table not found")
 
-        cols = [c["name"] for c in insp.get_columns("chunks", schema="public")]
+        cols = _table_cols("chunks")
 
         want: List[str] = []
         for c in [
@@ -421,8 +430,7 @@ async def import_document_txt(
 
         # Create consent for subject_id scoping (so user can access their doc)
         try:
-            insp = inspect(engine)
-            if "consents" in insp.get_table_names(schema="public"):
+            if "consents" in _known_tables():
                 consent_cols = set(_table_cols("consents"))
                 consent_id = str(uuid.uuid4())
                 consent_data = {"consent_id": consent_id, "doc_id": doc_id, "status": "granted", "created_at": now}
@@ -619,7 +627,7 @@ async def upload_multimodal_document(
     existing = None
     try:
         doc_cols = set(_table_cols("documents"))
-        tables_now = set(inspect(engine).get_table_names(schema="public"))
+        tables_now = _known_tables()
         if "metadata_json" in doc_cols and "consents" in tables_now:
             existing = db.execute(
                 text("""
@@ -717,8 +725,7 @@ async def upload_multimodal_document(
     _insert_one(db, "documents", doc_data)
     
     # Create consent (use savepoint to avoid poisoning the transaction)
-    insp_mm = inspect(engine)
-    tables_mm = set(insp_mm.get_table_names(schema="public"))
+    tables_mm = _known_tables()
     if "consents" in tables_mm:
         try:
             nested = db.begin_nested()
