@@ -154,14 +154,11 @@ def _parse_docx_document_to_chunks(doc: Any, min_chunk_len: int = 50) -> List[Di
         char_cursor += len(chunk_text) + 1
         idx += 1
 
-    for para in doc.paragraphs:
-        text = para.text.strip()
+    def _consume_paragraph(text: str, style_name: str) -> None:
+        nonlocal pending, current_section
         if not text:
-            continue
-
-        style_name = para.style.name if para.style else ""
+            return
         is_heading = style_name.lower().startswith("heading")
-
         if is_heading:
             flush_pending()
             level_match = re.search(r"(\d+)", style_name)
@@ -170,17 +167,54 @@ def _parse_docx_document_to_chunks(doc: Any, min_chunk_len: int = 50) -> List[Di
                 current_section.pop()
             current_section.append(text)
             append_chunk(text)
-            continue
-
+            return
         if len(text) >= min_chunk_len:
             flush_pending()
             append_chunk(text)
-            continue
-
+            return
         pending.append(text)
         joined = " ".join(pending)
         if len(joined) >= min_chunk_len:
             flush_pending()
+
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        style_name = para.style.name if para.style else ""
+        _consume_paragraph(text, style_name)
+
+    # Tables: modern resumes / multi-column layouts put real content here.
+    # Skipping these makes the parser return an empty document for any
+    # template that uses a table for layout (regression observed on
+    # resume_modern_tech.docx).
+    def _walk_tables(tables) -> None:
+        for table in tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    for cp in cell.paragraphs:
+                        cstyle = cp.style.name if cp.style else ""
+                        _consume_paragraph(cp.text.strip(), cstyle)
+                    if cell.tables:
+                        _walk_tables(cell.tables)
+            flush_pending()
+
+    try:
+        _walk_tables(doc.tables)
+    except Exception:
+        pass
+
+    # Headers / footers occasionally hold contact info or "page X of Y" — only
+    # mine them if the body produced almost no chunks (otherwise they add noise).
+    if len(chunks) < 2:
+        try:
+            for section in doc.sections:
+                for container in (section.header, section.footer):
+                    if container is None:
+                        continue
+                    for para in container.paragraphs:
+                        style_name = para.style.name if para.style else ""
+                        _consume_paragraph(para.text.strip(), style_name)
+        except Exception:
+            pass
 
     flush_pending()
     return chunks

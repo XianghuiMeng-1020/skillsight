@@ -36,15 +36,23 @@ def upgrade() -> None:
     # This migration redefines it with the canonical concept-graph schema.
     # If the old table exists (identified by the presence of the old 'alias' column),
     # drop it first so CREATE TABLE below produces the correct schema.
+    # Drop the legacy table whenever the new ``canonical`` column is missing,
+    # not just when the old ``alias`` column is present.  Earlier deploys
+    # produced a hybrid state where ``skill_aliases`` existed with the legacy
+    # column set but the migration had never been recorded, and the original
+    # guard (``column_name = 'alias'``) was satisfied while the subsequent
+    # CREATE INDEX still hit a missing ``canonical`` column.  The new guard
+    # covers both code paths.
     op.execute(
         """
         DO $$
         BEGIN
-            IF EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'skill_aliases'
-                  AND column_name = 'alias'
-            ) THEN
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'skill_aliases')
+               AND NOT EXISTS (
+                   SELECT 1 FROM information_schema.columns
+                   WHERE table_name = 'skill_aliases' AND column_name = 'canonical'
+               )
+            THEN
                 DROP TABLE skill_aliases CASCADE;
             END IF;
         END $$;

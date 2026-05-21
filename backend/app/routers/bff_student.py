@@ -342,11 +342,51 @@ def _run_auto_assess_for_doc(
         ProficiencyRequest,
     )
 
-    skills_rows = db.execute(
-        text("SELECT skill_id FROM skills ORDER BY canonical_name LIMIT :lim"),
-        {"lim": AUTO_ASSESS_SKILL_LIMIT},
-    ).mappings().all()
-    skill_ids = [str(r["skill_id"]) for r in skills_rows]
+    # Naive prefilter: skip skills whose canonical name or any alias never
+    # appears in the document text.  This avoids paying for an LLM call
+    # (per skill: demonstration + proficiency) on patently irrelevant
+    # concepts and is the main lever for getting auto-assess off the
+    # critical path of a 50-user upload burst.
+    try:
+        all_skills = db.execute(
+            text("SELECT skill_id, canonical_name, COALESCE(aliases, '[]'::jsonb) AS aliases FROM skills ORDER BY canonical_name"),
+        ).mappings().all()
+        doc_text_row = db.execute(
+            text("SELECT string_agg(chunk_text, ' ') AS body FROM chunks WHERE doc_id = :did"),
+            {"did": doc_id},
+        ).mappings().first()
+        doc_text = ((doc_text_row or {}).get("body") or "").lower()
+    except Exception as _exc:
+        _log.warning("auto-assess prefilter failed (%s); falling back to LIMIT scan", _exc)
+        db.rollback()
+        all_skills = []
+        doc_text = ""
+
+    skill_ids: List[str] = []
+    if doc_text and all_skills:
+        for r in all_skills:
+            sid = str(r["skill_id"])
+            name = (r.get("canonical_name") or "").lower()
+            aliases = r.get("aliases") or []
+            if isinstance(aliases, str):
+                try:
+                    aliases = json.loads(aliases)
+                except Exception:
+                    aliases = []
+            tokens = [t for t in [name, *[(a or "").lower() for a in aliases]] if t]
+            if any(tok in doc_text for tok in tokens if len(tok) >= 2):
+                skill_ids.append(sid)
+            if len(skill_ids) >= AUTO_ASSESS_SKILL_LIMIT:
+                break
+    if not skill_ids:
+        # Cold fallback: if prefilter caught nothing (e.g. extremely
+        # short doc, OCR failure, or aliases not yet seeded) still run
+        # against a small bounded set so the user gets *some* signal.
+        skills_rows = db.execute(
+            text("SELECT skill_id FROM skills ORDER BY canonical_name LIMIT :lim"),
+            {"lim": min(AUTO_ASSESS_SKILL_LIMIT, 10)},
+        ).mappings().all()
+        skill_ids = [str(r["skill_id"]) for r in skills_rows]
     if not skill_ids:
         return {"skills_processed": 0, "message": "No skills in registry."}
 
@@ -928,7 +968,7 @@ async def bff_student_profile(
                     JOIN documents d ON d.doc_id = ch.doc_id
                     JOIN consents c ON c.doc_id = d.doc_id::text
                     JOIN skill_assessments sa
-                        ON sa.doc_id = ch.doc_id::text
+                        ON sa.doc_id = ch.doc_id
                        AND sa.skill_id = :sid
                     WHERE c.user_id = :sub AND c.status = 'granted'
                       AND sa.decision IN ('demonstrated', 'match', 'mentioned')
@@ -996,6 +1036,18 @@ async def bff_student_profile(
             _log.debug("prof_row query failed for skill %s: %s", skill_id, _exc)
             db.rollback()
             level = None
+
+        # Reconcile level with label semantics. The proficiency level row
+        # is populated by a separate slow LLM call and may be stale, missing
+        # or zero even when the assessment label is "demonstrated".  The
+        # dashboard's connection diagram (SkillJobGraph.buildRoleConnections)
+        # filters on ``level > 0`` to draw a "match" line, so a stale 0
+        # silently hides legitimately demonstrated skills.  Anchor level
+        # to label so the two stay consistent.
+        label_norm = (label or "").lower()
+        label_floor = 2 if label_norm == "demonstrated" else 1 if label_norm == "mentioned" else 0
+        if level is None or level < label_floor:
+            level = label_floor
 
         entry: Dict[str, Any] = {
             "skill_id": skill_id,
