@@ -36,6 +36,21 @@ services:
         value: "20"
       - key: RATE_LIMIT_PER_MINUTE_ASSESS
         value: "30"
+      # Rate limits are bucketed per source IP. During the 50-user demo all
+      # participants typically share the same campus NAT egress IP, so the
+      # default 60/min would 429 the moment more than ~10 people sign in
+      # within a minute. The bumps below give each path enough headroom for
+      # a 50-person live demo without disabling rate limiting entirely.
+      - key: RATE_LIMIT_PER_MINUTE_AUTH
+        value: "600"
+      - key: RATE_LIMIT_PER_MINUTE_UPLOAD
+        value: "300"
+      - key: RATE_LIMIT_PER_MINUTE_INTERACTIVE
+        value: "300"
+      - key: RATE_LIMIT_PER_MINUTE_SEARCH
+        value: "300"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "300"
       - key: LLM_PROVIDER
         value: openai
       - key: OPENAI_API_KEY

@@ -91,6 +91,28 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
+// When a request comes back with 401 we know the cached JWT is either
+// expired or was signed with an old SKILLSIGHT_AUTH_SECRET (typical after a
+// backend redeploy). We wipe local state and bounce the user to /login so
+// they can re-authenticate instead of being trapped on a broken dashboard.
+let sessionExpiredHandled = false;
+function handleSessionExpired(): void {
+  if (typeof window === 'undefined') return;
+  if (sessionExpiredHandled) return;
+  sessionExpiredHandled = true;
+  try {
+    clearToken();
+    localStorage.removeItem('user');
+  } catch { /* noop */ }
+  try {
+    const path = window.location.pathname;
+    if (path !== '/login' && path !== '/' ) {
+      const reason = encodeURIComponent('session_expired');
+      window.location.replace(`/login?reason=${reason}`);
+    }
+  } catch { /* noop */ }
+}
+
 async function bffRequest<T = unknown>(
   path: string,
   options: RequestOptions = {}
@@ -120,6 +142,9 @@ async function bffRequest<T = unknown>(
       if (!res.ok) {
         let detail: unknown;
         try { detail = await res.json(); } catch { detail = res.statusText; }
+        if (res.status === 401 && !path.includes('/auth/')) {
+          handleSessionExpired();
+        }
         throw new BffError(res.status, detail);
       }
 
@@ -485,7 +510,10 @@ export const studentBff = {
       headers: { Authorization: `Bearer ${token}` },
       body: form,
     });
-    if (!res.ok) throw new BffError(res.status, await res.json().catch(() => null));
+    if (!res.ok) {
+      if (res.status === 401) handleSessionExpired();
+      throw new BffError(res.status, await res.json().catch(() => null));
+    }
     return res.json();
   },
 

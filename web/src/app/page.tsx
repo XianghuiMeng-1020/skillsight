@@ -38,26 +38,70 @@ export default function Home() {
   
   useEffect(() => {
     setMounted(true);
-    try {
-      const user = localStorage.getItem('user');
-      const token = localStorage.getItem('skillsight_token');
-      if (user && token) {
-        try {
-          const userData = JSON.parse(user);
-          router.push(userData.role === 'admin' ? '/admin' : '/dashboard');
-        } catch {
-          localStorage.removeItem('user');
-          router.push('/login');
-        }
-      } else {
+
+    // Validate any cached token against /auth/me before sending the user into
+    // the dashboard. Without this check a stale JWT (e.g. left over after a
+    // backend redeploy that rotated SKILLSIGHT_AUTH_SECRET) would drop the
+    // user on a dashboard whose every API call returns 401 with no way to
+    // recover except manually clearing localStorage.
+    const goToLogin = () => {
+      try {
         localStorage.removeItem('user');
         localStorage.removeItem('skillsight_token');
-        router.push('/login');
+        localStorage.removeItem('token');
+        localStorage.removeItem('skillsight_role');
+      } catch { /* noop */ }
+      router.replace('/login');
+    };
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const user = localStorage.getItem('user');
+        const token = localStorage.getItem('skillsight_token') || localStorage.getItem('token');
+        if (!user || !token) {
+          goToLogin();
+          return;
+        }
+        let userData: { role?: string } | null = null;
+        try {
+          userData = JSON.parse(user);
+        } catch {
+          goToLogin();
+          return;
+        }
+
+        // Use AbortController so the page doesn't hang forever if the API is
+        // slow to wake (Render cold start). 6 seconds is enough for warm
+        // requests; on timeout we fall through to dashboard with the cached
+        // token and let bffClient deal with any 401 on real calls.
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 6000);
+        const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+        try {
+          const res = await fetch(`${base}/auth/me`, {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+          if (cancelled) return;
+          if (res.status === 401 || res.status === 403) {
+            goToLogin();
+            return;
+          }
+          router.replace(userData?.role === 'admin' ? '/admin' : '/dashboard');
+        } catch {
+          clearTimeout(timer);
+          if (cancelled) return;
+          router.replace(userData?.role === 'admin' ? '/admin' : '/dashboard');
+        }
+      } catch (e) {
+        console.warn('Failed to validate auth state:', e);
+        goToLogin();
       }
-    } catch (e) {
-      console.warn('Failed to read auth state from localStorage:', e);
-      router.push('/login');
-    }
+    })();
+
+    return () => { cancelled = true; };
   }, [router]);
 
   return (

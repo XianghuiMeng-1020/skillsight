@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage, LANGUAGES, type Language } from '@/lib/contexts';
-import { devLogin, type BffRole } from '@/lib/bffClient';
+import { devLogin, type BffRole, clearToken } from '@/lib/bffClient';
 import { writeDemoMode } from '@/lib/demoMode';
 import { getOrCreateGuestSubjectId } from '@/lib/guestId';
 
@@ -56,6 +56,15 @@ export default function LoginPage() {
       } catch {
         hadUserBeforeLogin = false;
       }
+      // Drop any stale token from a prior session before we mint a new one;
+      // otherwise the dev_login error path could leave the bad token in place
+      // and trigger the 401 trap on the first dashboard request.
+      try { clearToken(); } catch { /* noop */ }
+      // HKU Portal / email login is the "real backend" entry point, so make
+      // sure we are NOT in demo mode (which disables uploads and routes BFF
+      // calls to simulated data). Demo mode is opt-in via the "Try our demo"
+      // button only.
+      try { writeDemoMode(false); } catch { /* noop */ }
       try {
         await devLogin({ subject_id: subjectId, role: bffRole, ttl_s: 43200 });
       } catch {
