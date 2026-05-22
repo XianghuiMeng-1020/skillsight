@@ -3,6 +3,9 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: skillsight-db
+    # Default max_connections=100 was insufficient at 50 concurrent users
+    # (4 uvicorn workers x pool_size=20 + overflow + alembic + health > 100).
+    command: postgres -c max_connections=300 -c shared_buffers=256MB -c idle_in_transaction_session_timeout=60000
     environment:
       POSTGRES_USER: skillsight
       POSTGRES_PASSWORD: skillsight
@@ -60,7 +63,14 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENAI_MODEL: gpt-4o-mini
       CORS_ALLOWED_ORIGINS: "*"
-      RATE_LIMIT_ENABLED: "false"
+      RATE_LIMIT_ENABLED: "true"
+      DB_POOL_SIZE: "15"
+      DB_MAX_OVERFLOW: "15"
+      DB_POOL_TIMEOUT: "30"
+      AUTO_ASSESS_SKILL_LIMIT: "20"
+      LLM_MAX_CONCURRENT: "8"
+      LLM_MAX_RETRIES: "4"
+      LLM_RETRY_BASE_S: "1.5"
     ports:
       - "8001:8001"
     depends_on:
@@ -73,6 +83,41 @@ services:
     networks:
       - skillsight-network
     restart: unless-stopped
+
+  # RQ background worker: parsing, embedding, assessment repair.
+  # Without this, jobs enqueued via backend/app/queue.py would sit in
+  # Redis forever and the "upload -> parse -> embed" path would silently
+  # fall back to running everything synchronously inside the web request.
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["sh", "-c", "cd /opt/src && python -m rq.cli worker --url redis://redis:6379 skillsight"]
+    environment:
+      DATABASE_URL: postgresql+psycopg2://skillsight:skillsight@postgres:5432/skillsight
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      QDRANT_URL: http://qdrant:6333
+      LLM_PROVIDER: openai
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: gpt-4o-mini
+      LLM_MAX_CONCURRENT: "4"
+      LLM_MAX_RETRIES: "4"
+      LLM_RETRY_BASE_S: "1.5"
+      DB_POOL_SIZE: "5"
+      DB_MAX_OVERFLOW: "5"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    networks:
+      - skillsight-network
+    restart: unless-stopped
+    deploy:
+      replicas: 2
 
   # Frontend (Next.js static export served by nginx)
   frontend:
