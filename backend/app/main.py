@@ -485,7 +485,28 @@ def __routes():
 
 @app.get("/health")
 def health():
+    """Full health check.
+
+    Returns 200 only when the database is reachable AND the schema looks
+    intact. Returns 503 (with detail) when DB is unreachable so the
+    frontend warm-up ping and any uptime monitor stop reporting "OK"
+    while the bot path is actually broken.
+    """
     live = _run_schema_health_check()
+    db_unreachable = any(
+        isinstance(m, str) and m.startswith("schema_check_error:OperationalError")
+        for m in (live.get("missing") or [])
+    )
+    if db_unreachable:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "degraded",
+                "ok": False,
+                "schema": live,
+                "detail": "database_unreachable",
+            },
+        )
     return {"status": "ok", "ok": True, "schema": live}
 
 
