@@ -10,7 +10,17 @@
  *   admin          -> /bff/admin/*
  */
 
-const BFF_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+// Use a same-origin proxy when explicitly enabled, so any upstream 5xx still
+// arrives with CORS headers and our retry path can react instead of being
+// reported as a generic "blocked by CORS policy" by the browser.
+// See web/functions/bff-proxy/[[path]].js for the proxy itself.
+const _DIRECT_BFF_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
+const _USE_PROXY =
+  (process.env.NEXT_PUBLIC_USE_BFF_PROXY || '').toLowerCase() === 'true';
+const BFF_BASE: string =
+  _USE_PROXY && typeof window !== 'undefined'
+    ? `${window.location.origin}/bff-proxy`
+    : _DIRECT_BFF_BASE;
 
 export type BffRole = 'student' | 'staff' | 'programme_leader' | 'admin' | 'career_coach';
 
@@ -64,6 +74,36 @@ export function clearToken(): void {
   }
 }
 
+/**
+ * Best-effort JWT exp inspection. Our backend hands out tokens of the form
+ * `<base64url-payload>.<sig>` where the payload is a JSON object including
+ * `exp` (seconds-since-epoch). We don't verify the signature here — that's
+ * the server's job — we just want to know "is this token already dead?"
+ * before sending a fan-out of requests with it.
+ *
+ * Returns:
+ *   true  — token is missing, malformed, or expired (with a 30s safety margin)
+ *   false — token still has time to live
+ */
+export function isTokenExpired(token?: string | null, skewSeconds = 30): boolean {
+  const t = token ?? getToken();
+  if (!t) return true;
+  try {
+    const parts = t.split('.');
+    if (parts.length < 2) return true;
+    const payload = parts[0]; // our backend uses payload.signature (no header)
+    // Pad to 4 chars and decode base64url
+    const padded = payload + '==='.slice((payload.length + 3) % 4);
+    const json = atob(padded.replace(/-/g, '+').replace(/_/g, '/'));
+    const obj = JSON.parse(json) as { exp?: number };
+    if (typeof obj.exp !== 'number') return false; // no exp claim → trust until 401
+    const nowSec = Math.floor(Date.now() / 1000);
+    return obj.exp - skewSeconds <= nowSec;
+  } catch {
+    return true;
+  }
+}
+
 // ─── BFF prefix resolution ────────────────────────────────────────────────────
 
 function bffPrefix(role?: BffRole | null): string {
@@ -79,8 +119,18 @@ function bffPrefix(role?: BffRole | null): string {
 
 // ─── Core request helper (retry on network failure for cold-start) ─────────────
 
-const BFF_RETRY_ATTEMPTS = 3;
-const BFF_RETRY_DELAYS_MS = [2000, 4000];
+// Exponential backoff covering ~45s of total wait so we ride out
+// upstream warm-up, transient 502/503/504 from edge layers, and brief
+// worker pool saturation without surfacing a "Failed to fetch" to the
+// user. Delays: 1s, 2s, 4s, 8s, 15s ≈ 30s wall clock + request time.
+const BFF_RETRY_ATTEMPTS = 6;
+const BFF_RETRY_DELAYS_MS = [1000, 2000, 4000, 8000, 15000];
+
+// Status codes that we *do* want to retry (idempotent fan-out is safe).
+// 5xx + 408 + 429 cover edge-layer/origin transient failures (Render's
+// uvicorn restart, Cloudflare 524, gateway timeouts).
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504, 520, 521, 522, 523, 524]);
+const RETRYABLE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'POST']);
 
 interface RequestOptions {
   method?: string;
@@ -89,6 +139,17 @@ interface RequestOptions {
   purpose?: string;
   headers?: Record<string, string>;
   signal?: AbortSignal;
+  /** Disable retry for this request (e.g. write paths that must surface errors fast). */
+  noRetry?: boolean;
+}
+
+function isNetworkLayerError(e: unknown): boolean {
+  if (e instanceof TypeError) {
+    const m = e.message || '';
+    // Chrome: "Failed to fetch"; Safari: "Load failed"; Firefox: "NetworkError when attempting"
+    if (m === 'Failed to fetch' || /load failed|network|fetch/i.test(m)) return true;
+  }
+  return false;
 }
 
 // When a request comes back with 401 we know the cached JWT is either
@@ -127,11 +188,15 @@ async function bffRequest<T = unknown>(
     ...(options.headers || {}),
   };
 
+  const method = (options.method || 'GET').toUpperCase();
+  const allowRetry = !options.noRetry && RETRYABLE_METHODS.has(method);
+  const maxAttempts = allowRetry ? BFF_RETRY_ATTEMPTS : 1;
+
   let lastError: unknown;
-  for (let attempt = 0; attempt < BFF_RETRY_ATTEMPTS; attempt++) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
       const res = await fetch(`${BFF_BASE}${path}`, {
-        method: options.method || 'GET',
+        method,
         headers,
         signal: options.signal,
         ...(options.body !== undefined
@@ -142,8 +207,23 @@ async function bffRequest<T = unknown>(
       if (!res.ok) {
         let detail: unknown;
         try { detail = await res.json(); } catch { detail = res.statusText; }
+        // 401 = expired/rotated token. Don't retry — bounce to /login.
         if (res.status === 401 && !path.includes('/auth/')) {
           handleSessionExpired();
+          throw new BffError(res.status, detail);
+        }
+        // Retry transient upstream failures (Cloudflare 5xx, Render worker
+        // restart, gateway timeouts). For non-retryable codes (400, 403,
+        // 404, 422…) surface immediately so the caller can show a real
+        // error.
+        if (
+          allowRetry &&
+          RETRYABLE_STATUSES.has(res.status) &&
+          attempt < maxAttempts - 1
+        ) {
+          const delay = BFF_RETRY_DELAYS_MS[attempt] ?? 8000;
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
         }
         throw new BffError(res.status, detail);
       }
@@ -151,10 +231,20 @@ async function bffRequest<T = unknown>(
       return res.json() as Promise<T>;
     } catch (e) {
       lastError = e;
-      const isNetworkError =
-        e instanceof TypeError && (e.message === 'Failed to fetch' || e.message?.includes('fetch'));
-      if (!isNetworkError || attempt === BFF_RETRY_ATTEMPTS - 1) throw e;
-      const delay = BFF_RETRY_DELAYS_MS[attempt] ?? 4000;
+      // Don't keep retrying after handleSessionExpired or for AbortError.
+      if (e instanceof BffError && e.status === 401) throw e;
+      if (e instanceof DOMException && e.name === 'AbortError') throw e;
+
+      const networkLayer = isNetworkLayerError(e);
+      const retryableHttp =
+        e instanceof BffError && RETRYABLE_STATUSES.has(e.status);
+      const shouldRetry =
+        allowRetry &&
+        (networkLayer || retryableHttp) &&
+        attempt < maxAttempts - 1;
+      if (!shouldRetry) throw e;
+
+      const delay = BFF_RETRY_DELAYS_MS[attempt] ?? 8000;
       await new Promise((r) => setTimeout(r, delay));
     }
   }

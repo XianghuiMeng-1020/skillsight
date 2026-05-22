@@ -47,25 +47,60 @@ def create_session(
     doc_ids: Optional[List[str]] = None,
     mode: str = "assessment",
 ) -> str:
-    """Create a tutor dialogue session. Returns session_id. mode: 'assessment' | 'resume_review'."""
+    """Create a tutor dialogue session. Returns session_id. mode: 'assessment' | 'resume_review'.
+
+    Resilient to schema drift: if the `mode` column is missing (e.g. the
+    `i3j4k5l6m7n8_tutor_session_mode` migration was skipped because alembic
+    bailed mid-chain) we transparently fall back to inserting without mode
+    so the bot stays usable. Startup self-heal will eventually add the
+    column on the next deploy.
+    """
     session_id = str(uuid.uuid4())
     doc_ids = doc_ids or []
     mode = "resume_review" if mode == "resume_review" else "assessment"
-    db.execute(
-        text("""
-            INSERT INTO tutor_dialogue_sessions (session_id, user_id, skill_id, doc_ids, status, mode, created_at)
-            VALUES (:session_id, :user_id, :skill_id, CAST(:doc_ids AS JSONB), 'active', :mode, :now)
-        """),
-        {
-            "session_id": session_id,
-            "user_id": user_id,
-            "skill_id": skill_id,
-            "doc_ids": json.dumps(doc_ids),
-            "mode": mode,
-            "now": datetime.now(timezone.utc),
-        },
-    )
-    db.commit()
+    params = {
+        "session_id": session_id,
+        "user_id": user_id,
+        "skill_id": skill_id,
+        "doc_ids": json.dumps(doc_ids),
+        "mode": mode,
+        "now": datetime.now(timezone.utc),
+    }
+    try:
+        db.execute(
+            text("""
+                INSERT INTO tutor_dialogue_sessions (session_id, user_id, skill_id, doc_ids, status, mode, created_at)
+                VALUES (:session_id, :user_id, :skill_id, CAST(:doc_ids AS JSONB), 'active', :mode, :now)
+            """),
+            params,
+        )
+        db.commit()
+    except Exception as primary_exc:
+        # Roll back so the connection can be reused, then retry without `mode`.
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        try:
+            db.execute(
+                text("""
+                    INSERT INTO tutor_dialogue_sessions (session_id, user_id, skill_id, doc_ids, status, created_at)
+                    VALUES (:session_id, :user_id, :skill_id, CAST(:doc_ids AS JSONB), 'active', :now)
+                """),
+                {k: v for k, v in params.items() if k != "mode"},
+            )
+            db.commit()
+            import logging
+            logging.getLogger(__name__).warning(
+                "tutor_dialogue.create_session fell back to no-mode INSERT (primary error: %s)",
+                str(primary_exc)[:200],
+            )
+        except Exception:
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            raise
     return session_id
 
 

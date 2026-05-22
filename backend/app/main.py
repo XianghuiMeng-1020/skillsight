@@ -34,6 +34,11 @@ def _run_schema_health_check() -> dict:
         "skill_assessments": ["assessment_id", "doc_id", "skill_id", "decision", "decision_meta"],
         "skill_proficiency": ["prof_id", "doc_id", "skill_id", "level", "label"],
         "consents": ["doc_id", "user_id", "status"],
+        # Live Agent (tutor bot). `mode` column is added by the
+        # i3j4k5l6m7n8_tutor_session_mode migration; if it's missing,
+        # tutor-session/start will return 500 and the bot widget hangs.
+        "tutor_dialogue_sessions": ["session_id", "user_id", "skill_id", "doc_ids", "status", "mode"],
+        "tutor_dialogue_turns": ["turn_id", "session_id", "role", "content"],
     }
     missing = []
     try:
@@ -268,10 +273,73 @@ def _startup_check():
     except Exception as exc:
         logger.warning("Could not seed resume templates: %s", exc)
 
+    # Self-heal: backfill columns/tables that may have been skipped because
+    # `alembic upgrade head` was started with `|| true` in the Dockerfile (a
+    # failed merge or missing prerequisite would otherwise leave the schema
+    # half-applied and make API endpoints return 500 forever).
+    # Each statement is idempotent (IF NOT EXISTS) so running on every start
+    # is safe even when migrations succeeded normally.
+    try:
+        from backend.app.db.session import SessionLocal as _SL3
+        _db3 = _SL3()
+        try:
+            _self_heal_schema(_db3)
+            _db3.commit()
+        finally:
+            _db3.close()
+    except Exception as exc:
+        logger.warning("Schema self-heal failed: %s", exc)
+
     global _SCHEMA_HEALTH
     _SCHEMA_HEALTH = _run_schema_health_check()
     if not _SCHEMA_HEALTH.get("ok", False):
         logger.warning("Schema health check warnings: %s", _SCHEMA_HEALTH.get("missing"))
+
+
+# Idempotent fallback patches that mirror the most-likely-skipped migrations.
+# Keep this list narrow: only columns/tables whose absence breaks production
+# endpoints. Wider drift should still be fixed via real Alembic migrations.
+_SELF_HEAL_STATEMENTS: list[str] = [
+    # i3j4k5l6m7n8_tutor_session_mode
+    """
+    CREATE TABLE IF NOT EXISTS tutor_dialogue_sessions (
+        session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id TEXT NOT NULL,
+        skill_id TEXT NOT NULL,
+        doc_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+        status TEXT NOT NULL DEFAULT 'active',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS tutor_dialogue_turns (
+        turn_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id UUID NOT NULL REFERENCES tutor_dialogue_sessions(session_id) ON DELETE CASCADE,
+        role TEXT NOT NULL,
+        content TEXT NOT NULL,
+        retrieved_chunk_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+    """,
+    "ALTER TABLE tutor_dialogue_sessions ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'assessment'",
+    "UPDATE tutor_dialogue_sessions SET mode = 'assessment' WHERE mode IS NULL",
+    "CREATE INDEX IF NOT EXISTS idx_tutor_sessions_user ON tutor_dialogue_sessions(user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tutor_sessions_skill ON tutor_dialogue_sessions(skill_id)",
+    "CREATE INDEX IF NOT EXISTS idx_tutor_turns_session ON tutor_dialogue_turns(session_id)",
+]
+
+
+def _self_heal_schema(db) -> None:
+    applied = 0
+    for sql in _SELF_HEAL_STATEMENTS:
+        try:
+            db.execute(text(sql))
+            applied += 1
+        except Exception as exc:
+            # Best-effort: a single failure must not block the others.
+            logger.warning("Self-heal statement skipped (%s): %s", type(exc).__name__, str(exc)[:200])
+    if applied:
+        logger.info("Schema self-heal applied %d/%d statements", applied, len(_SELF_HEAL_STATEMENTS))
 
 
 import os as _os
@@ -424,6 +492,57 @@ def health():
 @app.get("/health/schema")
 def health_schema():
     return _SCHEMA_HEALTH
+
+
+@app.get("/health/tutor")
+def health_tutor():
+    """Diagnostic for the Live Agent (bot) widget.
+
+    Surfaces: tutor table presence, the `mode` column needed by
+    create_session, the latest applied alembic revision, and a 1-row
+    INSERT/DELETE smoke test so we can tell at a glance whether the bot
+    backend is healthy without needing Render shell access.
+    """
+    out: dict = {"ok": False}
+    from sqlalchemy import text as _t
+    try:
+        with SessionLocal() as db:
+            rows = db.execute(_t("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_schema='public' AND table_name='tutor_dialogue_sessions'
+            """)).scalars().all()
+            out["tutor_dialogue_sessions_columns"] = sorted(rows)
+            out["mode_column_present"] = "mode" in rows
+
+            try:
+                version = db.execute(_t("SELECT version_num FROM alembic_version")).scalar()
+                out["alembic_version"] = version
+            except Exception as exc:
+                out["alembic_version_error"] = f"{type(exc).__name__}: {str(exc)[:160]}"
+
+            # Smoke test: insert + delete a throwaway row to prove writes work.
+            import uuid as _uuid
+            from datetime import datetime as _dt, timezone as _tz
+            sid = str(_uuid.uuid4())
+            try:
+                db.execute(_t("""
+                    INSERT INTO tutor_dialogue_sessions (session_id, user_id, skill_id, doc_ids, status, mode, created_at)
+                    VALUES (:s, '__healthcheck__', 'HKU.SKILL.HEALTHCHECK', '[]'::jsonb, 'active', 'assessment', :n)
+                """), {"s": sid, "n": _dt.now(_tz.utc)})
+                db.execute(_t("DELETE FROM tutor_dialogue_sessions WHERE session_id = :s"), {"s": sid})
+                db.commit()
+                out["smoke_insert"] = "ok"
+            except Exception as exc:
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
+                out["smoke_insert"] = f"failed: {type(exc).__name__}: {str(exc)[:200]}"
+
+            out["ok"] = out.get("mode_column_present") and out.get("smoke_insert") == "ok"
+    except Exception as exc:
+        out["fatal"] = f"{type(exc).__name__}: {str(exc)[:200]}"
+    return out
 
 
 def _pg_health() -> dict:

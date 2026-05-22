@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { studentBff } from '@/lib/bffClient';
+import { studentBff, BffError } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 import { logger } from '@/lib/logger';
 import styles from './AgentChat.module.css';
@@ -91,7 +91,22 @@ export function AgentChat({
       logger.error('AgentChat session start failed', e);
       const raw = e instanceof Error ? e.message : String(e);
       const isNetwork = /failed to fetch|network error|cors|load failed/i.test(raw) || raw === 'Failed to fetch';
-      const errMsg = isNetwork ? (t('agent.sessionStartFailed') as string) : (t('agent.serviceUnavailable') as string) || (t('agent.sessionStartFailed') as string);
+      // Distinguish three cases so the user knows what to do:
+      //   - 5xx after retries  → "服务暂时不可用，请稍后再试"
+      //   - 401                 → bffClient already redirected to /login
+      //   - network/timeout     → "无法连接服务器，请检查网络"
+      let errMsg: string;
+      if (e instanceof BffError) {
+        if (e.status >= 500) {
+          errMsg = (t('agent.serviceUnavailable') as string) || (t('agent.sessionStartFailed') as string);
+        } else {
+          errMsg = (t('agent.sessionStartFailed') as string);
+        }
+      } else if (isNetwork) {
+        errMsg = (t('agent.sessionStartFailed') as string);
+      } else {
+        errMsg = (t('agent.serviceUnavailable') as string) || (t('agent.sessionStartFailed') as string);
+      }
       setStartError(errMsg);
     } finally {
       setLoading(false);

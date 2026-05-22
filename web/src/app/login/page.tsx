@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage, LANGUAGES, type Language } from '@/lib/contexts';
 import { devLogin, type BffRole, clearToken } from '@/lib/bffClient';
@@ -44,6 +44,25 @@ export default function LoginPage() {
   const [role, setRole] = useState<'student' | 'admin'>('student');
 
   const [error, setError] = useState('');
+
+  // Warm the API the moment the user lands on /login so the first
+  // dev_login + dashboard fan-out doesn't pay the worker spin-up tax.
+  // We fire-and-forget — failures are silent on purpose, this is a hint
+  // to the upstream, not a precondition for rendering the page.
+  useEffect(() => {
+    const base = process.env.NEXT_PUBLIC_API_URL;
+    if (!base) return;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+    fetch(`${base}/health`, {
+      method: 'GET',
+      signal: ctrl.signal,
+      cache: 'no-store',
+      credentials: 'omit',
+    }).catch(() => { /* warmup is best-effort */ })
+      .finally(() => clearTimeout(t));
+    return () => { clearTimeout(t); ctrl.abort(); };
+  }, []);
 
   const doLogin = async (subjectId: string, displayName: string, emailAddr: string) => {
     setLoading(true);

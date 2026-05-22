@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { devLogin, isTokenExpired, type BffRole } from '@/lib/bffClient';
 
 // SkillSight Logo - 代表技能洞察与成长的创意设计
 const SkillSightLogo = ({ size = 80 }: { size?: number }) => (
@@ -63,7 +64,7 @@ export default function Home() {
           goToLogin();
           return;
         }
-        let userData: { role?: string } | null = null;
+        let userData: { id?: string; role?: string } | null = null;
         try {
           userData = JSON.parse(user);
         } catch {
@@ -71,16 +72,37 @@ export default function Home() {
           return;
         }
 
+        // Token is expired (or about to expire). Silently re-mint a fresh
+        // one so the dashboard fan-out doesn't immediately hit a wall of
+        // 401s and bounce the user straight back to /login.
+        // dev_login is idempotent for the same subject_id, so this is safe
+        // to call on every visit.
+        if (isTokenExpired(token) && userData?.id) {
+          try {
+            await devLogin({
+              subject_id: userData.id,
+              role: (userData.role || 'student') as BffRole,
+              ttl_s: 43200,
+            });
+            // devLogin updates localStorage with the fresh token; fall
+            // through to the normal validation path below.
+          } catch {
+            // Backend unreachable — keep going, /auth/me will catch a real
+            // 401 and bounce to /login if the issue persists.
+          }
+        }
+
         // Use AbortController so the page doesn't hang forever if the API is
-        // slow to wake (Render cold start). 6 seconds is enough for warm
-        // requests; on timeout we fall through to dashboard with the cached
-        // token and let bffClient deal with any 401 on real calls.
+        // slow to wake. 6 seconds is enough for warm requests; on timeout we
+        // fall through to dashboard with the cached token and let bffClient
+        // deal with any 401 on real calls.
+        const freshToken = localStorage.getItem('skillsight_token') || token;
         const ctrl = new AbortController();
         const timer = setTimeout(() => ctrl.abort(), 6000);
         const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8001';
         try {
           const res = await fetch(`${base}/auth/me`, {
-            headers: { Authorization: `Bearer ${token}` },
+            headers: { Authorization: `Bearer ${freshToken}` },
             signal: ctrl.signal,
           });
           clearTimeout(timer);
