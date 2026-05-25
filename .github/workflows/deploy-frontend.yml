@@ -41,9 +41,20 @@ jobs:
       # (upstream Node 24 / Wrangler v4 upgrade is tracked in
       # cloudflare/wrangler-action#415 and #410). Pin explicitly so the
       # bump is a one-line change once upstream releases v4.
+      # Pass an explicit commit-message / commit-hash so wrangler does not
+      # forward the raw git message to Cloudflare's API. The CF Pages API
+      # rejects messages it considers "Invalid UTF-8" (code 8000111), which
+      # has tripped on otherwise-valid messages containing escaped
+      # backslashes ("\\x00") in code-block style fixes. A short ASCII
+      # commit message keeps the deploy resilient.
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3.15.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy web/out --project-name=skillsight
+          command: >-
+            pages deploy web/out --project-name=skillsight
+            --branch=main
+            --commit-hash=${{ github.sha }}
+            --commit-message=ci-deploy-${{ github.sha }}
+            --commit-dirty=true
