@@ -30,12 +30,19 @@ services:
         value: https://skillsight.pages.dev,https://skillsight-230.pages.dev,https://www.skillsight.pages.dev,https://39785649.skillsight-230-97u.pages.dev
       - key: RATE_LIMIT_ENABLED
         value: "true"
+      # IMPORTANT: rate-limit buckets are per source IP and shared across
+      # instances via Redis. A 60-person HKU demo is NAT'd to one egress IP,
+      # so the effective ceiling for any LLM-backed path is whatever number
+      # we set here. Old values (6/20/30) silently 429'd most students once
+      # ~10 of them hit "Run review" within the same minute. LLM_MAX_CONCURRENT
+      # already caps real OpenAI fan-out at 8, so generous limits here are
+      # safe and only block obvious abuse.
       - key: RATE_LIMIT_PER_MINUTE_RESUME_LLM
-        value: "6"
+        value: "300"
       - key: RATE_LIMIT_PER_MINUTE_AI
-        value: "20"
+        value: "300"
       - key: RATE_LIMIT_PER_MINUTE_ASSESS
-        value: "30"
+        value: "300"
       # Rate limits are bucketed per source IP. During the 50-user demo all
       # participants typically share the same campus NAT egress IP, so the
       # default 60/min would 429 the moment more than ~10 people sign in

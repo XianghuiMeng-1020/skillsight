@@ -2974,9 +2974,20 @@ def _verify_statement_token(token: str) -> Optional[Dict[str, Any]]:
     if not token:
         return None
     try:
-        padded = token + "=" * (4 - len(token) % 4)
+        # Re-pad: when len(token) % 4 == 0 there is nothing to add. The
+        # previous version always added (4 - 0)=4 trailing "=" which made
+        # urlsafe_b64decode reject ~25% of legitimate tokens.
+        rem = len(token) % 4
+        padded = token + ("=" * (4 - rem) if rem else "")
         raw = base64.urlsafe_b64decode(padded)
-        payload_b, sig_b = raw.rsplit(b".", 1)
+        # The signature is always 32 bytes (HMAC-SHA256). Splitting on
+        # b"." was unsafe because raw HMAC output contains 0x2E ~12% of
+        # the time, which silently truncated the signature and produced
+        # spurious "Invalid token" 400s.
+        if len(raw) < 33 or raw[-33:-32] != b".":
+            return None
+        payload_b = raw[:-33]
+        sig_b = raw[-32:]
         secret = (os.getenv("EXPORT_VERIFY_SECRET") or "skillsight-export-verify-default").encode("utf-8")
         expected = hmac.new(secret, payload_b, hashlib.sha256).digest()
         if not hmac.compare_digest(expected, sig_b):

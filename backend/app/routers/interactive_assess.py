@@ -1325,18 +1325,34 @@ def submit_programming_solution(
     return response_payload
 
 
-def _safe_exec_python(code: str, test_input: str, timeout_s: int = 5) -> Dict[str, Any]:
-    """Run Python code in a restricted subprocess with timeout."""
+def _safe_exec_python(code: str, test_input: Any, timeout_s: int = 5) -> Dict[str, Any]:
+    """Run Python code in a restricted subprocess with timeout.
+
+    test_input is the raw test-case input (may be a dict like
+    {"nums": [...], "target": 9} or a primitive). The wrapper:
+    1. Locates the first def-name in user code.
+    2. JSON-decodes sys.argv[1] back to a Python value.
+    3. Calls the function: f(**input) when input is dict, f(*input)
+       when list, f(input) otherwise.
+    Previous version assumed the input was always a JSON string and
+    *splatted* the resulting dict, which silently failed every problem
+    in this codebase (all use dict inputs) and gave every student
+    score=10 regardless of correctness.
+    """
     import subprocess, json as _json
+    func_match = re.search(r"def\s+(\w+)\s*\(", code)
+    if not func_match:
+        return {"ok": False, "error": "No function definition found in submitted code."}
+    fname = func_match.group(1)
     wrapper = (
         "import sys, json\n"
-        "sys.stdin = __import__('io').StringIO(json.loads(sys.argv[1]))\n"
         f"{code}\n"
+        "_arg = json.loads(sys.argv[1])\n"
+        f"if isinstance(_arg, dict):\n    _out = {fname}(**_arg)\n"
+        f"elif isinstance(_arg, list):\n    _out = {fname}(*_arg)\n"
+        f"else:\n    _out = {fname}(_arg)\n"
+        "print(json.dumps(_out))\n"
     )
-    func_match = re.search(r"def\s+(\w+)\s*\(", code)
-    if func_match:
-        fname = func_match.group(1)
-        wrapper += f"\nprint(json.dumps({fname}(*json.loads(sys.argv[1]))))"
     try:
         proc = subprocess.run(
             ["python3", "-c", wrapper, _json.dumps(test_input)],
@@ -1363,13 +1379,27 @@ def _evaluate_code(code: str, problem: Dict, language: str) -> Dict[str, Any]:
 
     for i, tc in enumerate(test_cases):
         tc_input = tc.get("input", "")
-        tc_expected = str(tc.get("expected", ""))
+        tc_expected_raw = tc.get("expected", "")
+        # Compare JSON-normalised forms so True == "true", [0,1] == "[0, 1]",
+        # etc. The previous str(True) = "True" comparison silently broke
+        # every passing solution because the wrapper prints json.dumps which
+        # produces "true", "false", "null" lower-case.
+        try:
+            tc_expected = json.dumps(tc_expected_raw)
+        except Exception:
+            tc_expected = str(tc_expected_raw)
 
         if can_execute:
             run = _safe_exec_python(code, tc_input)
             if run["ok"]:
                 actual = run["output"]
-                is_pass = actual.strip() == tc_expected.strip()
+                # Normalise actual through json.loads/dumps too so list
+                # spacing differences ("[0,1]" vs "[0, 1]") don't matter.
+                try:
+                    actual_norm = json.dumps(json.loads(actual))
+                except Exception:
+                    actual_norm = actual.strip()
+                is_pass = actual_norm == tc_expected.strip()
                 results.append({
                     "test_case": i + 1,
                     "input": str(tc_input),
@@ -1835,12 +1865,20 @@ def _evaluate_writing(
         metrics = llm_out.get("metrics") or {}
         if "word_count" not in metrics:
             metrics["word_count"] = word_count
+        # Always run the heuristic anti-copy check even when the LLM path
+        # is used. The LLM scores content quality but cannot see paste/typing
+        # patterns, so if we drop the heuristic the anti-copy contract
+        # (authenticity_score, authenticity_flags) silently breaks.
+        h = _evaluate_writing_heuristic(content, min_words, max_words, keystroke_data)
+        h_metrics = h.get("metrics") or {}
+        if "authenticity_score" in h_metrics:
+            metrics["authenticity_score"] = h_metrics["authenticity_score"]
         return {
             "overall_score": round(float(llm_out["overall_score"]), 1),
             "level": int(llm_out.get("level", 0)),
             "level_label": str(llm_out.get("level_label") or "Developing"),
             "metrics": metrics,
-            "authenticity_flags": [],
+            "authenticity_flags": h.get("authenticity_flags", []),
             "feedback": feedback_list,
         }
     return _evaluate_writing_heuristic(content, min_words, max_words, keystroke_data)

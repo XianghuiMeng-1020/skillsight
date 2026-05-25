@@ -64,6 +64,16 @@ services:
       OPENAI_MODEL: gpt-4o-mini
       CORS_ALLOWED_ORIGINS: "*"
       RATE_LIMIT_ENABLED: "true"
+      # Match render.yaml demo-grade limits (per-IP bucket; HKU NAT'd students
+      # share an egress IP, so a 60-person live demo needs serious headroom).
+      RATE_LIMIT_PER_MINUTE_AUTH: "600"
+      RATE_LIMIT_PER_MINUTE_UPLOAD: "300"
+      RATE_LIMIT_PER_MINUTE_INTERACTIVE: "300"
+      RATE_LIMIT_PER_MINUTE_SEARCH: "300"
+      RATE_LIMIT_PER_MINUTE_ASSESS: "300"
+      RATE_LIMIT_PER_MINUTE_AI: "300"
+      RATE_LIMIT_PER_MINUTE_RESUME_LLM: "300"
+      RATE_LIMIT_PER_MINUTE: "300"
       DB_POOL_SIZE: "15"
       DB_MAX_OVERFLOW: "15"
       DB_POOL_TIMEOUT: "30"
