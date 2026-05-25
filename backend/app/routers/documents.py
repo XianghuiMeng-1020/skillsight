@@ -760,13 +760,15 @@ async def upload_multimodal_document(
         if "char_end" in chunk_cols:
             row["char_end"] = int(ch.get("char_end", 0))
         if "snippet" in chunk_cols:
-            row["snippet"] = (ch.get("snippet") or "")[:300]
+            # Defensive NUL strip — Postgres TEXT can't hold 0x00; misbehaving
+            # parsers (legacy doc, ODT, OLE) used to surface as 500 here.
+            row["snippet"] = ((ch.get("snippet") or "").replace("\x00", ""))[:300]
         if "quote_hash" in chunk_cols:
             row["quote_hash"] = ch.get("quote_hash", "")
         if "created_at" in chunk_cols:
             row["created_at"] = now
         if "chunk_text" in chunk_cols:
-            row["chunk_text"] = ch.get("chunk_text", "")
+            row["chunk_text"] = (ch.get("chunk_text", "") or "").replace("\x00", "")
         if "section_path" in chunk_cols:
             row["section_path"] = ch.get("section_path")
         if "page_start" in chunk_cols:

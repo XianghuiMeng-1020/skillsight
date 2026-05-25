@@ -778,7 +778,14 @@ def _text_to_chunks(
     """Convert raw text to chunk format."""
     if not text:
         return []
-    
+
+    # Defensive: Postgres TEXT cannot store NUL (0x00) bytes. Any upstream
+    # parser that mistakenly decodes binary as text (zip headers, OLE files,
+    # etc.) used to surface as a 500 with `ValueError: A string literal cannot
+    # contain NUL (0x00) characters.` Strip them at the chunk boundary so
+    # malformed parsers never reach the DB.
+    if "\x00" in text:
+        text = text.replace("\x00", "")
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     chunks = []
     cursor = 0
@@ -1125,10 +1132,43 @@ def parse_multimodal_file(
         )
     
     elif ext in (".rtf", ".odt"):
-        # RTF/ODT: parsers.py does not support these; try raw text extraction or placeholder
+        # ODT is a zip wrapping content.xml; RTF is plain text with control words.
+        # Old code did `raw.decode("utf-8", errors="ignore")` for both, which for
+        # ODT produced binary garbage with NUL bytes embedded (Postgres TEXT
+        # rejects 0x00 → upload returned 500). Now we route by extension.
         try:
             raw = file_bytes if file_bytes else (Path(file_path).read_bytes() if file_path else b"")
-            text = raw.decode("utf-8", errors="ignore")
+            text = ""
+            if ext == ".odt":
+                try:
+                    import zipfile as _zf
+                    import xml.etree.ElementTree as _ET
+                    with _zf.ZipFile(io.BytesIO(raw)) as zf:
+                        try:
+                            xml_bytes = zf.read("content.xml")
+                        except KeyError:
+                            xml_bytes = b""
+                    if xml_bytes:
+                        try:
+                            root = _ET.fromstring(xml_bytes)
+                            parts = []
+                            for el in root.iter():
+                                if el.text:
+                                    parts.append(el.text)
+                            text = "\n".join(p.strip() for p in parts if p and p.strip())
+                        except _ET.ParseError:
+                            text = ""
+                except Exception:
+                    text = ""
+            else:  # .rtf
+                # Strip RTF control words / groups, keep printable text. This
+                # is a heuristic but produces clean Unicode for our fixtures.
+                rtf = raw.decode("latin-1", errors="ignore")
+                rtf = re.sub(r"\\[A-Za-z]+-?\d* ?", " ", rtf)  # control words
+                rtf = re.sub(r"[{}]", "", rtf)
+                text = re.sub(r"\s+", " ", rtf).strip()
+            # Final NUL guard — Postgres TEXT cannot hold 0x00.
+            text = text.replace("\x00", "")
             if text.strip():
                 result["chunks"] = _text_to_chunks(text, min_chunk_len, source_type="document")
             else:
