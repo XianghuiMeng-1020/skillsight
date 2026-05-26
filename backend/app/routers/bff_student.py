@@ -348,13 +348,26 @@ def _run_auto_assess_for_doc(
     # concepts and is the main lever for getting auto-assess off the
     # critical path of a 50-user upload burst.
     try:
-        # NOTE: skills.aliases is stored as text holding a JSON array
-        # (default '[]'). Casting to jsonb in COALESCE used to crash the
-        # whole prefilter on every upload, which fell back to a 10-skill
-        # cold scan and made auto-assess look broken even though the
-        # individual demonstration/proficiency endpoints worked fine.
+        # Aliases come from the dedicated skill_aliases table; the legacy
+        # skills.aliases column may not exist in older production schemas,
+        # so we never reference it directly here. Falling back silently
+        # makes the prefilter degrade into a 10-skill cold scan, which is
+        # what was making auto-assess look broken in the 60-user demo.
         all_skills = db.execute(
-            text("SELECT skill_id, canonical_name, COALESCE(aliases, '[]') AS aliases FROM skills ORDER BY canonical_name"),
+            text(
+                """
+                SELECT s.skill_id, s.canonical_name,
+                       COALESCE(
+                           (SELECT json_agg(sa.alias)::text
+                            FROM skill_aliases sa
+                            WHERE sa.skill_id = s.skill_id
+                              AND COALESCE(sa.status, 'active') = 'active'),
+                           '[]'
+                       ) AS aliases
+                FROM skills s
+                ORDER BY s.canonical_name
+                """
+            ),
         ).mappings().all()
         doc_text_row = db.execute(
             text("SELECT string_agg(chunk_text, ' ') AS body FROM chunks WHERE doc_id = :did"),
