@@ -2439,48 +2439,72 @@ def bff_jobs_live(
     ).mappings().all()
 
     # Get user skills from consents path first, then skill_assessment_snapshots fallback.
-    # Pull canonical_name AND aliases from the skills registry so we can match against
-    # how recruiters actually write skill names in job descriptions (e.g. "Python"
-    # appears in postings but our canonical_name is "Python Programming").
-    # skills.aliases is stored as text holding a JSON array (e.g. '["Python","Python3"]')
-    # so COALESCE must return text, not jsonb. We json.loads it below.
-    my_rows = db.execute(
-        text(
-            """
-            SELECT DISTINCT ON (sp.skill_id)
-                   sp.skill_id, sp.level, s.canonical_name,
-                   COALESCE(s.aliases, '[]') AS aliases
-            FROM skill_proficiency sp
-            JOIN consents c ON c.doc_id = sp.doc_id::text
-            LEFT JOIN skills s ON s.skill_id = sp.skill_id
-            WHERE c.user_id = :uid AND c.status = 'granted'
-            ORDER BY sp.skill_id, sp.created_at DESC
-            """
-        ),
-        {"uid": ident.subject_id},
-    ).mappings().all()
-
-    if not my_rows:
-        # Fallback: use skill_assessment_snapshots but still join the skills
-        # catalog so aliases are populated (this used to derive the display
-        # name from the slug, which made the matcher blind to aliases).
+    # Pull canonical_name AND aliases so we can match against how recruiters actually
+    # write skill names in job descriptions (e.g. "Python" appears in postings but our
+    # canonical_name is "Python Programming"). Aliases are aggregated from the
+    # skill_aliases table; the legacy skills.aliases column may not exist in older
+    # production schemas, so we never reference it directly here. The whole block is
+    # wrapped in try/except because a 60-person live demo cannot afford a 500 if the
+    # alias subquery encounters anything unexpected (missing table, type mismatch).
+    my_rows: List[Any] = []
+    try:
         my_rows = db.execute(
             text(
                 """
-                SELECT DISTINCT ON (sas.skill_id)
-                       sas.skill_id, sas.level,
-                       COALESCE(s.canonical_name,
-                                REPLACE(REPLACE(sas.skill_id, 'HKU.SKILL.', ''), '.v1', '')
-                       ) AS canonical_name,
-                       COALESCE(s.aliases, '[]') AS aliases
-                FROM skill_assessment_snapshots sas
-                LEFT JOIN skills s ON s.skill_id = sas.skill_id
-                WHERE sas.subject_id = :uid AND sas.level IS NOT NULL AND sas.level > 0
-                ORDER BY sas.skill_id, sas.created_at DESC
+                SELECT DISTINCT ON (sp.skill_id)
+                       sp.skill_id, sp.level, s.canonical_name,
+                       COALESCE(
+                           (SELECT json_agg(sa.alias)::text
+                            FROM skill_aliases sa
+                            WHERE sa.skill_id = sp.skill_id
+                              AND COALESCE(sa.status, 'active') = 'active'),
+                           '[]'
+                       ) AS aliases
+                FROM skill_proficiency sp
+                JOIN consents c ON c.doc_id = sp.doc_id::text
+                LEFT JOIN skills s ON s.skill_id = sp.skill_id
+                WHERE c.user_id = :uid AND c.status = 'granted'
+                ORDER BY sp.skill_id, sp.created_at DESC
                 """
             ),
             {"uid": ident.subject_id},
         ).mappings().all()
+    except Exception as _exc:
+        _log.warning("jobs-live consents skill query failed (%s); falling back", _exc)
+        db.rollback()
+        my_rows = []
+
+    if not my_rows:
+        # Fallback: use skill_assessment_snapshots and aggregate aliases from the
+        # dedicated skill_aliases table (skills.aliases column is not relied upon).
+        try:
+            my_rows = db.execute(
+                text(
+                    """
+                    SELECT DISTINCT ON (sas.skill_id)
+                           sas.skill_id, sas.level,
+                           COALESCE(s.canonical_name,
+                                    REPLACE(REPLACE(sas.skill_id, 'HKU.SKILL.', ''), '.v1', '')
+                           ) AS canonical_name,
+                           COALESCE(
+                               (SELECT json_agg(sa.alias)::text
+                                FROM skill_aliases sa
+                                WHERE sa.skill_id = sas.skill_id
+                                  AND COALESCE(sa.status, 'active') = 'active'),
+                               '[]'
+                           ) AS aliases
+                    FROM skill_assessment_snapshots sas
+                    LEFT JOIN skills s ON s.skill_id = sas.skill_id
+                    WHERE sas.subject_id = :uid AND sas.level IS NOT NULL AND sas.level > 0
+                    ORDER BY sas.skill_id, sas.created_at DESC
+                    """
+                ),
+                {"uid": ident.subject_id},
+            ).mappings().all()
+        except Exception as _exc:
+            _log.warning("jobs-live snapshot skill query failed (%s); using empty matcher", _exc)
+            db.rollback()
+            my_rows = []
 
     def _tokens_for_skill(name: str, aliases: Any) -> List[str]:
         """Produce a deduped, lowercased list of surface forms for a skill."""
