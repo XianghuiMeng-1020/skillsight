@@ -20,7 +20,7 @@ import uuid
 import base64
 from urllib.parse import urlparse
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -348,8 +348,13 @@ def _run_auto_assess_for_doc(
     # concepts and is the main lever for getting auto-assess off the
     # critical path of a 50-user upload burst.
     try:
+        # NOTE: skills.aliases is stored as text holding a JSON array
+        # (default '[]'). Casting to jsonb in COALESCE used to crash the
+        # whole prefilter on every upload, which fell back to a 10-skill
+        # cold scan and made auto-assess look broken even though the
+        # individual demonstration/proficiency endpoints worked fine.
         all_skills = db.execute(
-            text("SELECT skill_id, canonical_name, COALESCE(aliases, '[]'::jsonb) AS aliases FROM skills ORDER BY canonical_name"),
+            text("SELECT skill_id, canonical_name, COALESCE(aliases, '[]') AS aliases FROM skills ORDER BY canonical_name"),
         ).mappings().all()
         doc_text_row = db.execute(
             text("SELECT string_agg(chunk_text, ' ') AS body FROM chunks WHERE doc_id = :did"),
@@ -2433,11 +2438,18 @@ def bff_jobs_live(
         params,
     ).mappings().all()
 
-    # Get user skills from consents path first, then skill_assessment_snapshots fallback
+    # Get user skills from consents path first, then skill_assessment_snapshots fallback.
+    # Pull canonical_name AND aliases from the skills registry so we can match against
+    # how recruiters actually write skill names in job descriptions (e.g. "Python"
+    # appears in postings but our canonical_name is "Python Programming").
+    # skills.aliases is stored as text holding a JSON array (e.g. '["Python","Python3"]')
+    # so COALESCE must return text, not jsonb. We json.loads it below.
     my_rows = db.execute(
         text(
             """
-            SELECT DISTINCT ON (sp.skill_id) sp.skill_id, sp.level, s.canonical_name
+            SELECT DISTINCT ON (sp.skill_id)
+                   sp.skill_id, sp.level, s.canonical_name,
+                   COALESCE(s.aliases, '[]') AS aliases
             FROM skill_proficiency sp
             JOIN consents c ON c.doc_id = sp.doc_id::text
             LEFT JOIN skills s ON s.skill_id = sp.skill_id
@@ -2449,44 +2461,85 @@ def bff_jobs_live(
     ).mappings().all()
 
     if not my_rows:
-        # Fallback: use skill_assessment_snapshots for skill names
+        # Fallback: use skill_assessment_snapshots but still join the skills
+        # catalog so aliases are populated (this used to derive the display
+        # name from the slug, which made the matcher blind to aliases).
         my_rows = db.execute(
             text(
                 """
-                SELECT DISTINCT ON (skill_id) skill_id, level,
-                       REPLACE(REPLACE(skill_id, 'HKU.SKILL.', ''), '.v1', '') AS canonical_name
-                FROM skill_assessment_snapshots
-                WHERE subject_id = :uid AND level IS NOT NULL AND level > 0
-                ORDER BY skill_id, created_at DESC
+                SELECT DISTINCT ON (sas.skill_id)
+                       sas.skill_id, sas.level,
+                       COALESCE(s.canonical_name,
+                                REPLACE(REPLACE(sas.skill_id, 'HKU.SKILL.', ''), '.v1', '')
+                       ) AS canonical_name,
+                       COALESCE(s.aliases, '[]') AS aliases
+                FROM skill_assessment_snapshots sas
+                LEFT JOIN skills s ON s.skill_id = sas.skill_id
+                WHERE sas.subject_id = :uid AND sas.level IS NOT NULL AND sas.level > 0
+                ORDER BY sas.skill_id, sas.created_at DESC
                 """
             ),
             {"uid": ident.subject_id},
         ).mappings().all()
 
-    my_skill_names = [str(r.get("canonical_name") or "") for r in my_rows if int(r.get("level") or 0) > 0]
-    my_skill_names = [s.replace("_", " ").strip().lower() for s in my_skill_names if s]
-    my_skill_patterns = [
-        re.compile(rf"(?<!\w){re.escape(skill)}(?!\w)")
-        for skill in my_skill_names
-        if skill
-    ]
+    def _tokens_for_skill(name: str, aliases: Any) -> List[str]:
+        """Produce a deduped, lowercased list of surface forms for a skill."""
+        toks: List[str] = []
+        if name:
+            toks.append(str(name).replace("_", " ").strip())
+        if isinstance(aliases, str):
+            try:
+                aliases = json.loads(aliases)
+            except Exception:
+                aliases = []
+        if isinstance(aliases, list):
+            for a in aliases:
+                if a:
+                    toks.append(str(a).strip())
+        # dedupe (case-insensitive), drop tokens shorter than 2 chars to
+        # avoid spurious matches on letters like "r" inside other words.
+        seen = set()
+        out: List[str] = []
+        for t in toks:
+            tl = t.lower()
+            if len(tl) >= 2 and tl not in seen:
+                seen.add(tl)
+                out.append(tl)
+        return out
+
+    # Build per-skill matcher: (display_name, [pre-compiled patterns for canonical + aliases])
+    skill_matchers: List[Tuple[str, List[re.Pattern]]] = []
+    for r in my_rows:
+        if int(r.get("level") or 0) <= 0:
+            continue
+        display = (r.get("canonical_name") or "").replace("_", " ").strip()
+        if not display:
+            continue
+        tokens = _tokens_for_skill(r.get("canonical_name") or "", r.get("aliases"))
+        if not tokens:
+            continue
+        # Single-letter tokens like "R" need a stricter boundary so we don't
+        # match every word starting with r. We already filter <2 chars but
+        # we keep word boundaries on both sides via \b which respects
+        # non-word punctuation found in real job descriptions.
+        patterns = [re.compile(rf"\b{re.escape(tok)}\b") for tok in tokens]
+        skill_matchers.append((display, patterns))
 
     items: List[Dict[str, Any]] = []
     for row in rows:
         desc = f"{row.get('title', '')}\n{row.get('description', '')}".lower()
-        matched = [
-            skill
-            for skill, pattern in zip(my_skill_names, my_skill_patterns)
-            if pattern.search(desc)
-        ]
-        denom = max(1, min(len(my_skill_names), 10))
-        score = round((len(matched) / denom) * 100, 1) if my_skill_names else 0.0
+        matched = [name for name, pats in skill_matchers if any(p.search(desc) for p in pats)]
+        denom = max(1, min(len(skill_matchers), 10))
+        score = round((len(matched) / denom) * 100, 1) if skill_matchers else 0.0
         item = dict(row)
         if item.get("snapshot_at") and hasattr(item.get("snapshot_at"), "isoformat"):
             item["snapshot_at"] = item["snapshot_at"].isoformat()
         item["match_score"] = score
         item["matched_skills"] = matched[:6]
         items.append(item)
+    # Sort by match score so the most relevant jobs appear first (frontend
+    # used to show "10 jobs, 0 matched" because the order was time-only).
+    items.sort(key=lambda it: (-(it.get("match_score") or 0), it.get("snapshot_at") or ""))
     return {"count": int(total_count), "items": items}
 
 

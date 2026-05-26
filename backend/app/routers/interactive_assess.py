@@ -111,8 +111,22 @@ def _generate_session_token() -> str:
 # ====================
 # Database Models (inline for now)
 # ====================
+# Module-level flag: once any worker has successfully ensured the assessment
+# DDL, every subsequent request in this process skips it. This avoids the
+# CREATE TABLE / CREATE INDEX deadlocks we hit at 60 concurrent users — DDL
+# in Postgres takes ACCESS EXCLUSIVE locks even when the object exists, and
+# six different endpoints were calling this on every request. Startup hook
+# in main.py already initializes the schema, so the per-request guard is
+# now purely defensive (kept so freshly-deployed envs don't blow up if the
+# startup hook hasn't run yet).
+_ASSESSMENT_TABLES_READY = False
+
+
 def ensure_assessment_tables(db: Session):
-    """Create assessment tables if they don't exist."""
+    """Create assessment tables if they don't exist (idempotent + cached)."""
+    global _ASSESSMENT_TABLES_READY
+    if _ASSESSMENT_TABLES_READY:
+        return
     db.execute(text("""
         CREATE TABLE IF NOT EXISTS assessment_sessions (
             session_id UUID PRIMARY KEY,
@@ -197,6 +211,7 @@ def ensure_assessment_tables(db: Session):
         CREATE INDEX IF NOT EXISTS idx_assessment_drift_type_ver ON assessment_drift_samples(assessment_type, model_version, rubric_version, created_at DESC);
     """))
     db.commit()
+    _ASSESSMENT_TABLES_READY = True
 
 
 def _table_columns(db: Session, table_name: str) -> List[str]:
