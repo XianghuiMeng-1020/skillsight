@@ -236,6 +236,33 @@ def _qdrant_base_url() -> str:
     return f"http://{host}:{port}"
 
 
+def _qdrant_curl_headers() -> list[str]:
+    api_key = os.getenv("QDRANT_API_KEY", "").strip()
+    if api_key:
+        return ["-H", f"api-key: {api_key}"]
+    return []
+
+
+def _qdrant_health_via_curl() -> dict:
+    """HTTP health probe when the Python client misbehaves (common on Qdrant Cloud)."""
+    url = f"{_qdrant_base_url()}/collections"
+    curl_cmd = ["curl", "-sS", "-o", "/dev/null", "-w", "%{http_code}"] + _qdrant_curl_headers() + [url]
+    try:
+        r = subprocess.run(
+            curl_cmd,
+            capture_output=True,
+            text=True,
+            timeout=int(min(QDRANT_TIMEOUT, 15)),
+        )
+        code = (r.stdout or "").strip()
+        if r.returncode == 0 and code.startswith("2"):
+            return {"ok": True, "via": "curl"}
+        err = (r.stderr or r.stdout or f"HTTP {code}").strip()
+        return {"ok": False, "error": err, "via": "curl"}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc), "via": "curl"}
+
+
 def search_via_curl(query_vec: list[float], top_k: int, doc_id: Optional[str] = None) -> list:
     """Fallback: search Qdrant via curl. Only used when QDRANT_FALLBACK_CURL=1."""
     if not QDRANT_FALLBACK_CURL:
@@ -268,11 +295,16 @@ def search_via_curl(query_vec: list[float], top_k: int, doc_id: Optional[str] = 
 
 def qdrant_health() -> dict:
     """Check Qdrant health. Returns {ok: bool, error?: str}."""
+    curl_status = _qdrant_health_via_curl()
+    if curl_status.get("ok"):
+        return curl_status
     try:
         client = get_client()
         if client is None:
-            return {"ok": False, "error": "Qdrant client unavailable"}
+            return curl_status if curl_status.get("error") else {"ok": False, "error": "Qdrant client unavailable"}
         client.get_collections()
-        return {"ok": True}
+        return {"ok": True, "via": "client"}
     except Exception as e:
+        if curl_status.get("error"):
+            return {"ok": False, "error": str(e), "curl_error": curl_status.get("error")}
         return {"ok": False, "error": str(e)}

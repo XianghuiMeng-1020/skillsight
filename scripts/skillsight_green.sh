@@ -6,7 +6,7 @@ cd "$ROOT_DIR"
 
 # Default config (can override by env)
 API_BASE="${API_BASE:-http://127.0.0.1:8001}"
-DB_URL="${DB_URL:-postgresql://skillsight:skillsight@localhost:55432/skillsight}"
+DB_URL="${DB_URL:-postgresql://skillsight:skillsight@127.0.0.1:55432/skillsight}"
 
 echo "== config =="
 echo "API_BASE=$API_BASE"

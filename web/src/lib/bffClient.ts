@@ -504,6 +504,28 @@ export interface AutoAssessResponse {
   message: string;
 }
 
+export interface EmbedDocumentResponse {
+  doc_id: string;
+  chunks_embedded: number;
+  embedding_dim: number;
+  message: string;
+}
+
+async function withRetries<T>(fn: () => Promise<T>, attempts = 3, delayMs = 1500): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i += 1) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (i < attempts - 1) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * (i + 1)));
+      }
+    }
+  }
+  throw lastError;
+}
+
 // ─── Student BFF client (re-export pattern for consistency) ──────────────────
 
 export const studentBff = {
@@ -714,6 +736,18 @@ export const studentBff = {
     bffRequest<AutoAssessResponse>(
       `/bff/student/documents/${encodeURIComponent(docId)}/auto-assess`,
       { method: 'POST' }
+    ),
+
+  /** Generate chunk embeddings in Qdrant (retries transient Qdrant failures). */
+  embedDocument: (docId: string) =>
+    withRetries(
+      () =>
+        bffRequest<EmbedDocumentResponse>(
+          `/bff/student/chunks/embed/${encodeURIComponent(docId)}`,
+          { method: 'POST' }
+        ),
+      3,
+      1500
     ),
 
   recommendActions: (docId: string, roleId?: string, skillId?: string) =>

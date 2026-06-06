@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import subprocess
+import time
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -24,6 +25,8 @@ except ImportError:
 
 router = APIRouter(prefix="/chunks", tags=["chunks"])
 _log = logging.getLogger(__name__)
+QDRANT_EMBED_RETRIES = int(os.getenv("QDRANT_EMBED_RETRIES", "3"))
+QDRANT_EMBED_RETRY_DELAY = float(os.getenv("QDRANT_EMBED_RETRY_DELAY", "1.5"))
 
 
 def _qdrant_url(path: str) -> str:
@@ -93,6 +96,55 @@ def _upsert_via_curl(rows: list, vecs: list) -> None:
         )
         if result.returncode != 0:
             raise RuntimeError(f"curl upsert failed: {result.stderr or result.stdout}")
+
+
+def _persist_embeddings_to_qdrant(rows: list, vecs: list, doc_id: str) -> None:
+    """Write chunk vectors to Qdrant with client-first, curl-fallback, and retries."""
+    last_err: Exception | None = None
+    for attempt in range(QDRANT_EMBED_RETRIES):
+        try:
+            client = get_client()
+            use_curl = False
+            if client:
+                try:
+                    ensure_collection(client, emb_dim())
+                    delete_by_doc_id(client, doc_id)
+                    points = [qm.PointStruct(id=r["chunk_id"], vector=v, payload={
+                        "chunk_id": r["chunk_id"], "doc_id": r["doc_id"], "idx": int(r["idx"]),
+                        "snippet": r["snippet"], "section_path": r["section_path"],
+                        "page_start": r["page_start"], "page_end": r["page_end"],
+                        "created_at": str(r["created_at"]),
+                    }) for r, v in zip(rows, vecs)]
+                    if points:
+                        upsert_points(client, points)
+                except Exception as exc:
+                    _log.warning(
+                        "qdrant upsert failed (attempt %d/%d), falling back to curl: %s",
+                        attempt + 1,
+                        QDRANT_EMBED_RETRIES,
+                        exc,
+                    )
+                    use_curl = True
+            else:
+                use_curl = True
+
+            if use_curl:
+                _ensure_collection_via_curl(emb_dim())
+                _delete_by_doc_id_via_curl(doc_id)
+                _upsert_via_curl(rows, vecs)
+            return
+        except Exception as exc:
+            last_err = exc
+            _log.warning(
+                "persist embeddings failed for doc_id=%s attempt %d/%d: %s",
+                doc_id,
+                attempt + 1,
+                QDRANT_EMBED_RETRIES,
+                exc,
+            )
+            if attempt < QDRANT_EMBED_RETRIES - 1:
+                time.sleep(QDRANT_EMBED_RETRY_DELAY * (2 ** attempt))
+    raise last_err or RuntimeError("Failed to persist embeddings to Qdrant")
 
 
 @router.get("")
@@ -166,32 +218,9 @@ def embed_document_chunks(
             else:
                 texts.append("(no extractable text)")
         vecs = embed_texts(texts)
-        
-        client = get_client()
-        use_curl = False
-        if client:
-            try:
-                ensure_collection(client, emb_dim())
-                delete_by_doc_id(client, doc_id)
-                points = [qm.PointStruct(id=r["chunk_id"], vector=v, payload={
-                    "chunk_id": r["chunk_id"], "doc_id": r["doc_id"], "idx": int(r["idx"]),
-                    "snippet": r["snippet"], "section_path": r["section_path"],
-                    "page_start": r["page_start"], "page_end": r["page_end"],
-                    "created_at": str(r["created_at"]),
-                }) for r, v in zip(rows, vecs)]
-                if points:
-                    upsert_points(client, points)
-            except Exception as exc:
-                _log.warning("qdrant upsert failed, falling back to curl: %s", exc)
-                use_curl = True
-        else:
-            use_curl = True
-        
-        if use_curl:
-            _ensure_collection_via_curl(emb_dim())
-            _delete_by_doc_id_via_curl(doc_id)
-            _upsert_via_curl(rows, vecs)
-        
+
+        _persist_embeddings_to_qdrant(rows, vecs, doc_id)
+
         return {
             "doc_id": doc_id,
             "chunks_embedded": len(rows),

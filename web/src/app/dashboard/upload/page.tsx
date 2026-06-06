@@ -181,19 +181,22 @@ export default function UploadPage() {
       setScope('');
       setConsent(false);
 
-      // Trigger auto-assess for each uploaded document
+      // Embed then auto-assess for each uploaded document
       const docIds = uploadResults.map((r) => r.doc_id).filter(Boolean);
       if (docIds.length > 0) {
         autoAssessTimerRef.current = setTimeout(async () => {
-          const assessResults = await Promise.allSettled(
-            docIds.map((docId) => studentBff.autoAssessDocument(docId))
-          );
           let ok = 0;
           let fail = 0;
-          assessResults.forEach((r) => {
-            if (r.status === 'fulfilled' && r.value?.status === 'accepted') ok += 1;
-            else fail += 1;
-          });
+          for (const docId of docIds) {
+            try {
+              await studentBff.embedDocument(docId);
+              const assess = await studentBff.autoAssessDocument(docId);
+              if (assess?.status === 'accepted') ok += 1;
+              else fail += 1;
+            } catch {
+              fail += 1;
+            }
+          }
           if (ok === docIds.length) {
             addToast('success', (t('upload.autoAssessDone') as string)?.replace('{n}', String(ok)) ?? `Queued assessment for ${ok} document(s).`);
           } else if (ok > 0) {

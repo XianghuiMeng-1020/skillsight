@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 import base64
 from urllib.parse import urlparse
@@ -306,6 +307,8 @@ async def bff_embed(
     try:
         from backend.app.routers.chunks import embed_document_chunks
         result = embed_document_chunks(doc_id, db, ident)
+    except HTTPException:
+        raise
     except Exception:
         _log.exception("Failed to embed chunks for doc_id=%s", doc_id)
         raise HTTPException(status_code=500, detail="Failed to embed document chunks")
@@ -503,13 +506,29 @@ def _auto_assess_background(doc_id: str, subject_id: str, role: str):
             bg_ident = Identity(subject_id=subject_id, role=role, source="bearer")
 
             embed_ok = False
-            try:
-                from backend.app.routers.chunks import embed_document_chunks
-                embed_document_chunks(doc_id, bg_db, bg_ident)
-                embed_ok = True
-                _log.info("auto-assess background: embedded chunks for doc %s", doc_id)
-            except Exception as exc:
-                _log.warning("auto-assess background: embed failed for doc %s: %s — continuing with DB chunks fallback", doc_id, exc)
+            embed_attempts = int(os.getenv("QDRANT_EMBED_RETRIES", "3"))
+            for attempt in range(embed_attempts):
+                try:
+                    from backend.app.routers.chunks import embed_document_chunks
+                    embed_document_chunks(doc_id, bg_db, bg_ident)
+                    embed_ok = True
+                    _log.info("auto-assess background: embedded chunks for doc %s", doc_id)
+                    break
+                except Exception as exc:
+                    _log.warning(
+                        "auto-assess background: embed failed for doc %s (attempt %d/%d): %s",
+                        doc_id,
+                        attempt + 1,
+                        embed_attempts,
+                        exc,
+                    )
+                    if attempt < embed_attempts - 1:
+                        time.sleep(1.5 * (2 ** attempt))
+            if not embed_ok:
+                _log.warning(
+                    "auto-assess background: embed exhausted retries for doc %s — continuing with DB chunks fallback",
+                    doc_id,
+                )
 
             result = _run_auto_assess_for_doc(bg_db, doc_id, bg_ident)
             log_audit(

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 API_BASE="${API_BASE:-http://127.0.0.1:8001}"
-DB_URL="${DB_URL:-postgresql://skillsight:skillsight@localhost:55432/skillsight}"
+DB_URL="${DB_URL:-postgresql://skillsight:skillsight@127.0.0.1:55432/skillsight}"
 
 TS="$(date +%Y%m%d_%H%M%S)"
 OUT_DIR="reports"

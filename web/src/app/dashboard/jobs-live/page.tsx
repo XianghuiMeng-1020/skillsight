@@ -37,9 +37,10 @@ export default function JobsLivePage() {
   const qRef = useRef(q);
   const srcRef = useRef(source);
   const abortRef = useRef<AbortController | null>(null);
+  const loadSeqRef = useRef(0);
 
   const load = async (keyword = q, src = source) => {
-    // Cancel previous in-flight request to prevent race conditions
+    const seq = ++loadSeqRef.current;
     if (abortRef.current) {
       abortRef.current.abort();
     }
@@ -56,6 +57,7 @@ export default function JobsLivePage() {
         limit: 60,
         signal: abort.signal,
       });
+      if (seq !== loadSeqRef.current) return;
       const items = data.items || [];
       if (items.length === 0 && !keyword && !src) {
         setJobs(DEMO_JOBS_LIVE);
@@ -67,13 +69,15 @@ export default function JobsLivePage() {
         setIsDemo(false);
       }
     } catch (e: unknown) {
-      // Don't update state if this request was aborted (race condition avoided)
+      if (seq !== loadSeqRef.current) return;
       if (e instanceof Error && e.name === 'AbortError') return;
       setJobs(DEMO_JOBS_LIVE);
       setTotal(DEMO_JOBS_LIVE.length);
       setIsDemo(true);
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) {
+        setLoading(false);
+      }
     }
   };
 

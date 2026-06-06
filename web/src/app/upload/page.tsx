@@ -179,9 +179,10 @@ export default function UploadPage() {
       setResult(data);
       const docId = data.doc_id;
 
-      // Step 2: Queue auto-assess through the backend worker.
+      // Step 2: Embed + queue auto-assess through the backend worker.
       setStage('embedding');
       try {
+        await studentBff.embedDocument(docId);
         setStage('assessing');
         setAssessProgress({ done: 0, total: 1 });
         await studentBff.autoAssessDocument(docId);

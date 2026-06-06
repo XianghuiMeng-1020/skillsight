@@ -79,6 +79,10 @@ services:
         sync: false
       - key: QDRANT_API_KEY
         sync: false
+      - key: QDRANT_FALLBACK_CURL
+        value: "true"
+      - key: QDRANT_EMBED_RETRIES
+        value: "3"
       # Per-worker pool size reduced so 4 workers × 10 = 40 < Render Standard PG limit (97).
       # With max_overflow=15 worst-case is 4×25=100; pool_timeout=30 keeps queuing short.
       - key: DB_POOL_SIZE
@@ -126,6 +130,10 @@ services:
         sync: false
       - key: QDRANT_API_KEY
         sync: false
+      - key: QDRANT_FALLBACK_CURL
+        value: "true"
+      - key: QDRANT_EMBED_RETRIES
+        value: "3"
     dockerCommand: python -m backend.worker
 
   - type: redis
