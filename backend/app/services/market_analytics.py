@@ -1,10 +1,59 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
+
+
+def get_market_data_freshness(db: Session) -> Dict[str, Any]:
+    """Return information about when market data was last refreshed.
+
+    Returns a dict with:
+    - last_posting_at: ISO timestamp of the most recently scraped job posting
+    - last_posting_date: human-readable month/year string
+    - total_active_postings: count of active job postings
+    - data_age_days: approximate age of the most recent data in days
+    - is_stale: True if data is older than 30 days
+    """
+    try:
+        row = db.execute(
+            text(
+                """
+                SELECT MAX(snapshot_at) AS last_at, COUNT(*) AS total
+                FROM job_postings
+                WHERE status = 'active'
+                """
+            )
+        ).mappings().first()
+        last_at: Optional[datetime] = row["last_at"] if row else None
+        total = int(row["total"]) if row else 0
+    except Exception:
+        last_at = None
+        total = 0
+
+    now = datetime.now(timezone.utc)
+    if last_at is not None:
+        if last_at.tzinfo is None:
+            last_at = last_at.replace(tzinfo=timezone.utc)
+        age_days = (now - last_at).days
+        last_date_str = last_at.strftime("%Y-%m")
+        last_iso = last_at.isoformat()
+    else:
+        age_days = 9999
+        last_date_str = None
+        last_iso = None
+
+    return {
+        "last_posting_at": last_iso,
+        "last_posting_date": last_date_str,
+        "total_active_postings": total,
+        "data_age_days": age_days,
+        "is_stale": age_days > 30,
+        "refreshed_at": now.isoformat(),
+    }
 
 
 def market_skill_trends(db: Session, limit: int = 12) -> List[Dict[str, Any]]:

@@ -161,7 +161,7 @@ export function CuteCompletionNotice({ onViewSkills, onClose }: { onViewSkills: 
               padding: '0.875rem 1.5rem',
               borderRadius: '12px',
               border: '2px solid #fcd34d',
-              background: 'white',
+              background: 'var(--color-surface)',
               color: '#b45309',
               fontWeight: 500,
               fontSize: '1rem',
@@ -169,11 +169,11 @@ export function CuteCompletionNotice({ onViewSkills, onClose }: { onViewSkills: 
               transition: 'all 0.2s ease',
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#fffbeb';
+              e.currentTarget.style.background = 'var(--warning-light)';
               e.currentTarget.style.borderColor = '#fbbf24';
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'white';
+              e.currentTarget.style.background = 'var(--color-surface)';
               e.currentTarget.style.borderColor = '#fcd34d';
             }}
           >
@@ -497,7 +497,7 @@ export function SkillAssessmentProgress({ tasks, onComplete, onClose }: SkillAss
                     borderRadius: '8px',
                     border: '1px solid',
                     borderColor: idx === currentTaskIndex ? '#fbbf24' : '#e5e7eb',
-                    background: idx === currentTaskIndex ? '#fef3c7' : 'white',
+                    background: idx === currentTaskIndex ? 'var(--warning-light)' : 'var(--color-surface)',
                     fontSize: '0.75rem',
                     cursor: 'pointer',
                     display: 'flex',

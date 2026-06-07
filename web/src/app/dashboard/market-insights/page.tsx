@@ -12,6 +12,7 @@ export default function MarketInsightsPage() {
   const [trends, setTrends] = useState<Trend[]>([]);
   const [salaryBands, setSalaryBands] = useState<Array<{ role: string; range: string }>>([]);
   const [sourceCount, setSourceCount] = useState(0);
+  const [dataFreshness, setDataFreshness] = useState<{ last_posting_date?: string; data_age_days?: number; is_stale?: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +27,7 @@ export default function MarketInsightsPage() {
         setTrends(data.trends || []);
         setSalaryBands(data.salary_reference?.bands || []);
         setSourceCount(Number(data.source_postings_count || 0));
+        setDataFreshness(data.data_freshness || null);
       } catch {
         if (cancelled) return;
         setError(t('marketInsights.loadFailed'));
@@ -60,6 +62,21 @@ export default function MarketInsightsPage() {
             <p style={{ margin: 0, color: 'var(--gray-500)' }}>{t('marketInsights.subtitle')}</p>
             <p style={{ margin: '0.35rem 0 0 0', fontSize: 13, color: 'var(--gray-500)' }}>
               {t('marketInsights.dataSource')} {sourceCount} {t('marketInsights.postings')}
+              {dataFreshness?.last_posting_date && (
+                <span style={{
+                  marginLeft: '0.75rem',
+                  padding: '0.15rem 0.5rem',
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 500,
+                  background: dataFreshness.is_stale ? 'var(--warning-light)' : 'var(--success-light)',
+                  color: dataFreshness.is_stale ? 'var(--warning)' : 'var(--success)',
+                  border: `1px solid ${dataFreshness.is_stale ? 'var(--warning)' : 'var(--success)'}`,
+                }}>
+                  {dataFreshness.is_stale ? '⚠ ' : '✓ '}
+                  {t('marketInsights.updatedAs')} {dataFreshness.last_posting_date}
+                </span>
+              )}
             </p>
           </div>
         </div>

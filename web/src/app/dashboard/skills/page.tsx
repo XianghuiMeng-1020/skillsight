@@ -34,6 +34,7 @@ interface SkillEntry {
   skill_id: string;
   canonical_name: string;
   definition?: string;
+  source?: string;
   label: 'demonstrated' | 'mentioned' | 'not_enough_information' | 'not_assessed';
   rationale?: string;
   evidence_items: EvidenceItem[];
@@ -536,8 +537,26 @@ export default function SkillsProfilePage() {
 
                       {/* Skill name */}
                       <div style={{ flex: 1 }}>
-                        <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '0.9375rem' }}>
+                        <div style={{ fontWeight: 600, color: 'var(--gray-900)', fontSize: '0.9375rem', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                           {skill.canonical_name}
+                          {skill.source && (
+                            <span
+                              title={`${t('skills.sourceLabel')}: ${skill.source}`}
+                              style={{
+                                fontSize: '0.65rem',
+                                fontWeight: 500,
+                                padding: '0.1rem 0.4rem',
+                                borderRadius: '999px',
+                                background: 'var(--teal-50)',
+                                color: 'var(--teal-dark)',
+                                border: '1px solid var(--teal-light)',
+                                cursor: 'help',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              🔖 {skill.source}
+                            </span>
+                          )}
                         </div>
                         {skill.definition && (
                           <div style={{ fontSize: '0.8rem', color: 'var(--gray-500)', marginTop: '0.125rem' }}>

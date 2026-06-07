@@ -1212,7 +1212,26 @@ export const studentBff = {
     ),
 
   getLearningPath: (limit = 8) =>
-    bffRequest<{ count: number; items: Array<{ skill_id: string; skill_name: string; current_level: number; target_level: number; gap: number; estimated_hours: number; milestones: string[] }> }>(
+    bffRequest<{
+      count: number;
+      items: Array<{
+        skill_id: string;
+        skill_name: string;
+        current_level: number;
+        target_level: number;
+        gap: number;
+        estimated_hours: number;
+        milestones: string[];
+        recommended_courses?: Array<{
+          course_id: string;
+          title: string;
+          provider: string;
+          url: string;
+          level: string;
+          relevance_score: number;
+        }>;
+      }>;
+    }>(
       `/bff/student/learning-path?limit=${Math.max(1, Math.min(limit, 20))}`
     ),
 
@@ -1221,6 +1240,14 @@ export const studentBff = {
       trends: Array<{ skill_id: string; skill_name: string; demand_count: number }>;
       salary_reference: { currency: string; source?: string; bands: Array<{ role: string; range: string }> };
       source_postings_count?: number;
+      data_freshness?: {
+        last_posting_at?: string;
+        last_posting_date?: string;
+        total_active_postings: number;
+        data_age_days?: number;
+        is_stale?: boolean;
+        refreshed_at?: string;
+      };
     }>('/bff/student/market-insights'),
 
   getJobsLive: (params?: { q?: string; source_site?: string; limit?: number; signal?: AbortSignal }) => {

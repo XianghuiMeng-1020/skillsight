@@ -45,7 +45,7 @@ from backend.app.db.deps import get_db
 from backend.app.db.session import engine
 from backend.app.security import Identity, issue_token, require_auth, _is_dev_login_allowed
 from backend.app.services.learning_path_recommender import recommend_learning_path
-from backend.app.services.market_analytics import market_skill_trends, salary_reference
+from backend.app.services.market_analytics import get_market_data_freshness, market_skill_trends, salary_reference
 
 router = APIRouter(prefix="/bff/student", tags=["bff-student"])
 _log = logging.getLogger(__name__)
@@ -889,7 +889,7 @@ async def bff_student_profile(
                     FROM skill_assessment_snapshots s
                     WHERE s.subject_id = :sub
                 )
-                SELECT sk.skill_id, sk.canonical_name, sk.definition
+                SELECT sk.skill_id, sk.canonical_name, sk.definition, sk.source
                 FROM skills sk
                 JOIN user_skills us ON us.skill_id = sk.skill_id
                 ORDER BY sk.canonical_name
@@ -907,7 +907,7 @@ async def bff_student_profile(
         try:
             skills_rows = db.execute(
                 text(
-                    "SELECT skill_id, canonical_name, definition "
+                    "SELECT skill_id, canonical_name, definition, source "
                     "FROM skills ORDER BY canonical_name LIMIT 20"
                 )
             ).mappings().all()
@@ -1090,6 +1090,7 @@ async def bff_student_profile(
             "skill_id": skill_id,
             "canonical_name": skill["canonical_name"],
             "definition": skill.get("definition"),
+            "source": skill.get("source"),
             "label": label,
             "level": level,
             "rationale": rationale,
@@ -2426,10 +2427,13 @@ def bff_market_insights(
 ):
     trends = market_skill_trends(db, limit=12)
     salary = salary_reference(db)
-    total_postings = db.execute(
-        text("SELECT COUNT(*) FROM job_postings WHERE status = 'active'")
-    ).scalar() or 0
-    return {"trends": trends, "salary_reference": salary, "source_postings_count": int(total_postings)}
+    freshness = get_market_data_freshness(db)
+    return {
+        "trends": trends,
+        "salary_reference": salary,
+        "source_postings_count": freshness["total_active_postings"],
+        "data_freshness": freshness,
+    }
 
 
 @router.get("/jobs-live")

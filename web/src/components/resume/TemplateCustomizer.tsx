@@ -15,7 +15,7 @@ export default function TemplateCustomizer({ onChange }: TemplateCustomizerProps
   }, [themeColor, fontScale, onChange]);
 
   return (
-    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.75rem', background: '#fff' }}>
+    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.75rem', background: 'var(--color-surface)', color: 'var(--color-text)' }}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Template Customizer</div>
       <label style={{ display: 'block', fontSize: 12, marginBottom: 6 }}>
         Theme Color

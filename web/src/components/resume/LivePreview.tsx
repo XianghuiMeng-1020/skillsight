@@ -43,8 +43,8 @@ export default function LivePreview({ reviewId, templateId, resumeOverrideText, 
   }, [reviewId, templateId, resumeOverrideText, stableTemplateOptions]);
 
   return (
-    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden', minHeight: 380, background: '#fff' }}>
-      <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--gray-200)', fontSize: 12, color: 'var(--gray-600)' }}>
+    <div style={{ border: '1px solid var(--gray-200)', borderRadius: 12, overflow: 'hidden', minHeight: 380, background: 'var(--color-surface)' }}>
+      <div style={{ padding: '0.5rem 0.75rem', borderBottom: '1px solid var(--gray-200)', fontSize: 12, color: 'var(--gray-600)', background: 'var(--gray-50)' }}>
         {loading ? 'Loading preview...' : 'Live preview'}
       </div>
       <iframe title="resume-live-preview" srcDoc={srcDoc} style={{ width: '100%', height: 420, border: 'none' }} />

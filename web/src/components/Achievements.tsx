@@ -80,7 +80,7 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
           alignItems: 'center',
           gap: '0.75rem',
           padding: '0.75rem 1rem',
-          background: achievement.unlocked ? style.bg : '#fafaf9',
+          background: achievement.unlocked ? style.bg : 'var(--gray-50)',
           borderRadius: '12px',
           border: `1px solid ${achievement.unlocked ? style.border : '#e7e5e4'}`,
           opacity: achievement.unlocked ? 1 : 0.6,
@@ -121,7 +121,7 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
     <div
       style={{
         padding: '1.25rem',
-        background: achievement.unlocked ? style.bg : '#fafaf9',
+        background: achievement.unlocked ? style.bg : 'var(--gray-50)',
         borderRadius: '16px',
         border: `2px solid ${achievement.unlocked ? style.border : '#e7e5e4'}`,
         opacity: achievement.unlocked ? 1 : 0.7,
@@ -135,7 +135,7 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
             width: '56px',
             height: '56px',
             borderRadius: '14px',
-            background: achievement.unlocked ? 'white' : '#f5f5f4',
+            background: achievement.unlocked ? 'var(--color-surface)' : 'var(--gray-100)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -167,7 +167,7 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
             fontWeight: 600,
             padding: '0.25rem 0.5rem',
             borderRadius: '6px',
-            background: achievement.unlocked ? 'white' : '#f5f5f4',
+            background: achievement.unlocked ? 'var(--color-surface)' : 'var(--gray-100)',
             color: achievement.unlocked ? style.text : '#a8a29e',
             border: `1px solid ${achievement.unlocked ? style.border : '#e7e5e4'}`,
           }}
@@ -195,7 +195,7 @@ export function AchievementCard({ achievement, compact = false }: AchievementCar
           <div
             style={{
               height: '6px',
-              background: '#e7e5e4',
+              background: 'var(--gray-200)',
               borderRadius: '3px',
               overflow: 'hidden',
             }}
@@ -368,7 +368,7 @@ export function AchievementNotification({ achievement, onDismiss }: AchievementN
             width: '52px',
             height: '52px',
             borderRadius: '14px',
-            background: 'white',
+            background: 'var(--color-surface)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -598,7 +598,7 @@ export function AchievementsModal({ onClose }: AchievementsModalProps) {
               padding: '0.625rem 1.5rem',
               borderRadius: '10px',
               border: '1px solid var(--gray-200)',
-              background: 'white',
+              background: 'var(--color-surface)',
               color: 'var(--gray-600)',
               fontWeight: 500,
               fontSize: '0.875rem',
@@ -645,7 +645,7 @@ function AchievementItem({ achievement }: AchievementItemProps) {
   return (
     <div
       style={{
-        background: achievement.unlocked ? style.bg : '#f5f5f4',
+        background: achievement.unlocked ? style.bg : 'var(--gray-100)',
         border: `1px solid ${achievement.unlocked ? style.border : '#e7e5e4'}`,
         borderRadius: '12px',
         padding: '0.875rem',

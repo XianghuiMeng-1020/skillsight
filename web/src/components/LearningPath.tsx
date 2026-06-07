@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useLearningPath, LearningRecommendation } from '@/lib/hooks';
+import { studentBff } from '@/lib/bffClient';
 import { useLanguage } from '@/lib/contexts';
 
 const typeIconMap: Record<LearningRecommendation['type'], string> = {
@@ -40,7 +41,7 @@ function RecommendationItem({ recommendation, index }: RecommendationItemProps) 
         alignItems: 'center',
         gap: '1rem',
         padding: '1rem',
-        background: 'white',
+        background: 'var(--color-surface)',
         borderRadius: '12px',
         border: '1px solid var(--gray-200)',
         transition: 'all 0.2s ease',
@@ -276,10 +277,31 @@ interface FullLearningPathProps {
   targetRole?: string;
 }
 
+interface CourseItem {
+  course_id: string;
+  title: string;
+  provider: string;
+  url: string;
+  level: string;
+  relevance_score: number;
+}
+
+interface BackendGap {
+  skill_id: string;
+  skill_name: string;
+  current_level: number;
+  target_level: number;
+  gap: number;
+  estimated_hours: number;
+  milestones: string[];
+  recommended_courses?: CourseItem[];
+}
+
 export function FullLearningPath({ skills, targetRole }: FullLearningPathProps) {
   const { t } = useLanguage();
   const { recommendations, skillGaps, loading, generateRecommendations } = useLearningPath();
   const [visibleCount, setVisibleCount] = useState(40);
+  const [backendGaps, setBackendGaps] = useState<BackendGap[]>([]);
   const skillsKey = useMemo(
     () => skills.map((s) => `${s.name}:${s.level}`).join('|'),
     [skills]
@@ -292,6 +314,22 @@ export function FullLearningPath({ skills, targetRole }: FullLearningPathProps) 
   useEffect(() => {
     setVisibleCount(40);
   }, [recommendations.length]);
+
+  // Fetch enriched learning path with course recommendations from backend
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await studentBff.getLearningPath(12);
+        if (!cancelled && data?.items) {
+          setBackendGaps(data.items as BackendGap[]);
+        }
+      } catch {
+        // Backend gaps are a nice-to-have; don't block the page
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [skillsKey]);
 
   if (loading) {
     return (
@@ -355,7 +393,7 @@ export function FullLearningPath({ skills, targetRole }: FullLearningPathProps) 
                       style={{
                         padding: '0.25rem 0.5rem',
                         borderRadius: '6px',
-                        background: 'white',
+                        background: 'var(--color-surface)',
                         border: '1px solid var(--gray-200)',
                       }}
                     >
@@ -406,6 +444,94 @@ export function FullLearningPath({ skills, targetRole }: FullLearningPathProps) 
           )}
         </div>
       </div>
+
+      {/* Recommended Courses per Skill Gap — sourced from course_skill_map */}
+      {backendGaps.some(g => (g.recommended_courses?.length ?? 0) > 0) && (
+        <div className="card" style={{ marginTop: '1.5rem' }}>
+          <div className="card-header">
+            <h3 className="card-title">
+              <span style={{ marginRight: '0.5rem' }}>📚</span>
+              {t('learning.recommendedCourses')}
+            </h3>
+          </div>
+          <div className="card-content">
+            {backendGaps
+              .filter(g => (g.recommended_courses?.length ?? 0) > 0)
+              .map(gap => (
+                <div key={gap.skill_id} style={{ marginBottom: '1.25rem' }}>
+                  <div style={{
+                    fontWeight: 600,
+                    fontSize: '0.875rem',
+                    color: 'var(--gray-700)',
+                    marginBottom: '0.5rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}>
+                    <span style={{
+                      fontSize: '0.7rem',
+                      padding: '0.15rem 0.4rem',
+                      borderRadius: 999,
+                      background: 'var(--warning-light)',
+                      color: 'var(--warning)',
+                      fontWeight: 500,
+                    }}>
+                      Lv.{gap.current_level} → {gap.target_level}
+                    </span>
+                    {gap.skill_name}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    {(gap.recommended_courses ?? []).map(course => (
+                      <div key={course.course_id} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.75rem',
+                        padding: '0.625rem 0.875rem',
+                        borderRadius: '10px',
+                        background: 'var(--gray-50)',
+                        border: '1px solid var(--gray-200)',
+                      }}>
+                        <span style={{ fontSize: '1.1rem', flexShrink: 0 }}>🎓</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--gray-900)' }}>
+                            {course.url ? (
+                              <a href={course.url} target="_blank" rel="noopener noreferrer"
+                                style={{ color: 'var(--primary)', textDecoration: 'none' }}
+                                onMouseEnter={e => { e.currentTarget.style.textDecoration = 'underline'; }}
+                                onMouseLeave={e => { e.currentTarget.style.textDecoration = 'none'; }}
+                              >
+                                {course.title}
+                              </a>
+                            ) : course.title}
+                          </div>
+                          {(course.provider || course.level) && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: '0.125rem' }}>
+                              {[course.provider, course.level].filter(Boolean).join(' · ')}
+                            </div>
+                          )}
+                        </div>
+                        {course.relevance_score > 0 && (
+                          <span style={{
+                            fontSize: '0.7rem',
+                            padding: '0.1rem 0.4rem',
+                            borderRadius: 999,
+                            background: 'var(--success-light)',
+                            color: 'var(--success)',
+                            fontWeight: 600,
+                            whiteSpace: 'nowrap',
+                            flexShrink: 0,
+                          }}>
+                            {Math.round(course.relevance_score * 100)}% match
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

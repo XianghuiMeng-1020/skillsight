@@ -187,14 +187,14 @@ def layout_health_check(resume_text: str) -> Dict[str, Any]:
 # ── HTML preview (approximate WYSIWYG for web; not Word-perfect) ──────────────
 
 _TEMPLATE_PREVIEW_STYLES: Dict[str, Dict[str, str]] = {
-    "professional_classic": {"bg": "#1a1a2e", "accent": "#e2b04a", "font": "Calibri, sans-serif"},
-    "modern_tech": {"bg": "#0f172a", "accent": "#38bdf8", "font": "Arial, sans-serif"},
-    "creative_portfolio": {"bg": "#4c1d95", "accent": "#c4b5fd", "font": "Georgia, serif"},
-    "academic_research": {"bg": "#0a2a4a", "accent": "#99d5c9", "font": "Times New Roman, serif"},
-    "executive": {"bg": "#1b2a4a", "accent": "#bf943e", "font": "Cambria, serif"},
-    "minimalist_clean": {"bg": "#f5f5f5", "accent": "#111111", "font": "Calibri, sans-serif"},
-    "corporate_elegance": {"bg": "#134e4a", "accent": "#14b8a6", "font": "Calibri, sans-serif"},
-    "fresh_graduate": {"bg": "#1e40af", "accent": "#93c5fd", "font": "Arial, sans-serif"},
+    "professional_classic": {"bg": "#1a1a2e", "accent": "#e2b04a", "font": "Calibri, sans-serif", "dark": "true"},
+    "modern_tech": {"bg": "#0f172a", "accent": "#38bdf8", "font": "Arial, sans-serif", "dark": "true"},
+    "creative_portfolio": {"bg": "#4c1d95", "accent": "#c4b5fd", "font": "Georgia, serif", "dark": "true"},
+    "academic_research": {"bg": "#0a2a4a", "accent": "#99d5c9", "font": "Times New Roman, serif", "dark": "true"},
+    "executive": {"bg": "#1b2a4a", "accent": "#bf943e", "font": "Cambria, serif", "dark": "true"},
+    "minimalist_clean": {"bg": "#ffffff", "accent": "#111111", "font": "Calibri, sans-serif", "dark": "false"},
+    "corporate_elegance": {"bg": "#134e4a", "accent": "#14b8a6", "font": "Calibri, sans-serif", "dark": "true"},
+    "fresh_graduate": {"bg": "#1e40af", "accent": "#93c5fd", "font": "Arial, sans-serif", "dark": "true"},
 }
 
 
@@ -217,6 +217,16 @@ def html_preview_for_resume(resume_text: str, template_key: str, template_option
     preview_accent = accent_map.get(accent, st["accent"])
     name = html.escape(doc.name or "Your Name")
     contact = html.escape("  |  ".join(split_contact_parts(doc.contact_lines)))
+
+    is_dark_bg = st.get("dark", "true") == "true"
+    text_color = "#e5e7eb" if is_dark_bg else "#1a1a2e"
+    text_muted = "#d1d5db" if is_dark_bg else "#374151"
+    text_sub = "#e2e8f0" if is_dark_bg else "#111827"
+    text_contact = "#cbd5e1" if is_dark_bg else "#4b5563"
+    h1_color = "#ffffff" if is_dark_bg else "#111827"
+    sec_border = "rgba(255,255,255,0.15)" if is_dark_bg else "rgba(0,0,0,0.15)"
+    wrap_bg = "rgba(0,0,0,0.20)" if is_dark_bg else "rgba(255,255,255,0.80)"
+    footer_color = "#6b7280" if is_dark_bg else "#9ca3af"
 
     parts: List[str] = []
     for sec in doc.sections:
@@ -243,19 +253,19 @@ def html_preview_for_resume(resume_text: str, template_key: str, template_option
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Resume preview</title>
 <style>
-body {{ margin:0; background:{st["bg"]}; font-family:{st["font"]}; color:#e5e7eb; font-size:{font_scale}%; }}
-.wrap {{ max-width:720px; margin:0 auto; padding:24px; background:rgba(0,0,0,0.25); min-height:100vh; }}
+body {{ margin:0; background:{st["bg"]}; font-family:{st["font"]}; color:{text_color}; font-size:{font_scale}%; }}
+.wrap {{ max-width:720px; margin:0 auto; padding:24px; background:{wrap_bg}; min-height:100vh; }}
 header {{ text-align:center; padding:16px 0; border-bottom:2px solid {preview_accent}; margin-bottom:16px; }}
-h1 {{ margin:0; font-size:1.75rem; letter-spacing:0.05em; color:#fff; }}
-.contact {{ font-size:0.85rem; color:#cbd5e1; margin-top:8px; }}
-.sec h2 {{ font-size:0.95rem; color:{preview_accent}; text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid rgba(255,255,255,0.15); padding-bottom:4px; margin:20px 0 8px; }}
-.body p {{ margin:5px 0; font-size:0.9rem; line-height:{line_scale / 100:.2f}; color:#d1d5db; text-align:left; }}
+h1 {{ margin:0; font-size:1.75rem; letter-spacing:0.05em; color:{h1_color}; }}
+.contact {{ font-size:0.85rem; color:{text_contact}; margin-top:8px; }}
+.sec h2 {{ font-size:0.95rem; color:{preview_accent}; text-transform:uppercase; letter-spacing:0.08em; border-bottom:1px solid {sec_border}; padding-bottom:4px; margin:20px 0 8px; }}
+.body p {{ margin:5px 0; font-size:0.9rem; line-height:{line_scale / 100:.2f}; color:{text_muted}; text-align:left; }}
 .bullet {{ padding-left:14px; border-left:2px solid {preview_accent}; margin-left:4px; }}
-.sub-header {{ font-weight:700; color:#e2e8f0; margin-top:12px !important; font-size:0.92rem; }}
+.sub-header {{ font-weight:700; color:{text_sub}; margin-top:12px !important; font-size:0.92rem; }}
 </style></head><body><div class="wrap">
 <header><h1>{name}</h1><div class="contact">{contact}</div></header>
 {body_html}
-<p style="text-align:center;font-size:0.75rem;color:#6b7280;margin-top:32px;">Preview approximates export styling — Word may differ slightly.</p>
+<p style="text-align:center;font-size:0.75rem;color:{footer_color};margin-top:32px;">Preview approximates export styling — Word may differ slightly.</p>
 </div></body></html>"""
 
 

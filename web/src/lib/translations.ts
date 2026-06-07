@@ -636,6 +636,8 @@ export const translations: Translations = {
   'skills.uploadEvidence': { zh: '上传证据', 'zh-TW': '上傳證據', en: 'Upload Evidence' },
   'skills.claimHint': { zh: '每个技能 claim 都附有 Why / Evidence —— 展开查看来源片段与定位信息', 'zh-TW': '每個技能 claim 都附有 Why / Evidence —— 展開查看來源片段與定位資訊', en: 'Each skill claim includes Why / Evidence — expand to view source snippets and location info' },
   'skills.profileTitle': { zh: '技能档案', 'zh-TW': '技能檔案', en: 'Skills Profile' },
+  'skills.sourceLabel': { zh: '技能框架来源', 'zh-TW': '技能框架來源', en: 'Skill framework source' },
+  'skills.sourceTooltip': { zh: '此技能定义来自权威框架，点击了解更多', 'zh-TW': '此技能定義來自權威框架，點擊了解更多', en: 'Skill definition sourced from an authoritative framework' },
 
   // 学习路径
   'learning.path': { zh: '学习路径', 'zh-TW': '學習路徑', en: 'Learning Path' },
@@ -665,6 +667,7 @@ export const translations: Translations = {
   'learning.target': { zh: '目标 Lv.', 'zh-TW': '目標 Lv.', en: 'Target Lv.' },
   'learning.pathTitle': { zh: '推荐学习路径', 'zh-TW': '推薦學習路徑', en: 'Recommended Learning Path' },
   'learning.count': { zh: '个建议', 'zh-TW': '個建議', en: 'recommendations' },
+  'learning.recommendedCourses': { zh: '推荐课程（按技能差距匹配）', 'zh-TW': '推薦課程（按技能差距匹配）', en: 'Recommended Courses (matched to skill gaps)' },
 
   // 成就系统
   'achievements.title': { zh: '成就', 'zh-TW': '成就', en: 'Achievements' },
@@ -1367,4 +1370,6 @@ export const translations: Translations = {
   'marketInsights.loadFailed': { zh: '加载市场洞察失败。', 'zh-TW': '載入市場洞察失敗。', en: 'Failed to load market insights.' },
   'marketInsights.trends': { zh: '技能需求趋势', 'zh-TW': '技能需求趨勢', en: 'Skill Demand Trends' },
   'marketInsights.salaryReference': { zh: '薪资参考（港币）', 'zh-TW': '薪資參考（港幣）', en: 'Salary Reference (HKD)' },
+  'marketInsights.updatedAs': { zh: '数据截至', 'zh-TW': '資料截至', en: 'Data as of' },
+  'marketInsights.dataStale': { zh: '市场数据可能已过期（超过30天），建议管理员更新职位数据。', 'zh-TW': '市場數據可能已過期（超過30天），建議管理員更新職位資料。', en: 'Market data may be outdated (>30 days). Admin should refresh job posting data.' },
 };

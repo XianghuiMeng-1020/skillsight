@@ -186,6 +186,110 @@ SKILL_ALIASES: Dict[str, str] = {
     "product strategy": "product sense",
     "user research": "ux research",
     "ux": "ux research",
+    # Writing & Communication (humanities / arts transferable)
+    "academic writing": "writing",
+    "creative writing": "writing",
+    "technical writing": "writing",
+    "copywriting": "writing",
+    "content writing": "writing",
+    "essay writing": "writing",
+    "report writing": "writing",
+    "journalism": "writing",
+    "editorial": "writing",
+    "editing": "writing",
+    "proofreading": "writing",
+    "storytelling": "writing",
+    "written communication": "writing",
+    "written communications": "writing",
+    # Research skills
+    "qualitative research": "research",
+    "quantitative research": "research",
+    "literature review": "research",
+    "archival research": "research",
+    "desk research": "research",
+    "secondary research": "research",
+    "primary research": "research",
+    "historical research": "research",
+    "field research": "research",
+    # Critical thinking & analysis
+    "critical analysis": "critical thinking",
+    "critical reading": "critical thinking",
+    "analytical thinking": "critical thinking",
+    "analytical skills": "critical thinking",
+    "problem solving": "critical thinking",
+    "problem-solving": "critical thinking",
+    "analytical reasoning": "critical thinking",
+    "logical reasoning": "critical thinking",
+    "argumentation": "critical thinking",
+    # Cultural & intercultural skills
+    "cross-cultural communication": "intercultural competence",
+    "cross cultural communication": "intercultural competence",
+    "cultural awareness": "intercultural competence",
+    "cultural competency": "intercultural competence",
+    "cultural sensitivity": "intercultural competence",
+    "diversity and inclusion": "intercultural competence",
+    "multilingual": "intercultural competence",
+    "bilingual": "intercultural competence",
+    # Language skills
+    "mandarin": "chinese",
+    "putonghua": "chinese",
+    "cantonese": "chinese",
+    "mandarin chinese": "chinese",
+    "english proficiency": "english",
+    "english communication": "english",
+    "business english": "english",
+    # Teaching & facilitation
+    "tutoring": "teaching",
+    "curriculum development": "teaching",
+    "instructional design": "teaching",
+    "lesson planning": "teaching",
+    "facilitation": "teaching",
+    "training delivery": "teaching",
+    "mentoring": "teaching",
+    # Media & creative arts
+    "social media management": "social media",
+    "social media marketing": "social media",
+    "content creation": "content creation",
+    "video production": "content creation",
+    "photography": "content creation",
+    "graphic design": "design",
+    "visual design": "design",
+    "ui design": "design",
+    "ui/ux": "design",
+    "adobe creative suite": "design",
+    "photoshop": "design",
+    "illustrator": "design",
+    # Policy & public sector
+    "policy analysis": "policy",
+    "policy research": "policy",
+    "public policy": "policy",
+    "policy writing": "policy",
+    "stakeholder engagement": "stakeholder management",
+    "stakeholder management": "stakeholder management",
+    "advocacy": "stakeholder management",
+    # Project management (general)
+    "project coordination": "project management",
+    "event coordination": "project management",
+    "event management": "project management",
+    "event planning": "project management",
+    "time management": "project management",
+    "organizational skills": "project management",
+    "organisation": "project management",
+    "organization": "project management",
+    # General transferable
+    "leadership": "leadership",
+    "team leadership": "leadership",
+    "initiative": "leadership",
+    "adaptability": "adaptability",
+    "resilience": "adaptability",
+    "flexibility": "adaptability",
+    "attention to detail": "attention to detail",
+    "accuracy": "attention to detail",
+    "interpersonal skills": "interpersonal skills",
+    "relationship building": "interpersonal skills",
+    "networking": "interpersonal skills",
+    "negotiation": "negotiation",
+    "conflict resolution": "negotiation",
 }
 
 
@@ -266,6 +370,96 @@ SKILL_ADJACENCY: Dict[str, List[Dict[str, Any]]] = {
     "typescript": [
         {"to": "javascript", "weight": 0.85},
     ],
+    # Humanities / arts / social science transferability
+    "writing": [
+        {"to": "communication", "weight": 0.7},
+        {"to": "research", "weight": 0.4},
+        {"to": "critical thinking", "weight": 0.4},
+        {"to": "content creation", "weight": 0.6},
+    ],
+    "research": [
+        {"to": "critical thinking", "weight": 0.65},
+        {"to": "writing", "weight": 0.5},
+        {"to": "data analysis", "weight": 0.4},
+        {"to": "statistics", "weight": 0.3},
+    ],
+    "critical thinking": [
+        {"to": "research", "weight": 0.6},
+        {"to": "writing", "weight": 0.45},
+        {"to": "data analysis", "weight": 0.35},
+        {"to": "communication", "weight": 0.3},
+    ],
+    "communication": [
+        {"to": "presentation", "weight": 0.6},
+        {"to": "teamwork", "weight": 0.4},
+        {"to": "writing", "weight": 0.55},
+        {"to": "interpersonal skills", "weight": 0.5},
+    ],
+    "intercultural competence": [
+        {"to": "communication", "weight": 0.55},
+        {"to": "interpersonal skills", "weight": 0.5},
+        {"to": "stakeholder management", "weight": 0.4},
+    ],
+    "teaching": [
+        {"to": "communication", "weight": 0.65},
+        {"to": "writing", "weight": 0.4},
+        {"to": "leadership", "weight": 0.35},
+        {"to": "presentation", "weight": 0.55},
+    ],
+    "content creation": [
+        {"to": "writing", "weight": 0.65},
+        {"to": "communication", "weight": 0.5},
+        {"to": "design", "weight": 0.4},
+        {"to": "social media", "weight": 0.6},
+    ],
+    "design": [
+        {"to": "content creation", "weight": 0.5},
+        {"to": "communication", "weight": 0.35},
+        {"to": "ux research", "weight": 0.4},
+    ],
+    "policy": [
+        {"to": "research", "weight": 0.6},
+        {"to": "writing", "weight": 0.55},
+        {"to": "critical thinking", "weight": 0.5},
+        {"to": "stakeholder management", "weight": 0.45},
+    ],
+    "leadership": [
+        {"to": "communication", "weight": 0.6},
+        {"to": "teamwork", "weight": 0.5},
+        {"to": "project management", "weight": 0.55},
+    ],
+    "project management": [
+        {"to": "leadership", "weight": 0.5},
+        {"to": "communication", "weight": 0.45},
+        {"to": "teamwork", "weight": 0.4},
+    ],
+    "interpersonal skills": [
+        {"to": "communication", "weight": 0.7},
+        {"to": "teamwork", "weight": 0.6},
+        {"to": "negotiation", "weight": 0.4},
+    ],
+    "stakeholder management": [
+        {"to": "communication", "weight": 0.65},
+        {"to": "interpersonal skills", "weight": 0.55},
+        {"to": "negotiation", "weight": 0.4},
+    ],
+    "social media": [
+        {"to": "content creation", "weight": 0.55},
+        {"to": "communication", "weight": 0.4},
+        {"to": "writing", "weight": 0.45},
+    ],
+    "negotiation": [
+        {"to": "communication", "weight": 0.6},
+        {"to": "interpersonal skills", "weight": 0.55},
+    ],
+    "adaptability": [
+        {"to": "teamwork", "weight": 0.35},
+        {"to": "communication", "weight": 0.3},
+    ],
+    "attention to detail": [
+        {"to": "research", "weight": 0.4},
+        {"to": "writing", "weight": 0.35},
+    ],
 }
 
 
@@ -275,6 +469,7 @@ SKILL_ADJACENCY: Dict[str, List[Dict[str, Any]]] = {
 # ---------------------------------------------------------------------------
 
 ROLE_KEY_SKILLS_FALLBACK: Dict[str, List[str]] = {
+    # STEM / technical roles
     "data scientist": ["python", "machine learning", "statistics"],
     "machine learning engineer": ["python", "machine learning", "statistics"],
     "ml engineer": ["python", "machine learning", "statistics"],
@@ -293,9 +488,65 @@ ROLE_KEY_SKILLS_FALLBACK: Dict[str, List[str]] = {
     "product manager": ["product sense", "data analysis", "communication"],
     "quant analyst": ["statistics", "python", "mathematics"],
     "quantitative analyst": ["statistics", "python", "mathematics"],
-    "research assistant": ["data analysis", "statistics"],
-    "ux researcher": ["data analysis", "communication"],
+    "research assistant": ["research", "writing", "critical thinking"],
+    "ux researcher": ["ux research", "communication", "research"],
     "data engineer": ["sql", "python", "data analysis"],
+    # Humanities / Social Sciences / Arts roles
+    "editor": ["writing", "critical thinking", "attention to detail"],
+    "copywriter": ["writing", "communication", "content creation"],
+    "content writer": ["writing", "research", "communication"],
+    "journalist": ["writing", "research", "communication"],
+    "communications officer": ["writing", "communication", "stakeholder management"],
+    "communications manager": ["writing", "communication", "stakeholder management"],
+    "public relations": ["communication", "writing", "stakeholder management"],
+    "pr officer": ["communication", "writing", "stakeholder management"],
+    "policy analyst": ["policy", "research", "writing"],
+    "policy officer": ["policy", "research", "writing"],
+    "policy researcher": ["policy", "research", "critical thinking"],
+    "research officer": ["research", "writing", "critical thinking"],
+    "social researcher": ["research", "writing", "intercultural competence"],
+    "programme coordinator": ["project management", "communication", "stakeholder management"],
+    "project coordinator": ["project management", "communication", "teamwork"],
+    "project officer": ["project management", "communication", "teamwork"],
+    "program manager": ["project management", "leadership", "stakeholder management"],
+    "teacher": ["teaching", "communication", "writing"],
+    "lecturer": ["teaching", "research", "writing"],
+    "educator": ["teaching", "communication", "adaptability"],
+    "curriculum developer": ["teaching", "writing", "research"],
+    "instructional designer": ["teaching", "writing", "design"],
+    "cultural officer": ["intercultural competence", "communication", "research"],
+    "museum curator": ["research", "writing", "attention to detail"],
+    "heritage officer": ["research", "writing", "intercultural competence"],
+    "librarian": ["research", "writing", "attention to detail"],
+    "archivist": ["research", "attention to detail", "writing"],
+    "social worker": ["interpersonal skills", "communication", "adaptability"],
+    "case worker": ["interpersonal skills", "writing", "communication"],
+    "community officer": ["interpersonal skills", "communication", "stakeholder management"],
+    "ngo officer": ["communication", "project management", "stakeholder management"],
+    "development officer": ["stakeholder management", "writing", "communication"],
+    "fundraising officer": ["communication", "writing", "stakeholder management"],
+    "translator": ["writing", "intercultural competence", "attention to detail"],
+    "interpreter": ["intercultural competence", "communication", "attention to detail"],
+    "graphic designer": ["design", "communication", "attention to detail"],
+    "ui designer": ["design", "ux research", "communication"],
+    "ux designer": ["design", "ux research", "critical thinking"],
+    "content creator": ["content creation", "writing", "social media"],
+    "social media manager": ["social media", "writing", "communication"],
+    "marketing coordinator": ["communication", "writing", "social media"],
+    "brand manager": ["communication", "writing", "stakeholder management"],
+    "event coordinator": ["project management", "communication", "attention to detail"],
+    "event manager": ["project management", "communication", "leadership"],
+    "human resources": ["interpersonal skills", "communication", "writing"],
+    "hr officer": ["interpersonal skills", "communication", "writing"],
+    "recruiter": ["interpersonal skills", "communication", "negotiation"],
+    "executive assistant": ["communication", "attention to detail", "project management"],
+    "administrative officer": ["communication", "attention to detail", "writing"],
+    "legal researcher": ["research", "writing", "critical thinking"],
+    "paralegal": ["writing", "research", "attention to detail"],
+    "compliance officer": ["writing", "critical thinking", "attention to detail"],
+    "auditor": ["attention to detail", "critical thinking", "writing"],
+    "financial analyst": ["data analysis", "writing", "critical thinking"],
+    "economist": ["research", "data analysis", "writing"],
 }
 
 _ROLE_KEY_RE: Dict[re.Pattern, List[str]] = {
@@ -870,6 +1121,32 @@ def score_role(
             soft_bonus = min(soft_bonus, max(0.0, semantic_bonus_cap))
             if soft_bonus > 0:
                 readiness = round(min(100.0, readiness + soft_bonus), 2)
+
+    # Transferable-skills floor — prevents arts / humanities students from
+    # receiving a harsh 0 % when their documents contain genuine demonstrated
+    # skills (writing, communication, research, critical thinking, etc.) that
+    # simply aren't listed as explicit role requirements.
+    # The floor scales with the breadth and strength of the student's general
+    # skill portfolio so it doesn't unfairly inflate weak profiles.
+    TRANSFERABLE_GENERALS = {
+        "writing", "communication", "research", "critical thinking",
+        "teamwork", "presentation", "adaptability", "leadership",
+        "project management", "interpersonal skills", "attention to detail",
+        "intercultural competence", "content creation", "design",
+        "social media", "policy", "teaching", "negotiation",
+        "stakeholder management",
+    }
+    if readiness == 0.0 and student_by_canon:
+        floor_points: float = 0.0
+        for canon, sk in student_by_canon.items():
+            if canon in TRANSFERABLE_GENERALS and sk.decision in ("demonstrated", "match"):
+                floor_points += 5.0   # 5 pp per demonstrated general skill
+            elif canon in TRANSFERABLE_GENERALS and sk.decision == "mentioned":
+                floor_points += 2.0   # 2 pp for mentioned general skill
+        # Cap floor at 20 pp so it never dominates the score
+        floor_points = min(floor_points, 20.0)
+        if floor_points > 0:
+            readiness = round(floor_points, 2)
 
     must_ratio = round(must_met / must_total, 4) if must_total else 0.0
     match_class = classify_match(readiness, must_ratio)
