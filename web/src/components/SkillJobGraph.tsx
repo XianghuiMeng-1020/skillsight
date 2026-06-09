@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
 import { studentBff } from '@/lib/bffClient';
+import { DEMO_DASHBOARD_SKILLS, DEMO_DASHBOARD_JOB_MATCHES } from '@/lib/demoDataset';
 
 interface EvidenceSource {
   chunk_id: string;
@@ -133,6 +134,7 @@ interface SkillJobGraphProps {
   jobMatches: JobMatch[];
   onPotentialJobsChange?: (jobs: PotentialJobCandidate[]) => void;
   onOpenAssessmentAssistant?: (job: PotentialJobCandidate) => void;
+  showDemoPreview?: boolean;
 }
 
 interface Line {
@@ -372,6 +374,7 @@ export default function SkillJobGraph({
   jobMatches,
   onPotentialJobsChange,
   onOpenAssessmentAssistant,
+  showDemoPreview = false,
 }: SkillJobGraphProps) {
   const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -659,8 +662,37 @@ export default function SkillJobGraph({
   return (
     <div
       className="card"
-      style={{ border: '1px solid var(--gray-200)', overflow: 'visible' }}
+      style={{ border: showDemoPreview ? '1.5px dashed var(--peach, #F9CE9C)' : '1px solid var(--gray-200)', overflow: 'visible' }}
     >
+      {showDemoPreview && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '0.75rem',
+          padding: '0.5rem 1.5rem',
+          background: 'linear-gradient(90deg, rgba(249,206,156,0.18), rgba(152,184,168,0.12))',
+          borderBottom: '1px dashed var(--peach, #F9CE9C)',
+          borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, background: 'rgba(249,206,156,0.35)', color: 'var(--peach-dark, #c4883c)', padding: '0.15rem 0.5rem', borderRadius: '999px', border: '1px solid rgba(196,136,60,0.35)', letterSpacing: '0.04em' }}>
+              SAMPLE PREVIEW
+            </span>
+            <span style={{ fontSize: '0.78rem', color: 'var(--gray-600)' }}>
+              This is how your skill–job connections will look. Upload your documents to see your personalized map.
+            </span>
+          </div>
+          <Link
+            href="/dashboard/upload"
+            className="btn btn-primary btn-sm"
+            style={{ fontSize: '0.75rem', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            📤 Upload Evidence
+          </Link>
+        </div>
+      )}
       <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', gap: '2rem' }}>
           <h3 className="card-title">{t('dashboard.skills')}</h3>

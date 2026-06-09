@@ -492,9 +492,9 @@ export default function StudentDashboard() {
           )}
 
           {/* ── Section 1: Two side-by-side 2×2 grids ── */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
             {/* Left 2×2: Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div className="dashboard-inner-grid">
               {loading ? (
                 <>
                   {[1,2,3,4].map(i => (
@@ -545,7 +545,7 @@ export default function StudentDashboard() {
               <div className="card-header" style={{ padding: '0.75rem 1rem' }}>
                 <h3 className="card-title" style={{ fontSize: '0.9375rem' }}>💡 {t('dashboard.nextSteps')}</h3>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.625rem', padding: '0.625rem 1rem 1rem' }}>
+              <div className="dashboard-nextsteps-grid">
                 {documents.length === 0 ? (
                   <Link
                     href="/dashboard/upload"
@@ -624,10 +624,11 @@ export default function StudentDashboard() {
           {/* ── Section 2: Skills ↔ Jobs connection diagram ── */}
           <div style={{ marginBottom: '1.5rem' }}>
             <SkillJobGraph
-              skills={skills}
-              jobMatches={jobMatches}
+              skills={skills.length > 0 ? skills : (!loading ? DEMO_DASHBOARD_SKILLS : [])}
+              jobMatches={jobMatches.length > 0 ? jobMatches : (!loading ? DEMO_DASHBOARD_JOB_MATCHES : [])}
               onPotentialJobsChange={setPotentialJobs}
               onOpenAssessmentAssistant={openAssessmentAgentForPotentialJob}
+              showDemoPreview={!loading && skills.length === 0 && jobMatches.length === 0}
             />
           </div>
 

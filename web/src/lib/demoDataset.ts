@@ -73,8 +73,11 @@ export const DEMO_DASHBOARD_SKILLS = [
 export const DEMO_DASHBOARD_JOB_MATCHES = [
   {
     role_id: 'demo-role-1',
-    role_title: 'Data Analyst (Demo)',
+    role_title: 'Data Analyst — HSBC Hong Kong',
     readiness: 78,
+    match_class: 'confirmed' as const,
+    freshness_label: 'active' as const,
+    freshness_age_days: 7,
     gaps: ['Excel', 'Storytelling'],
     gaps_all: ['Excel', 'Storytelling'],
     critical_gaps: ['Excel'],
@@ -94,8 +97,11 @@ export const DEMO_DASHBOARD_JOB_MATCHES = [
   },
   {
     role_id: 'demo-role-2',
-    role_title: 'Product Analyst (Demo)',
+    role_title: 'Product Analyst — Meituan (Beijing)',
     readiness: 72,
+    match_class: 'confirmed' as const,
+    freshness_label: 'active' as const,
+    freshness_age_days: 3,
     gaps: ['Experiment Design', 'Storytelling'],
     gaps_all: ['Experiment Design', 'Storytelling'],
     critical_gaps: ['Experiment Design'],
@@ -115,8 +121,11 @@ export const DEMO_DASHBOARD_JOB_MATCHES = [
   },
   {
     role_id: 'demo-role-3',
-    role_title: 'BI Analyst (Demo)',
+    role_title: 'BI Analyst — WeLab',
     readiness: 69,
+    match_class: 'confirmed' as const,
+    freshness_label: 'recent' as const,
+    freshness_age_days: 18,
     gaps: ['Dashboarding'],
     gaps_all: ['Dashboarding'],
     critical_gaps: [],
@@ -136,8 +145,11 @@ export const DEMO_DASHBOARD_JOB_MATCHES = [
   },
   {
     role_id: 'demo-role-4',
-    role_title: 'Machine Learning Engineer (Demo)',
+    role_title: 'ML Engineer — ByteDance (Shanghai)',
     readiness: 67,
+    match_class: 'potential' as const,
+    freshness_label: 'active' as const,
+    freshness_age_days: 5,
     gaps: ['Deep Learning', 'MLOps'],
     gaps_all: ['Deep Learning', 'MLOps'],
     critical_gaps: ['Deep Learning'],
@@ -157,8 +169,11 @@ export const DEMO_DASHBOARD_JOB_MATCHES = [
   },
   {
     role_id: 'demo-role-5',
-    role_title: 'AI Product Specialist (Demo)',
+    role_title: 'AI Product Specialist — Alibaba Cloud',
     readiness: 64,
+    match_class: 'potential' as const,
+    freshness_label: 'recent' as const,
+    freshness_age_days: 25,
     gaps: ['Product Sense'],
     gaps_all: ['Product Sense'],
     critical_gaps: ['Product Sense'],
@@ -178,8 +193,11 @@ export const DEMO_DASHBOARD_JOB_MATCHES = [
   },
   {
     role_id: 'demo-role-6',
-    role_title: 'Data Scientist (Potential Demo)',
+    role_title: 'Data Scientist — Deloitte HK',
     readiness: 58,
+    match_class: 'potential' as const,
+    freshness_label: 'recent' as const,
+    freshness_age_days: 40,
     gaps: ['Deep Learning', 'Feature Engineering', 'Model Deployment'],
     gaps_all: ['Deep Learning', 'Feature Engineering', 'Model Deployment'],
     critical_gaps: ['Deep Learning', 'Feature Engineering'],
@@ -199,8 +217,11 @@ export const DEMO_DASHBOARD_JOB_MATCHES = [
   },
   {
     role_id: 'demo-role-7',
-    role_title: 'Quant Analyst (Potential Demo)',
+    role_title: 'Quant Analyst — HKEX',
     readiness: 55,
+    match_class: 'potential' as const,
+    freshness_label: 'aging' as const,
+    freshness_age_days: 90,
     gaps: ['Linear Algebra', 'Risk Modeling'],
     gaps_all: ['Linear Algebra', 'Risk Modeling'],
     critical_gaps: ['Linear Algebra'],
@@ -220,8 +241,11 @@ export const DEMO_DASHBOARD_JOB_MATCHES = [
   },
   {
     role_id: 'demo-role-8',
-    role_title: 'NLP Engineer (Potential Demo)',
+    role_title: 'NLP Engineer — Tencent (Shenzhen)',
     readiness: 53,
+    match_class: 'potential' as const,
+    freshness_label: 'active' as const,
+    freshness_age_days: 10,
     gaps: ['NLP', 'Transformers', 'Prompt Engineering'],
     gaps_all: ['NLP', 'Transformers', 'Prompt Engineering'],
     critical_gaps: ['NLP', 'Transformers'],
@@ -312,8 +336,18 @@ export const DEMO_PEER_BENCHMARK = [
 ];
 
 export const DEMO_JOBS_LIVE = [
+  // Hong Kong listings
   { posting_id: 'demo-job-1', source_site: 'jobsdb_hk', title: 'Data Analyst', company: 'HSBC', location: 'Hong Kong', salary: 'HKD 28,000 – 38,000/month', source_url: 'https://hk.jobsdb.com/', match_score: 72, matched_skills: ['Data Analysis', 'SQL'] },
   { posting_id: 'demo-job-2', source_site: 'jobsdb_hk', title: 'Business Analyst', company: 'Deloitte HK', location: 'Hong Kong', salary: 'HKD 32,000 – 45,000/month', source_url: 'https://hk.jobsdb.com/', match_score: 65, matched_skills: ['Data Analysis'] },
-  { posting_id: 'demo-job-3', source_site: 'ctgoodjobs_hk', title: 'Data Scientist', company: 'WeLab', location: 'Hong Kong', salary: 'HKD 40,000 – 60,000/month', source_url: 'https://www.ctgoodjobs.hk/', match_score: 55, matched_skills: ['Python Programming', 'Machine Learning'] },
+  { posting_id: 'demo-job-3', source_site: 'ctgoodjobs_hk', title: 'Data Scientist', company: 'WeLab', location: 'Hong Kong', salary: 'HKD 40,000 – 60,000/month', source_url: 'https://www.ctgoodjobs.hk/', match_score: 55, matched_skills: ['Python', 'Machine Learning'] },
   { posting_id: 'demo-job-4', source_site: 'ctgoodjobs_hk', title: 'BI Developer', company: 'HKEX', location: 'Hong Kong', salary: 'HKD 35,000 – 50,000/month', source_url: 'https://www.ctgoodjobs.hk/', match_score: 48, matched_skills: ['SQL', 'Data Visualization'] },
+  // Mainland China — Boss直聘 real search links (clicking opens live Boss直聘 results)
+  { posting_id: 'demo-job-5', source_site: 'boss_zhipin', title: '数据分析师（用户增长方向）', company: '美团', location: '北京·朝阳区', salary: '20K–35K/月', source_url: 'https://www.zhipin.com/web/geek/job?query=%E6%95%B0%E6%8D%AE%E5%88%86%E6%9E%90%E5%B8%88&city=101010100', match_score: 70, matched_skills: ['Data Analysis', 'SQL', 'Python'] },
+  { posting_id: 'demo-job-6', source_site: 'boss_zhipin', title: '推荐算法工程师（校招）', company: '字节跳动', location: '上海·浦东新区', salary: '35K–60K/月', source_url: 'https://www.zhipin.com/web/geek/job?query=%E7%AE%97%E6%B3%95%E5%B7%A5%E7%A8%8B%E5%B8%88&city=101020100', match_score: 62, matched_skills: ['Machine Learning', 'Python', 'Statistics'] },
+  { posting_id: 'demo-job-7', source_site: 'boss_zhipin', title: '产品数据分析师（实习）', company: '腾讯', location: '深圳·南山区', salary: '300–400元/天', source_url: 'https://www.zhipin.com/web/geek/job?query=%E4%BA%A7%E5%93%81%E6%95%B0%E6%8D%AE%E5%88%86%E6%9E%90&city=101280600', match_score: 68, matched_skills: ['Data Analysis', 'SQL', 'Communication'] },
+  { posting_id: 'demo-job-8', source_site: 'boss_zhipin', title: 'NLP 算法研究员（实习）', company: '阿里巴巴达摩院', location: '杭州·余杭区', salary: '300–500元/天', source_url: 'https://www.zhipin.com/web/geek/job?query=NLP%E5%B7%A5%E7%A8%8B%E5%B8%88&city=101210100', match_score: 45, matched_skills: ['Python', 'Machine Learning'] },
+  { posting_id: 'demo-job-9', source_site: 'boss_zhipin', title: '商业智能分析师 BI', company: '京东科技', location: '北京·亦庄开发区', salary: '18K–30K/月', source_url: 'https://www.zhipin.com/web/geek/job?query=%E5%95%86%E4%B8%9A%E6%99%BA%E8%83%BD%E5%88%86%E6%9E%90%E5%B8%88&city=101010100', match_score: 55, matched_skills: ['SQL', 'Data Visualization', 'Data Analysis'] },
+  { posting_id: 'demo-job-10', source_site: 'boss_zhipin', title: '数据科学家（金融科技方向）', company: '平安科技', location: '深圳·福田区', salary: '30K–50K/月', source_url: 'https://www.zhipin.com/web/geek/job?query=%E6%95%B0%E6%8D%AE%E7%A7%91%E5%AD%A6%E5%AE%B6&city=101280600', match_score: 58, matched_skills: ['Python', 'Statistics', 'Machine Learning'] },
+  { posting_id: 'demo-job-11', source_site: 'boss_zhipin', title: '量化研究员（校招）', company: '招商证券', location: '上海·黄浦区', salary: '25K–45K/月', source_url: 'https://www.zhipin.com/web/geek/job?query=%E9%87%8F%E5%8C%96%E7%A0%94%E7%A9%B6%E5%91%98&city=101020100', match_score: 42, matched_skills: ['Statistics', 'Python'] },
+  { posting_id: 'demo-job-12', source_site: 'boss_zhipin', title: '机器学习工程师（华为云）', company: '华为云', location: '成都·高新区', salary: '25K–45K/月', source_url: 'https://www.zhipin.com/web/geek/job?query=%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%B7%A5%E7%A8%8B%E5%B8%88&city=101270100', match_score: 52, matched_skills: ['Python', 'Machine Learning'] },
 ];

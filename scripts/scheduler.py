@@ -12,7 +12,7 @@ from typing import Any, Dict, Iterable, List
 
 import requests
 
-from scripts.scrapers import CtGoodJobsScraper, GovHkScraper, JobsDbScraper
+from scripts.scrapers import CtGoodJobsScraper, GovHkScraper, JobsDbScraper, scrape_mainland_jobs
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -24,11 +24,15 @@ FALLBACK_ROLE_FILES = [
 ]
 
 
-def _run_all(pages: int) -> Dict[str, List[dict]]:
+def _run_all(pages: int, include_mainland: bool = True) -> Dict[str, List[dict]]:
     jobsdb = [j.to_dict() for j in JobsDbScraper().scrape("data analyst", pages)]
     ct = [j.to_dict() for j in CtGoodJobsScraper().scrape("business analyst", pages)]
     gov = [j.to_dict() for j in GovHkScraper().scrape(pages)]
-    return {"jobsdb": jobsdb, "ctgoodjobs": ct, "gov_hk": gov}
+    result: Dict[str, List[dict]] = {"jobsdb": jobsdb, "ctgoodjobs": ct, "gov_hk": gov}
+    if include_mainland:
+        mainland = scrape_mainland_jobs(use_api=True, fallback_to_seed=True)
+        result["boss_zhipin"] = mainland
+    return result
 
 
 def _fallback_from_role_files() -> List[dict]:
@@ -166,8 +170,9 @@ def _refresh_roles() -> int:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Run HK public job scraping + optional role refresh")
+    ap = argparse.ArgumentParser(description="Run HK + mainland China job scraping + optional role refresh")
     ap.add_argument("--pages", type=int, default=2)
+    ap.add_argument("--no-mainland", action="store_true", help="Skip mainland China (Boss直聘) scraping")
     ap.add_argument("--out-dir", type=Path, default=REPO_ROOT / "data" / "job_postings")
     ap.add_argument("--refresh-roles", action="store_true")
     ap.add_argument("--import-api", action="store_true", help="Import scraped postings via POST /job-postings/import")
@@ -178,7 +183,7 @@ def main() -> None:
     ap.add_argument("--enable-fallback-role-files", action="store_true")
     args = ap.parse_args()
 
-    payload = _run_all(args.pages)
+    payload = _run_all(args.pages, include_mainland=not args.no_mainland)
     if sum(len(v) for v in payload.values()) == 0 and args.enable_fallback_role_files:
         payload["linkedin_fallback"] = _fallback_from_role_files()
     out = _write_snapshot(payload, args.out_dir)

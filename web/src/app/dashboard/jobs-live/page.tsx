@@ -20,10 +20,19 @@ type Job = {
 };
 
 const SOURCE_LABELS: Record<string, string> = {
-  jobsdb_hk: 'JobsDB',
+  jobsdb_hk: 'JobsDB HK',
   ctgoodjobs_hk: 'CTgoodjobs',
   linkedin: 'LinkedIn',
   hk_indeed: 'Indeed HK',
+  boss_zhipin: 'Boss直聘',
+};
+
+const SOURCE_REGIONS: Record<string, string> = {
+  jobsdb_hk: 'hk',
+  ctgoodjobs_hk: 'hk',
+  linkedin: 'hk',
+  hk_indeed: 'hk',
+  boss_zhipin: 'mainland',
 };
 
 export default function JobsLivePage() {
@@ -31,6 +40,7 @@ export default function JobsLivePage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [q, setQ] = useState('');
   const [source, setSource] = useState('');
+  const [region, setRegion] = useState('');
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);
   const [isDemo, setIsDemo] = useState(false);
@@ -39,7 +49,7 @@ export default function JobsLivePage() {
   const abortRef = useRef<AbortController | null>(null);
   const loadSeqRef = useRef(0);
 
-  const load = async (keyword = q, src = source) => {
+  const load = async (keyword = q, src = source, rgn = region) => {
     const seq = ++loadSeqRef.current;
     if (abortRef.current) {
       abortRef.current.abort();
@@ -60,19 +70,28 @@ export default function JobsLivePage() {
       if (seq !== loadSeqRef.current) return;
       const items = data.items || [];
       if (items.length === 0 && !keyword && !src) {
-        setJobs(DEMO_JOBS_LIVE);
-        setTotal(DEMO_JOBS_LIVE.length);
+        const filtered = rgn
+          ? DEMO_JOBS_LIVE.filter((j) => SOURCE_REGIONS[j.source_site] === rgn)
+          : DEMO_JOBS_LIVE;
+        setJobs(filtered);
+        setTotal(filtered.length);
         setIsDemo(true);
       } else {
-        setJobs(items);
-        setTotal(data.count || items.length);
+        const filtered = rgn
+          ? items.filter((j: Job) => SOURCE_REGIONS[j.source_site] === rgn)
+          : items;
+        setJobs(filtered);
+        setTotal(data.count || filtered.length);
         setIsDemo(false);
       }
     } catch (e: unknown) {
       if (seq !== loadSeqRef.current) return;
       if (e instanceof Error && e.name === 'AbortError') return;
-      setJobs(DEMO_JOBS_LIVE);
-      setTotal(DEMO_JOBS_LIVE.length);
+      const filtered = rgn
+        ? DEMO_JOBS_LIVE.filter((j) => SOURCE_REGIONS[j.source_site] === rgn)
+        : DEMO_JOBS_LIVE;
+      setJobs(filtered);
+      setTotal(filtered.length);
       setIsDemo(true);
     } finally {
       if (seq === loadSeqRef.current) {
@@ -83,7 +102,6 @@ export default function JobsLivePage() {
 
   useEffect(() => {
     void load();
-    // Cleanup abort on unmount
     return () => {
       if (abortRef.current) {
         abortRef.current.abort();
@@ -92,8 +110,8 @@ export default function JobsLivePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleFilter = () => load(q, source);
-  const handleClear = () => { setQ(''); setSource(''); load('', ''); };
+  const handleFilter = () => load(q, source, region);
+  const handleClear = () => { setQ(''); setSource(''); setRegion(''); load('', '', ''); };
 
   return (
     <div className="app-container">
@@ -121,6 +139,18 @@ export default function JobsLivePage() {
               onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
               style={{ maxWidth: 280, flex: '1 1 200px' }}
             />
+            {/* Region filter */}
+            <select
+              className="input"
+              value={region}
+              onChange={(e) => { setRegion(e.target.value); setSource(''); }}
+              style={{ maxWidth: 160 }}
+            >
+              <option value="">🌏 All Regions</option>
+              <option value="hk">🇭🇰 Hong Kong</option>
+              <option value="mainland">🇨🇳 Mainland China</option>
+            </select>
+            {/* Source filter (changes based on region) */}
             <select
               className="input"
               value={source}
@@ -128,13 +158,20 @@ export default function JobsLivePage() {
               style={{ maxWidth: 180 }}
             >
               <option value="">{t('jobsLive.allSources')}</option>
-              <option value="jobsdb_hk">JobsDB HK</option>
-              <option value="ctgoodjobs_hk">CTgoodjobs HK</option>
-              <option value="linkedin">LinkedIn</option>
-              <option value="hk_indeed">Indeed HK</option>
+              {(region === '' || region === 'hk') && (
+                <>
+                  <option value="jobsdb_hk">JobsDB HK</option>
+                  <option value="ctgoodjobs_hk">CTgoodjobs HK</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="hk_indeed">Indeed HK</option>
+                </>
+              )}
+              {(region === '' || region === 'mainland') && (
+                <option value="boss_zhipin">Boss直聘</option>
+              )}
             </select>
             <button className="btn btn-primary btn-sm" onClick={handleFilter}>{t('jobsLive.search')}</button>
-            {(q || source) && (
+            {(q || source || region) && (
               <button className="btn btn-ghost btn-sm" onClick={handleClear}>{t('jobsLive.clear')}</button>
             )}
           </div>
@@ -201,7 +238,13 @@ export default function JobsLivePage() {
                       </div>
                     )}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '0.6rem' }}>
-                      <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>{t('jobsLive.via')} {sourceLabel}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: 11, color: 'var(--gray-400)' }}>
+                        {job.source_site === 'boss_zhipin' ? (
+                          <span style={{ background: '#ff6b35', color: '#fff', borderRadius: 4, padding: '1px 5px', fontWeight: 600 }}>Boss直聘</span>
+                        ) : (
+                          <>{t('jobsLive.via')} {sourceLabel}</>
+                        )}
+                      </span>
                       <a
                         className="btn btn-ghost btn-sm"
                         href={job.source_url}

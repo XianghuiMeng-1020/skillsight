@@ -1210,6 +1210,29 @@ a:hover {
   }
 }
 
+/* Dashboard inner 2×2 grids: collapse to single column on very small screens */
+.dashboard-inner-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+}
+
+.dashboard-nextsteps-grid {
+  display: grid;
+  gap: 0.625rem;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  padding: 0.625rem 1rem 1rem;
+}
+
+@media (max-width: 520px) {
+  .dashboard-inner-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .dashboard-nextsteps-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Mobile sidebar: hamburger + backdrop */
 .sidebar-hamburger {
   display: none;
