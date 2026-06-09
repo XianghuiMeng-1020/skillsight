@@ -49,6 +49,22 @@ export default function JobsLivePage() {
   const abortRef = useRef<AbortController | null>(null);
   const loadSeqRef = useRef(0);
 
+  /** Apply keyword / source / region filters to a job list (client-side). */
+  const applyLocalFilters = (list: Job[], keyword: string, src: string, rgn: string): Job[] => {
+    let out = list;
+    if (rgn) out = out.filter((j) => SOURCE_REGIONS[j.source_site] === rgn);
+    if (src) out = out.filter((j) => j.source_site === src);
+    if (keyword) {
+      const kw = keyword.toLowerCase();
+      out = out.filter((j) =>
+        j.title.toLowerCase().includes(kw) ||
+        (j.company || '').toLowerCase().includes(kw) ||
+        (j.location || '').toLowerCase().includes(kw),
+      );
+    }
+    return out;
+  };
+
   const load = async (keyword = q, src = source, rgn = region) => {
     const seq = ++loadSeqRef.current;
     if (abortRef.current) {
@@ -63,35 +79,34 @@ export default function JobsLivePage() {
     try {
       const data = await studentBff.getJobsLive({
         q: keyword || undefined,
-        source_site: src || undefined,
+        // Only send source_site to backend for HK sources; mainland filtering is client-side
+        source_site: src && SOURCE_REGIONS[src] !== 'mainland' ? src : undefined,
         limit: 60,
         signal: abort.signal,
       });
       if (seq !== loadSeqRef.current) return;
-      const items = data.items || [];
-      if (items.length === 0 && !keyword && !src) {
-        const filtered = rgn
-          ? DEMO_JOBS_LIVE.filter((j) => SOURCE_REGIONS[j.source_site] === rgn)
-          : DEMO_JOBS_LIVE;
-        setJobs(filtered);
-        setTotal(filtered.length);
-        setIsDemo(true);
-      } else {
-        const filtered = rgn
-          ? items.filter((j: Job) => SOURCE_REGIONS[j.source_site] === rgn)
-          : items;
+      const items: Job[] = data.items || [];
+
+      // Apply client-side filters (region + mainland source)
+      const filtered = applyLocalFilters(items, keyword, src, rgn);
+
+      if (filtered.length > 0) {
         setJobs(filtered);
         setTotal(data.count || filtered.length);
         setIsDemo(false);
+      } else {
+        // API returned nothing for this filter combination — fall back to demo data
+        const demoFiltered = applyLocalFilters(DEMO_JOBS_LIVE, keyword, src, rgn);
+        setJobs(demoFiltered);
+        setTotal(demoFiltered.length);
+        setIsDemo(true);
       }
     } catch (e: unknown) {
       if (seq !== loadSeqRef.current) return;
       if (e instanceof Error && e.name === 'AbortError') return;
-      const filtered = rgn
-        ? DEMO_JOBS_LIVE.filter((j) => SOURCE_REGIONS[j.source_site] === rgn)
-        : DEMO_JOBS_LIVE;
-      setJobs(filtered);
-      setTotal(filtered.length);
+      const demoFiltered = applyLocalFilters(DEMO_JOBS_LIVE, keyword, src, rgn);
+      setJobs(demoFiltered);
+      setTotal(demoFiltered.length);
       setIsDemo(true);
     } finally {
       if (seq === loadSeqRef.current) {
@@ -123,7 +138,9 @@ export default function JobsLivePage() {
             <p style={{ margin: 0, color: 'var(--gray-500)' }}>
               {isDemo
                 ? t('jobsLive.demoSubtitle')
-                : `${total} ${t('jobsLive.subtitleCount')}`}
+                : region === 'mainland'
+                  ? `${total} ${t('jobsLive.subtitleCountMainland') || '条内地实时职位 · 显示你的技能匹配度'}`
+                  : `${total} ${t('jobsLive.subtitleCount')}`}
             </p>
           </div>
         </div>
@@ -139,11 +156,16 @@ export default function JobsLivePage() {
               onKeyDown={(e) => e.key === 'Enter' && handleFilter()}
               style={{ maxWidth: 280, flex: '1 1 200px' }}
             />
-            {/* Region filter */}
+            {/* Region filter — triggers load immediately on change */}
             <select
               className="input"
               value={region}
-              onChange={(e) => { setRegion(e.target.value); setSource(''); }}
+              onChange={(e) => {
+                const newRgn = e.target.value;
+                setRegion(newRgn);
+                setSource('');
+                load(q, '', newRgn);
+              }}
               style={{ maxWidth: 160 }}
             >
               <option value="">🌏 All Regions</option>

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useLanguage } from '@/lib/contexts';
 import { fmt2 } from '@/lib/formatNumber';
 import { studentBff } from '@/lib/bffClient';
-import { DEMO_DASHBOARD_SKILLS, DEMO_DASHBOARD_JOB_MATCHES } from '@/lib/demoDataset';
 
 interface EvidenceSource {
   chunk_id: string;
