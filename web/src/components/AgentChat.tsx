@@ -135,9 +135,15 @@ export function AgentChat({
       }
     } catch (e) {
       logger.error('AgentChat message failed', e);
+      let errMsg: string;
+      if (e instanceof BffError && e.status >= 500) {
+        errMsg = (t('agent.serviceUnavailable') as string) || 'The AI service is temporarily unavailable. Please try again in a moment.';
+      } else {
+        errMsg = (t('skills.tutorError') as string) || 'Sorry, something went wrong. Please try again.';
+      }
       setTurns((prev) => [
         ...prev,
-        { role: 'assistant', content: (t('skills.tutorError') as string) || 'Sorry, something went wrong. Please try again.', ts: Date.now() },
+        { role: 'assistant', content: errMsg, ts: Date.now() },
       ]);
     } finally {
       setLoading(false);

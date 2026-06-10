@@ -3482,21 +3482,34 @@ def bff_tutor_session_message(
         skill_def = "Resume and career feedback."
         rubric_summary = ""
         student_skill_summary = _build_student_skill_summary(db, user_id)
-        chunks = _rag_retrieve_for_tutor("resume experience skills", doc_ids, top_k=8, request_id=str(uuid.uuid4()))
+        try:
+            chunks = _rag_retrieve_for_tutor("resume experience skills", doc_ids, top_k=8, request_id=str(uuid.uuid4()))
+        except Exception:
+            _log.warning("RAG retrieval failed for resume_review session_id=%s; proceeding without evidence", session_id)
+            chunks = []
     else:
         student_skill_summary = None
         skill = _get_skill_for_tutor(db, skill_id)
         if not skill:
-            raise HTTPException(status_code=404, detail="Skill not found")
-        skill_def = (skill.get("definition") or "")[:2000]
-        chunks = _rag_retrieve_for_tutor(skill_def, doc_ids, top_k=8, request_id=str(uuid.uuid4()))
-        rubric = skill.get("level_rubric") or skill.get("level_rubric_json")
-        if isinstance(rubric, str):
-            try:
-                rubric = json.loads(rubric) if rubric else {}
-            except Exception:
-                rubric = {}
-        rubric_summary = json.dumps(rubric, ensure_ascii=False)[:1500] if rubric else "Levels 0-3: novice, developing, proficient, advanced."
+            # Graceful degradation: skill not yet seeded in DB; derive name from skill_id and continue
+            _log.warning("Skill not found in DB for skill_id=%s; falling back to generic definition", skill_id)
+            readable_name = skill_id.replace("HKU.SKILL.", "").replace(".v1", "").replace("_", " ").replace(".", " ").title()
+            skill_def = f"Skill: {readable_name}. Assess the student's demonstrated knowledge and application of this skill."
+            rubric_summary = "Levels 0-3: novice (0), developing (1), proficient (2), advanced (3)."
+        else:
+            skill_def = (skill.get("definition") or "")[:2000]
+            rubric = skill.get("level_rubric") or skill.get("level_rubric_json")
+            if isinstance(rubric, str):
+                try:
+                    rubric = json.loads(rubric) if rubric else {}
+                except Exception:
+                    rubric = {}
+            rubric_summary = json.dumps(rubric, ensure_ascii=False)[:1500] if rubric else "Levels 0-3: novice, developing, proficient, advanced."
+        try:
+            chunks = _rag_retrieve_for_tutor(skill_def, doc_ids, top_k=8, request_id=str(uuid.uuid4()))
+        except Exception:
+            _log.warning("RAG retrieval failed for session_id=%s skill_id=%s; proceeding without evidence", session_id, skill_id)
+            chunks = []
 
     evidence_lines = [f"- {c['chunk_id']}: {c['snippet']}" for c in chunks]
     evidence_text = "\n".join(evidence_lines) if evidence_lines else "(No evidence chunks retrieved.)"
@@ -3525,6 +3538,12 @@ def bff_tutor_session_message(
             temperature=0.3,
             stream=False,
         )
+    except RuntimeError as exc:
+        # openai_chat raises RuntimeError when the client is not configured
+        # (missing API key or package). Use 503 so bffClient retries but also
+        # so callers can distinguish "not configured" from a transient LLM error.
+        _log.exception("Tutor LLM client unavailable for session_id=%s: %s", session_id, exc)
+        raise HTTPException(status_code=503, detail=f"LLM service not configured: {exc}")
     except Exception:
         _log.exception("Tutor LLM request failed for session_id=%s", session_id)
         raise HTTPException(status_code=502, detail="LLM request failed")
