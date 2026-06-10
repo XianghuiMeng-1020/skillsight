@@ -41,11 +41,15 @@ _RETRY_BASE_S: float = float(os.getenv("LLM_RETRY_BASE_S", "2.0"))
 _llm_semaphore = threading.Semaphore(_MAX_CONCURRENT)
 
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+# When using OpenRouter, default to a free model unless OPENROUTER_MODEL is set.
+# Free models on OpenRouter have the ":free" suffix and require no credits.
+_OPENROUTER_DEFAULT_FREE_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
+
 _OPENROUTER_MODEL_REMAP = {
-    "gpt-4o-mini":   "openai/gpt-4o-mini",
-    "gpt-4o":        "openai/gpt-4o",
-    "gpt-4":         "openai/gpt-4",
-    "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
+    "gpt-4o-mini":   _OPENROUTER_DEFAULT_FREE_MODEL,
+    "gpt-4o":        _OPENROUTER_DEFAULT_FREE_MODEL,
+    "gpt-4":         _OPENROUTER_DEFAULT_FREE_MODEL,
+    "gpt-3.5-turbo": _OPENROUTER_DEFAULT_FREE_MODEL,
 }
 
 
@@ -122,15 +126,22 @@ def _get_fallback_client():
 
 
 def _is_auth_error(exc: Exception) -> bool:
-    """Return True for 401 / authentication errors (invalid API key)."""
+    """Return True for 401/403 errors that indicate a bad/expired/quota-exceeded API key."""
     try:
-        from openai import AuthenticationError
-        if isinstance(exc, AuthenticationError):
+        from openai import AuthenticationError, PermissionDeniedError
+        if isinstance(exc, (AuthenticationError, PermissionDeniedError)):
             return True
     except ImportError:
         pass
     msg = str(exc).lower()
-    return "401" in msg or "incorrect api key" in msg or "authentication" in msg
+    return (
+        "401" in msg
+        or "403" in msg
+        or "incorrect api key" in msg
+        or "authentication" in msg
+        or "permission denied" in msg
+        or "terms of service" in msg
+    )
 
 
 def _model_for_provider(requested_model: str, provider: str) -> str:
