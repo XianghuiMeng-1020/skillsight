@@ -43,7 +43,10 @@ _llm_semaphore = threading.Semaphore(_MAX_CONCURRENT)
 _OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 # When using OpenRouter, default to a free model unless OPENROUTER_MODEL is set.
 # Free models on OpenRouter have the ":free" suffix and require no credits.
-_OPENROUTER_DEFAULT_FREE_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
+# Default free model on OpenRouter (no credits needed).
+# Override via OPENROUTER_MODEL env var if this slug becomes unavailable.
+# Browse current free models at: https://openrouter.ai/models?q=:free
+_OPENROUTER_DEFAULT_FREE_MODEL = "mistralai/mistral-7b-instruct:free"
 
 _OPENROUTER_MODEL_REMAP = {
     "gpt-4o-mini":   _OPENROUTER_DEFAULT_FREE_MODEL,
