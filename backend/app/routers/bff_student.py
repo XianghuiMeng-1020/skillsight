@@ -1433,29 +1433,55 @@ async def bff_role_alignment_batch(
     except Exception:
         return {"items": [], "count": 0}
 
-    # 1+2) Get best assessment decision + proficiency level per skill via consented docs
+    # 1+2) Get best assessment decision + proficiency level per skill via consented docs.
+    # Uses a UNION of skill_assessments (decision label) and skill_proficiency (level) so
+    # that demo-seeded data (written only to skill_proficiency) still produces correct scores.
     assess_sql = text("""
-        SELECT DISTINCT ON (sa.skill_id)
-            sa.skill_id, sa.decision,
-            COALESCE(sp.level, 0) AS level,
-            sa.created_at AS assessed_at
-        FROM skill_assessments sa
-        JOIN consents c ON c.doc_id = sa.doc_id::text AND c.user_id = :sub AND c.status = 'granted'
-        LEFT JOIN skill_proficiency sp
-            ON sp.skill_id = sa.skill_id AND sp.doc_id = sa.doc_id
-        ORDER BY sa.skill_id,
-            CASE sa.decision WHEN 'demonstrated' THEN 1 WHEN 'match' THEN 1 WHEN 'mentioned' THEN 2 ELSE 3 END,
-            sa.created_at DESC
+        SELECT DISTINCT ON (skill_id)
+            skill_id, decision,
+            level,
+            assessed_at
+        FROM (
+            -- Primary: skill_assessments joined with proficiency for accurate level
+            SELECT
+                sa.skill_id,
+                sa.decision,
+                COALESCE(sp.level, 0) AS level,
+                sa.created_at AS assessed_at,
+                1 AS src_priority
+            FROM skill_assessments sa
+            JOIN consents c ON c.doc_id = sa.doc_id::text AND c.user_id = :sub AND c.status = 'granted'
+            LEFT JOIN skill_proficiency sp
+                ON sp.skill_id = sa.skill_id AND sp.doc_id = sa.doc_id
+
+            UNION ALL
+
+            -- Fallback: skill_proficiency alone (covers demo seeds and interactive assessments)
+            SELECT
+                sp.skill_id,
+                sp.label AS decision,
+                sp.level,
+                sp.created_at AS assessed_at,
+                2 AS src_priority
+            FROM skill_proficiency sp
+            JOIN consents c ON c.doc_id = sp.doc_id::text AND c.user_id = :sub AND c.status = 'granted'
+        ) combined
+        ORDER BY skill_id,
+            src_priority,
+            CASE decision WHEN 'demonstrated' THEN 1 WHEN 'match' THEN 1 WHEN 'mentioned' THEN 2
+                          WHEN 'advanced' THEN 1 WHEN 'proficient' THEN 2 WHEN 'developing' THEN 3
+                          ELSE 4 END,
+            assessed_at DESC
     """)
     assess_rows = db.execute(assess_sql, {"sub": ident.subject_id}).mappings().all()
     skill_map: Dict[str, Dict] = {}
     for r in assess_rows:
         decision = r["decision"] or ""
         raw_level = int(r["level"]) if r["level"] is not None else 0
-        # If demonstrated but no proficiency level recorded, infer level 2
-        if decision in ("demonstrated", "match") and raw_level == 0:
+        # Normalize decision labels and infer level when missing
+        if decision in ("demonstrated", "match", "advanced") and raw_level == 0:
             raw_level = 2
-        elif decision == "mentioned" and raw_level == 0:
+        elif decision in ("mentioned", "developing") and raw_level == 0:
             raw_level = 1
         skill_map[r["skill_id"]] = {
             "decision": decision,
