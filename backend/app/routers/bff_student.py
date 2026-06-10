@@ -3625,42 +3625,71 @@ def bff_seed_demo(
     user_id = ident.subject_id
     now = datetime.now(timezone.utc)
 
+    def _table_cols(table: str) -> set:
+        rows = db.execute(
+            text("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=:t"),
+            {"t": table},
+        ).mappings().all()
+        return {r["column_name"] for r in rows}
+
     # ── 1. Create a virtual demo document ──────────────────────────────────────
     doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"demo-doc:{user_id}"))
+    stored_path = f"upload://{doc_id}/demo_resume.pdf"
+    doc_cols = _table_cols("documents")
+    doc_payload: Dict[str, Any] = {}
+    if "doc_id"       in doc_cols: doc_payload["doc_id"]       = doc_id
+    if "filename"     in doc_cols: doc_payload["filename"]     = "demo_resume.pdf"
+    if "stored_path"  in doc_cols: doc_payload["stored_path"]  = stored_path
+    if "doc_type"     in doc_cols: doc_payload["doc_type"]     = "resume"
+    if "title"        in doc_cols: doc_payload["title"]        = "Demo Student Resume"
+    if "source_type"  in doc_cols: doc_payload["source_type"]  = "demo_seed"
+    if "storage_uri"  in doc_cols: doc_payload["storage_uri"]  = stored_path
+    if "created_at"   in doc_cols: doc_payload["created_at"]   = now
+    if "metadata_json" in doc_cols:
+        doc_payload["metadata_json"] = json.dumps({"source": "demo_seed", "user_id": user_id})
+    if "raw_text" in doc_cols:
+        doc_payload["raw_text"] = (
+            "Chen Ming — Data Science Graduate\n"
+            "Education: BSc Data Science, HKU, 2025\n"
+            "Skills: Python (pandas, scikit-learn, matplotlib), SQL, Machine Learning, "
+            "Data Visualization, Statistics, Deep Learning (PyTorch), "
+            "Natural Language Processing, Research Methods, Technical Writing, "
+            "Teamwork & Collaboration, Critical Thinking, Communication & Presentation\n"
+            "Projects: Sentiment analysis NLP pipeline; COVID-19 epidemiological model; "
+            "HKU campus energy dashboard; Peer review AI ethics study.\n"
+            "Internship: Data Analyst intern, HSBC HK – built risk reporting dashboards in Tableau & Python."
+        )
+    keys = list(doc_payload.keys())
     db.execute(
-        text("""
-            INSERT INTO documents (doc_id, filename, doc_type, raw_text, created_at)
-            VALUES (CAST(:doc_id AS UUID), :filename, :doc_type, :raw_text, :now)
-            ON CONFLICT (doc_id) DO NOTHING
-        """),
-        {
-            "doc_id": doc_id,
-            "filename": "demo_resume.pdf",
-            "doc_type": "resume",
-            "raw_text": (
-                "Chen Ming — Data Science Graduate\n"
-                "Education: BSc Data Science, HKU, 2025\n"
-                "Skills: Python (pandas, scikit-learn, matplotlib), SQL, Machine Learning, "
-                "Data Visualization, Statistics, Deep Learning (PyTorch), "
-                "Natural Language Processing, Research Methods, Technical Writing, "
-                "Teamwork & Collaboration, Critical Thinking, Communication & Presentation\n"
-                "Projects: Sentiment analysis NLP pipeline; COVID-19 epidemiological model; "
-                "HKU campus energy dashboard; Peer review AI ethics study.\n"
-                "Internship: Data Analyst intern, HSBC HK – built risk reporting dashboards in Tableau & Python."
-            ),
-            "now": now,
-        },
+        text(
+            f"INSERT INTO documents ({', '.join(keys)}) "
+            f"VALUES ({', '.join(f':{k}' for k in keys)}) "
+            "ON CONFLICT (doc_id) DO NOTHING"
+        ),
+        doc_payload,
     )
 
     # ── 2. Grant consent ────────────────────────────────────────────────────────
     consent_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"demo-consent:{user_id}:{doc_id}"))
+    con_cols = _table_cols("consents")
+    con_payload: Dict[str, Any] = {}
+    if "consent_id" in con_cols: con_payload["consent_id"] = consent_id
+    if "user_id"    in con_cols: con_payload["user_id"]    = user_id
+    if "subject_id" in con_cols: con_payload["subject_id"] = user_id
+    if "doc_id"     in con_cols: con_payload["doc_id"]     = doc_id
+    if "status"     in con_cols: con_payload["status"]     = "granted"
+    if "created_at" in con_cols: con_payload["created_at"] = now
+    if "scope"      in con_cols: con_payload["scope"]      = "skill_assessment:full"
+    if "purpose"    in con_cols: con_payload["purpose"]    = "skill_assessment"
+    if "granted_at" in con_cols: con_payload["granted_at"] = now
+    ckeys = list(con_payload.keys())
     db.execute(
-        text("""
-            INSERT INTO consents (consent_id, user_id, doc_id, purpose, scope, status, granted_at)
-            VALUES (:cid, :uid, :doc_id, 'skill_assessment', 'full', 'granted', :now)
-            ON CONFLICT (consent_id) DO NOTHING
-        """),
-        {"cid": consent_id, "uid": user_id, "doc_id": doc_id, "now": now},
+        text(
+            f"INSERT INTO consents ({', '.join(ckeys)}) "
+            f"VALUES ({', '.join(f':{k}' for k in ckeys)}) "
+            "ON CONFLICT (consent_id) DO NOTHING"
+        ),
+        con_payload,
     )
 
     # ── 3. Seed skill proficiency records ──────────────────────────────────────
