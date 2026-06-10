@@ -515,6 +515,56 @@ def health_schema():
     return _SCHEMA_HEALTH
 
 
+@app.get("/health/llm")
+def health_llm():
+    """Diagnostic: check if the OpenAI client is reachable and the API key is set.
+
+    Returns:
+      - api_key_set: true if OPENAI_API_KEY env var is non-empty
+      - client_ok:   true if the OpenAI SDK client could be instantiated
+      - model:       which model is configured (OPENAI_MODEL)
+      - ping_ok:     true if a minimal ChatCompletion call succeeds (1 token)
+      - error:       error message if ping failed
+    """
+    import os as _os
+    out: dict = {"ok": False}
+    api_key = _os.getenv("OPENAI_API_KEY", "").strip()
+    out["api_key_set"] = bool(api_key)
+    out["model"] = _os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+    out["llm_fallback_rules_only"] = _os.getenv("LLM_FALLBACK_RULES_ONLY", "").lower() in ("1", "true", "yes", "on")
+
+    if not api_key:
+        out["error"] = "OPENAI_API_KEY environment variable is not set"
+        return out
+
+    try:
+        from backend.app.openai_client import _get_client
+        client = _get_client()
+        out["client_ok"] = client is not None
+        if client is None:
+            out["error"] = "OpenAI client could not be instantiated (check openai package)"
+            return out
+
+        # Minimal ping: 1 input token → 1 output token
+        resp = client.chat.completions.create(
+            model=out["model"],
+            messages=[{"role": "user", "content": "Say: ok"}],
+            max_tokens=4,
+            temperature=0,
+            timeout=10,
+        )
+        reply = (resp.choices[0].message.content or "").strip() if resp.choices else ""
+        out["ping_ok"] = True
+        out["ping_reply"] = reply
+        out["ok"] = True
+    except Exception as exc:
+        out["client_ok"] = False
+        out["ping_ok"] = False
+        out["error"] = f"{type(exc).__name__}: {str(exc)[:300]}"
+
+    return out
+
+
 @app.get("/health/tutor")
 def health_tutor():
     """Diagnostic for the Live Agent (bot) widget.
