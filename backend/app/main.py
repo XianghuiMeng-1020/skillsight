@@ -528,13 +528,16 @@ def health_llm():
     """
     import os as _os
     out: dict = {"ok": False}
-    api_key = _os.getenv("OPENAI_API_KEY", "").strip()
-    out["api_key_set"] = bool(api_key)
+    openai_key = _os.getenv("OPENAI_API_KEY", "").strip()
+    openrouter_key = _os.getenv("OPENROUTER_API_KEY", "").strip()
+    out["openai_key_set"] = bool(openai_key)
+    out["openrouter_key_set"] = bool(openrouter_key)
+    out["active_provider"] = "openai" if openai_key else ("openrouter" if openrouter_key else "none")
     out["model"] = _os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     out["llm_fallback_rules_only"] = _os.getenv("LLM_FALLBACK_RULES_ONLY", "").lower() in ("1", "true", "yes", "on")
 
-    if not api_key:
-        out["error"] = "OPENAI_API_KEY environment variable is not set"
+    if not openai_key and not openrouter_key:
+        out["error"] = "Neither OPENAI_API_KEY nor OPENROUTER_API_KEY is set"
         return out
 
     try:

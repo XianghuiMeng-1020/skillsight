@@ -1,13 +1,22 @@
 """
-OpenAI Chat Completions client for LLM-based assessment.
-Used when LLM_PROVIDER=openai; requires OPENAI_API_KEY.
+OpenAI-compatible Chat Completions client for LLM-based assessment.
+
+Provider priority (first available wins):
+  1. OPENAI_API_KEY          → api.openai.com   (OpenAI)
+  2. OPENROUTER_API_KEY      → openrouter.ai    (fallback, many free/cheap models)
 
 Concurrency controls:
   - LLM_MAX_CONCURRENT (default 8): global threading.Semaphore limits simultaneous
-    OpenAI calls so 50 concurrent users never exhaust the PG connection pool or
+    LLM calls so 50 concurrent users never exhaust the PG connection pool or
     trigger cascading timeouts.
   - LLM_MAX_RETRIES (default 3): exponential back-off on 429 / 503 before giving up.
   - LLM_RETRY_BASE_S (default 2): base sleep seconds between retries (doubles each time).
+
+OpenRouter env vars:
+  - OPENROUTER_API_KEY       → required to use OpenRouter
+  - OPENROUTER_MODEL         → model slug (default: openai/gpt-4o-mini)
+  - OPENROUTER_SITE_URL      → optional, sent as HTTP-Referer
+  - OPENROUTER_SITE_NAME     → optional, sent as X-Title
 """
 import logging
 import os
@@ -29,8 +38,19 @@ _RETRY_BASE_S: float = float(os.getenv("LLM_RETRY_BASE_S", "2.0"))
 # Global semaphore: shared across ALL threads / workers in this process.
 _llm_semaphore = threading.Semaphore(_MAX_CONCURRENT)
 
+_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
 
 def _get_client():
+    """
+    Return an OpenAI-SDK client configured for the first available provider.
+
+    Priority:
+      1. OPENAI_API_KEY      → standard OpenAI endpoint
+      2. OPENROUTER_API_KEY  → OpenRouter endpoint (OpenAI-compatible)
+
+    Returns None only when both keys are absent or the openai package is missing.
+    """
     global _openai_client
     if _openai_client is not None:
         return _openai_client
@@ -39,16 +59,71 @@ def _get_client():
             return _openai_client
         try:
             from openai import OpenAI
-            api_key = os.getenv("OPENAI_API_KEY", "").strip()
-            if not api_key:
-                return None
-            _openai_client = OpenAI(
-                api_key=api_key,
-                max_retries=0,  # we do our own retry with back-off
-            )
+
+            # ── 1. Try OpenAI ──────────────────────────────────────────────
+            openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+            if openai_key:
+                _openai_client = OpenAI(
+                    api_key=openai_key,
+                    max_retries=0,
+                )
+                _log.info("LLM client: using OpenAI (api.openai.com)")
+                return _openai_client
+
+            # ── 2. Fallback: OpenRouter ────────────────────────────────────
+            openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+            if openrouter_key:
+                extra_headers: Dict[str, str] = {}
+                site_url = os.getenv("OPENROUTER_SITE_URL", "").strip()
+                site_name = os.getenv("OPENROUTER_SITE_NAME", "SkillSight").strip()
+                if site_url:
+                    extra_headers["HTTP-Referer"] = site_url
+                if site_name:
+                    extra_headers["X-Title"] = site_name
+                _openai_client = OpenAI(
+                    api_key=openrouter_key,
+                    base_url=_OPENROUTER_BASE_URL,
+                    default_headers=extra_headers or None,
+                    max_retries=0,
+                )
+                _log.info("LLM client: using OpenRouter fallback (openrouter.ai)")
+                return _openai_client
+
+            # Neither key is set
+            return None
         except ImportError:
             return None
     return _openai_client
+
+
+def _active_model(requested_model: str) -> str:
+    """
+    Return the effective model name, honouring the active provider.
+
+    When using OpenRouter and the caller passes a bare OpenAI model name
+    (e.g. "gpt-4o-mini"), we remap it to the OpenRouter-namespaced slug
+    unless OPENROUTER_MODEL explicitly overrides it.
+    """
+    openai_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if openai_key:
+        return requested_model  # OpenAI: use as-is
+
+    openrouter_key = os.getenv("OPENROUTER_API_KEY", "").strip()
+    if openrouter_key:
+        # Allow per-call override via OPENROUTER_MODEL env var
+        override = os.getenv("OPENROUTER_MODEL", "").strip()
+        if override:
+            return override
+        # Remap bare OpenAI slugs → namespaced OpenRouter slugs
+        _remap = {
+            "gpt-4o-mini": "openai/gpt-4o-mini",
+            "gpt-4o":      "openai/gpt-4o",
+            "gpt-4":       "openai/gpt-4",
+            "gpt-3.5-turbo": "openai/gpt-3.5-turbo",
+        }
+        return _remap.get(requested_model, requested_model)
+
+    return requested_model
 
 
 def _is_retryable(exc: Exception) -> bool:
@@ -113,12 +188,13 @@ def openai_generate(
 
     client = _get_client()
     if client is None:
-        raise RuntimeError("OpenAI client not available (missing openai package or OPENAI_API_KEY)")
+        raise RuntimeError("OpenAI client not available (missing openai package or OPENAI_API_KEY or OPENROUTER_API_KEY)")
 
+    effective_model = _active_model(model)
     timeout = min(timeout_s, 120)
 
     kwargs: Dict[str, Any] = {
-        "model": model,
+        "model": effective_model,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
         "timeout": timeout,
@@ -136,7 +212,7 @@ def openai_generate(
                 usage = getattr(response, "usage", None)
                 prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
                 completion_tokens = getattr(usage, "completion_tokens", 0) or 0
-                _emit_llm_metric(model, elapsed, prompt_tokens, completion_tokens, attempt, "ok")
+                _emit_llm_metric(effective_model, elapsed, prompt_tokens, completion_tokens, attempt, "ok")
                 if not response.choices:
                     return ""
                 content = response.choices[0].message.content
@@ -145,7 +221,7 @@ def openai_generate(
                 last_exc = exc
                 is_rate_limit = _is_retryable(exc) and "429" in str(exc)
                 status = "429" if is_rate_limit else "error"
-                _emit_llm_metric(model, 0.0, 0, 0, attempt, status)
+                _emit_llm_metric(effective_model, 0.0, 0, 0, attempt, status)
                 if attempt >= _MAX_RETRIES or not _is_retryable(exc):
                     raise
                 sleep_s = _RETRY_BASE_S * (2 ** attempt) + random.uniform(0, 1)
@@ -175,20 +251,21 @@ def openai_chat(
     - stream=True: yields content chunks (generator).
     Acquires the global LLM semaphore for non-streaming calls.
     """
+    if _is_fallback_only():
+        raise RuntimeError("llm_fallback_mode")
+
     client = _get_client()
     if client is None:
-        raise RuntimeError("OpenAI client not available (missing openai package or OPENAI_API_KEY)")
+        raise RuntimeError("OpenAI client not available (missing openai package or OPENAI_API_KEY or OPENROUTER_API_KEY)")
 
+    effective_model = _active_model(model)
     timeout = min(timeout_s, 120)
     kwargs: Dict[str, Any] = {
-        "model": model,
+        "model": effective_model,
         "messages": messages,
         "temperature": temperature,
         "timeout": timeout,
     }
-
-    if _is_fallback_only():
-        raise RuntimeError("llm_fallback_mode")
 
     if stream:
         kwargs["stream"] = True
@@ -203,7 +280,7 @@ def openai_chat(
                 elapsed = time.perf_counter() - t0
                 usage = getattr(response, "usage", None)
                 _emit_llm_metric(
-                    model,
+                    effective_model,
                     elapsed,
                     getattr(usage, "prompt_tokens", 0) or 0,
                     getattr(usage, "completion_tokens", 0) or 0,
@@ -217,7 +294,7 @@ def openai_chat(
             except Exception as exc:
                 last_exc = exc
                 status = "429" if (_is_retryable(exc) and "429" in str(exc)) else "error"
-                _emit_llm_metric(model, 0.0, 0, 0, attempt, status)
+                _emit_llm_metric(effective_model, 0.0, 0, 0, attempt, status)
                 if attempt >= _MAX_RETRIES or not _is_retryable(exc):
                     raise
                 sleep_s = _RETRY_BASE_S * (2 ** attempt) + random.uniform(0, 1)
