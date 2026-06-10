@@ -3604,3 +3604,139 @@ def bff_tutor_session_end(
         detail={"mode": session.get("mode", "assessment")},
     )
     return {"success": True, "already_concluded": False}
+
+
+# ─── Dev: Seed Demo Student Data ───────────────────────────────────────────────
+
+@router.post("/dev/seed-demo")
+def bff_seed_demo(
+    db: Session = Depends(get_db),
+    ident: Identity = Depends(require_auth),
+):
+    """
+    Seed realistic skill assessments + a virtual document for the authenticated
+    demo student so job-matching and skills pages show meaningful data.
+    Safe to call multiple times (idempotent via ON CONFLICT DO NOTHING).
+    Only available when dev_login is enabled.
+    """
+    if not _is_dev_login_allowed():
+        raise HTTPException(status_code=403, detail="dev seed disabled in production")
+
+    user_id = ident.subject_id
+    now = datetime.now(timezone.utc)
+
+    # ── 1. Create a virtual demo document ──────────────────────────────────────
+    doc_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"demo-doc:{user_id}"))
+    db.execute(
+        text("""
+            INSERT INTO documents (doc_id, filename, doc_type, raw_text, created_at)
+            VALUES (CAST(:doc_id AS UUID), :filename, :doc_type, :raw_text, :now)
+            ON CONFLICT (doc_id) DO NOTHING
+        """),
+        {
+            "doc_id": doc_id,
+            "filename": "demo_resume.pdf",
+            "doc_type": "resume",
+            "raw_text": (
+                "Chen Ming — Data Science Graduate\n"
+                "Education: BSc Data Science, HKU, 2025\n"
+                "Skills: Python (pandas, scikit-learn, matplotlib), SQL, Machine Learning, "
+                "Data Visualization, Statistics, Deep Learning (PyTorch), "
+                "Natural Language Processing, Research Methods, Technical Writing, "
+                "Teamwork & Collaboration, Critical Thinking, Communication & Presentation\n"
+                "Projects: Sentiment analysis NLP pipeline; COVID-19 epidemiological model; "
+                "HKU campus energy dashboard; Peer review AI ethics study.\n"
+                "Internship: Data Analyst intern, HSBC HK – built risk reporting dashboards in Tableau & Python."
+            ),
+            "now": now,
+        },
+    )
+
+    # ── 2. Grant consent ────────────────────────────────────────────────────────
+    consent_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"demo-consent:{user_id}:{doc_id}"))
+    db.execute(
+        text("""
+            INSERT INTO consents (consent_id, user_id, doc_id, purpose, scope, status, granted_at)
+            VALUES (:cid, :uid, :doc_id, 'skill_assessment', 'full', 'granted', :now)
+            ON CONFLICT (consent_id) DO NOTHING
+        """),
+        {"cid": consent_id, "uid": user_id, "doc_id": doc_id, "now": now},
+    )
+
+    # ── 3. Seed skill proficiency records ──────────────────────────────────────
+    demo_skills = [
+        ("HKU.SKILL.DATA_ANALYSIS.v1",       "Data Analysis",                       3, "advanced"),
+        ("HKU.SKILL.PYTHON.v1",              "Python Programming",                   3, "advanced"),
+        ("HKU.SKILL.MACHINE_LEARNING.v1",    "Machine Learning",                     2, "proficient"),
+        ("HKU.SKILL.ML.v1",                  "Machine Learning",                     2, "proficient"),
+        ("HKU.SKILL.SQL.v1",                 "SQL & Databases",                      2, "proficient"),
+        ("HKU.SKILL.DATABASE.v1",            "Database Management",                  2, "proficient"),
+        ("HKU.SKILL.STATISTICS.v1",          "Statistics & Quantitative Methods",    3, "advanced"),
+        ("HKU.SKILL.DATA_VISUALIZATION.v1",  "Data Visualization",                   2, "proficient"),
+        ("HKU.SKILL.DATA_VIS.v1",            "Data Visualization",                   2, "proficient"),
+        ("HKU.SKILL.NLP.v1",                 "Natural Language Processing",          2, "proficient"),
+        ("HKU.SKILL.DEEP_LEARNING.v1",       "Deep Learning",                        1, "developing"),
+        ("HKU.SKILL.COMMUNICATION.v1",       "Communication & Presentation",         2, "proficient"),
+        ("HKU.SKILL.CRITICAL_THINKING.v1",   "Critical Thinking & Problem Solving",  2, "proficient"),
+        ("HKU.SKILL.RESEARCH.v1",            "Research Methods",                     2, "proficient"),
+        ("HKU.SKILL.RESEARCH_METHODS.v1",    "Research Methodology",                 2, "proficient"),
+        ("HKU.SKILL.TEAMWORK.v1",            "Teamwork & Collaboration",             2, "proficient"),
+        ("HKU.SKILL.COLLABORATION.v1",       "Team Collaboration",                   2, "proficient"),
+        ("HKU.SKILL.TECHNICAL_WRITING.v1",   "Technical Writing",                    1, "developing"),
+        ("HKU.SKILL.AI_ETHICS.v1",           "AI Ethics & Fairness",                 1, "developing"),
+        ("HKU.SKILL.PRESENTATION.v1",        "Presentation Skills",                  1, "developing"),
+    ]
+
+    seeded_skills = []
+    for skill_id, skill_name, level, label in demo_skills:
+        prof_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"demo-prof:{user_id}:{skill_id}"))
+        ass_id  = str(uuid.uuid5(uuid.NAMESPACE_URL, f"demo-ass:{user_id}:{skill_id}"))
+        rationale = (
+            f"Demonstrated {label} proficiency in {skill_name} through project work, "
+            "academic coursework, and internship experience in data analysis."
+        )
+        evidence_json = json.dumps([{"chunk_id": f"demo-chunk-{skill_id}", "snippet": rationale[:200]}])
+        meta_json = json.dumps({"source": "demo_seed", "seeded": True})
+
+        db.execute(
+            text("""
+                INSERT INTO skill_assessments
+                    (assessment_id, doc_id, skill_id, decision, evidence, decision_meta, created_at)
+                VALUES (:aid, :doc_id, :skill_id, :decision,
+                        CAST(:ev AS JSONB), CAST(:meta AS JSONB), :now)
+                ON CONFLICT (assessment_id) DO NOTHING
+            """),
+            {
+                "aid": ass_id, "doc_id": doc_id, "skill_id": skill_id,
+                "decision": label, "ev": evidence_json, "meta": meta_json, "now": now,
+            },
+        )
+
+        best_ev = json.dumps({"chunk_id": f"demo-chunk-{skill_id}", "snippet": rationale[:200]})
+        db.execute(
+            text("""
+                INSERT INTO skill_proficiency
+                    (prof_id, doc_id, skill_id, level, label, rationale,
+                     best_evidence, signals, meta, created_at)
+                VALUES (:pid, :doc_id, :skill_id, :level, :label, :rationale,
+                        CAST(:best_ev AS JSONB), '{}'::jsonb, CAST(:meta AS JSONB), :now)
+                ON CONFLICT (prof_id) DO NOTHING
+            """),
+            {
+                "pid": prof_id, "doc_id": doc_id, "skill_id": skill_id,
+                "level": level, "label": label, "rationale": rationale,
+                "best_ev": best_ev, "meta": meta_json, "now": now,
+            },
+        )
+        seeded_skills.append({"skill_id": skill_id, "level": level, "label": label})
+
+    db.commit()
+
+    return {
+        "ok": True,
+        "user_id": user_id,
+        "doc_id": doc_id,
+        "skills_seeded": len(seeded_skills),
+        "skills": seeded_skills,
+        "message": "Demo data seeded. Refresh the dashboard to see results.",
+    }
