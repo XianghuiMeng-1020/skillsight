@@ -541,24 +541,18 @@ def health_llm():
         return out
 
     try:
-        from backend.app.openai_client import _get_client
-        client = _get_client()
-        out["client_ok"] = client is not None
-        if client is None:
-            out["error"] = "OpenAI client could not be instantiated (check openai package)"
-            return out
-
-        # Minimal ping: 1 input token → 1 output token
-        resp = client.chat.completions.create(
+        from backend.app.openai_client import openai_chat as _llm_chat, _primary_provider
+        out["active_provider"] = _primary_provider or out["active_provider"]
+        # Minimal ping using the same code path the assessment agent uses
+        reply = _llm_chat(
+            messages=[{"role": "user", "content": "Reply with exactly: ok"}],
             model=out["model"],
-            messages=[{"role": "user", "content": "Say: ok"}],
-            max_tokens=4,
             temperature=0,
-            timeout=10,
+            timeout_s=15,
         )
-        reply = (resp.choices[0].message.content or "").strip() if resp.choices else ""
+        out["client_ok"] = True
         out["ping_ok"] = True
-        out["ping_reply"] = reply
+        out["ping_reply"] = (reply or "").strip()
         out["ok"] = True
     except Exception as exc:
         out["client_ok"] = False
